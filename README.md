@@ -3,12 +3,11 @@
 Python code that downloads an entire Imagefap favorites image collection,
 de-dups, and helps organize them.
 
-Started in 2023/January, by Daniel Balparda de Carvalho.
+Started in January/2023, by Daniel Balparda.
 
-# License
+## License
 
-Copyright (C) 2023 Daniel Balparda de Carvalho (balparda@gmail.com).
-This file is part of Irish Rail Timetable.
+Copyright (C) 2023 Daniel Balparda (balparda@gmail.com).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,17 +21,17 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see http://www.gnu.org/licenses/gpl-3.0.txt.
 
-# Setup
+## Setup
 
 Just the basic, plus `click` Python 3 packages, and Balparda's base lib:
 
 ```
-$ hg clone https://balparda@bitbucket.org/balparda/imagefap-favorites
+$ git clone https://github.com/balparda/imagefap-favorites.git
 $ sudo apt-get install python3-pip pylint3
 $ sudo pip3 install -U click sanitize_filename
 ```
 
-# Usage
+## Usage
 
 For now, just the basic download if you know the user ID, folder ID, and
 give it an output directory.
