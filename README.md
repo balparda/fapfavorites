@@ -36,7 +36,8 @@ $ sudo pip3 install -U click sanitize_filename
 Run `./imagefap-favorites.py --help` for an options and flag summary.
 
 For now, just the basic download (`get`) if you know the user ID,
-picture folder ID, and give it an output directory.
+picture folder ID, and give it an output directory. In the absence
+of an explicit directory, will default to `~/Downloads/imagefap/`.
 
 ```
 ./imagefap-favorites.py get --id 1234 --folder 5678 --output "~/somedir/"
@@ -57,13 +58,13 @@ tagging and re-organizing for re-upload:
 
 ```
 ~/                                       ==> User root dir
-~/Documents/imagefap/                    ==> App root dir
-~/Documents/imagefap/imagefap.database   ==> serialized metadadata file (see below)
-~/Documents/imagefap/blobs/              ==> raw images storage directory
-~/Documents/imagefap/blobs/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.jpg  ==> blob
-~/Documents/imagefap/blobs/3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.gif  ==> blob
+~/Downloads/imagefap/                    ==> App root dir
+~/Downloads/imagefap/imagefap.database   ==> serialized metadadata file (see below)
+~/Downloads/imagefap/blobs/              ==> raw images storage directory
+~/Downloads/imagefap/blobs/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.jpg  ==> blob
+~/Downloads/imagefap/blobs/3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.gif  ==> blob
 [... etc ... each blob is:]
-~/Documents/imagefap/blobs/[file_sha_256_hexdigest].[jpg|gif|... original type]
+~/Downloads/imagefap/blobs/[file_sha_256_hexdigest].[jpg|gif|... original type]
 ```
 
 ### Database

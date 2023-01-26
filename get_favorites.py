@@ -169,6 +169,7 @@ def _GetOperation(user_id: int, folder_id: int, output_path: str) -> None:
     folder_id: Folder ID
     output_path: Output path
   """
+  print("Excuting GET command")
   # , so get the pages of links, until they end
   logging.info('Getting all picture folder pages and IDs')
   img_list, page_num = set(), 0
@@ -189,7 +190,7 @@ def _GetOperation(user_id: int, folder_id: int, output_path: str) -> None:
   for img_id in img_list:
     total_sz += _SaveImage(*full_urls[img_id], output_path)
   # all images were downloaded, the end
-  logging.info('Saved %s to disk', base.HumanizedLength(total_sz))
+  print('Saved %d images to disk (%s)' % (len(img_list), base.HumanizedLength(total_sz)))
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -209,7 +210,7 @@ def _GetOperation(user_id: int, folder_id: int, output_path: str) -> None:
     help='The imagefap.com folder ID, as found in '
          'https://www.imagefap.com/showfavorites.php?userid=ID&folderid=FOLDER')
 @click.option(
-    '--output', '-o', 'output_path', type=click.STRING, default='.',
+    '--output', '-o', 'output_path', type=click.STRING, default='~/Downloads/imagefap/',
     help='The intended local machine output directory path, '
          'ex: "~/somedir/"; will default to current directory')
 @base.Timed('Total Imagefap get_favorites.py execution time')
@@ -256,11 +257,12 @@ def main(operation: str,
       raise AttributeError('You have to provide either the --user or the --id options')
     if not favorites_name and not folder_id:
       raise AttributeError('You have to provide either the --name or the --folder options')
-    if os.path.isdir(output_path):
+    output_path_expanded = os.path.expanduser(output_path)
+    if os.path.isdir(output_path_expanded):
       logging.info('Output directory %r already exists', output_path)
     else:
       logging.info('Creating output directory %r', output_path)
-      os.mkdir(output_path)
+      os.mkdir(output_path_expanded)
     # convert user to id and convert name to folder, if needed
     if not user_id:
       user_id = _FindID(user_name)
@@ -268,7 +270,7 @@ def main(operation: str,
       folder_id = _FindFolder(favorites_name)
     # we should now have both IDs that we need
     if operation.lower() == 'get':
-      _GetOperation(user_id, folder_id, output_path)
+      _GetOperation(user_id, folder_id, output_path_expanded)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     success_message = 'success'
