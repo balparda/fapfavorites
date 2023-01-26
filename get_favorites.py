@@ -161,11 +161,39 @@ def _SaveImage(url: str, name: str, dir_path: str) -> int:
   return sz
 
 
-@click.command()
-# see `click` module usage in:
-#   http://click.pocoo.org/5/quickstart/
-#   http://click.pocoo.org/5/options/
-#   http://click.pocoo.org/5/documentation/#help-texts
+def _GetOperation(user_id: int, folder_id: int, output_path: str) -> None:
+  """Implement `get` user operation: Straight download into a destination directory.
+
+  Args:
+    user_id: User ID
+    folder_id: Folder ID
+    output_path: Output path
+  """
+  # , so get the pages of links, until they end
+  logging.info('Getting all picture folder pages and IDs')
+  img_list, page_num = set(), 0
+  while True:
+    new_ids = _ExtractFavoriteIDs(user_id, folder_id, page_num)
+    if not new_ids:
+      break
+    img_list = img_list.union(new_ids)
+    page_num += 1
+  img_list = sorted(img_list)
+  logging.info('Found a total of %d unique image IDs in %d pages', len(img_list), page_num)
+  # convert all the IDs into full resolution URLs
+  logging.info('Getting all full resolution URLs')
+  full_urls = {id: _ExtractFullImageURL(id) for id in img_list}  # {id: (url, name)}
+  # dowload all full resolution images
+  logging.info('Get all images and save to disk')
+  total_sz = 0
+  for img_id in img_list:
+    total_sz += _SaveImage(*full_urls[img_id], output_path)
+  # all images were downloaded, the end
+  logging.info('Saved %s to disk', base.HumanizedLength(total_sz))
+
+
+@click.command()  # see `click` module usage in http://click.pocoo.org/
+@click.argument('operation', type=click.Choice(['get']))
 @click.option(
     '--user', '-u', 'user_name', type=click.STRING, default='',
     help='The imagefap.com user name, as found in https://www.imagefap.com/profile/USER')
@@ -185,12 +213,13 @@ def _SaveImage(url: str, name: str, dir_path: str) -> int:
     help='The intended local machine output directory path, '
          'ex: "~/somedir/"; will default to current directory')
 @base.Timed('Total Imagefap get_favorites.py execution time')
-def main(user_name: str,  # noqa: C901 - main() has some complexity, yes
+def main(operation: str,
+         user_name: str,
          user_id: int,
          favorites_name: str,
          folder_id: int,
-         output_path: str) -> None:
-  r"""Download one imagefap.com image favorites (picture folder).
+         output_path: str) -> None:  # noqa: D301
+  """Download one imagefap.com image favorites (picture folder).
 
   ATTENTION: The script will deliberately pace its image fetching, taking
   much longer than required to download all images. This is done so to not
@@ -206,12 +235,12 @@ def main(user_name: str,  # noqa: C901 - main() has some complexity, yes
   Typical examples:
 
   \b
-  ./imagefap-favorites.py --user "somelogin" \\
+  ./imagefap-favorites.py get --user "somelogin" \\
       --name "Random Images" --output "~/somedir/"
   (in this case the login/name is used and a specific output is given)
 
   \b
-  ./imagefap-favorites.py --id 1234 --folder 5678
+  ./imagefap-favorites.py get --id 1234 --folder 5678
   (in this case specific numerical IDs are used and
    output will be the current directory)
   """
@@ -219,7 +248,7 @@ def main(user_name: str,  # noqa: C901 - main() has some complexity, yes
   print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER   **')
   print('**   balparda@gmail.com (Daniel Balparda)    **')
   print('***********************************************')
-  success_message = 'premature end?'
+  success_message = 'premature end? user paused?'
   random.seed()
   try:
     # check inputs, create output directory if needed
@@ -237,27 +266,11 @@ def main(user_name: str,  # noqa: C901 - main() has some complexity, yes
       user_id = _FindID(user_name)
     if not folder_id:
       folder_id = _FindFolder(favorites_name)
-    # we should now have both IDs that we need, so get the pages of links, until they end
-    logging.info('Getting all picture folder pages and IDs')
-    img_list, page_num = set(), 0
-    while True:
-      new_ids = _ExtractFavoriteIDs(user_id, folder_id, page_num)
-      if not new_ids:
-        break
-      img_list = img_list.union(new_ids)
-      page_num += 1
-    img_list = sorted(img_list)
-    logging.info('Found a total of %d unique image IDs in %d pages', len(img_list), page_num)
-    # convert all the IDs into full resolution URLs
-    logging.info('Getting all full resolution URLs')
-    full_urls = {id: _ExtractFullImageURL(id) for id in img_list}  # {id: (url, name)}
-    # dowload all full resolution images
-    logging.info('Get all images and save to disk')
-    total_sz = 0
-    for img_id in img_list:
-      total_sz += _SaveImage(*full_urls[img_id], output_path)
-    # all images were downloaded, the end
-    logging.info('Saved %s to disk', base.HumanizedLength(total_sz))
+    # we should now have both IDs that we need
+    if operation.lower() == 'get':
+      _GetOperation(user_id, folder_id, output_path)
+    else:
+      raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     success_message = 'success'
   except Exception as e:
     success_message = 'error: ' + str(e)
