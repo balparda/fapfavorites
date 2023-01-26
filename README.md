@@ -126,8 +126,8 @@ from a structure like:
     # stored blob metadata: where has each blob been seen and what tags have been attached
     file_sha_256_hexdigest: {
       'loc': {
-        (imagefap_image_id-1, imagefap_full_res_url-1, imagefap_file_name-1, user_id-1, folder_id-1),
-        (imagefap_image_id-2, imagefap_full_res_url-2, imagefap_file_name-2, user_id-2, folder_id-2),
+        (imagefap_image_id-1, imagefap_full_res_url-1, imagefap_file_name_sanitized-1, user_id-1, folder_id-1),
+        (imagefap_image_id-2, imagefap_full_res_url-2, imagefap_file_name_sanitized-2, user_id-2, folder_id-2),
         ... this is a set of every occurance of the blob in the downloaded favorites ...
       }
       'tags': {tag_id-1, tag_id-2, ...}
