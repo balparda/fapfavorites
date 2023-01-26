@@ -19,7 +19,7 @@
 import logging
 import os
 import os.path
-import pdb
+# import pdb
 import random
 import re
 import time
@@ -36,9 +36,20 @@ __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
 
 
-_FAVS_URL = lambda u, f, p: ('https://www.imagefap.com/showfavorites.php?'
-                             'userid=%d&folderid=%d&page=%d') % (u, f, p)
+# the site page templates we need
+_USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
+_FAVS_URL = lambda u, p: 'https://www.imagefap.com/showfavorites.php?userid=%d&page=%d' % (u, p)
+_FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVS_URL(u, p), f)
 _IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
+
+# the regular expressions we use to navigae the pages
+_FIND_USER_ID_RE = re.compile(
+    r'<a\s+class=.blk_header.\s+href="\/showfavorites.php\?userid=([0-9]+)".*>')
+_FIND_ACTUAL_NAME = re.compile(r'<td\s+class=.blk_profile_hdr.*>(.*)\sProfile\s+<\/td>')
+_FIND_FOLDERS_RE = re.compile(
+    r'<td\s+class=.blk_favorites.><a\s+class=.blk_galleries.\s+href="'
+    r'https:\/\/www.imagefap.com\/showfavorites.php\?userid=[0-9]+'
+    r'&folderid=([0-9]+)".*>(.*)<\/a><\/td>')
 _FAV_IMG_RE = re.compile(r'<td\s+class=.blk_favorites.\s+id="img-([0-9]+)"\s+align=')
 _FULL_IMG_RE = re.compile(
     r'<img\s+id="mainPhoto".*src="(https:\/\/.*\/images\/full\/.*)">')
@@ -48,14 +59,6 @@ _IMG_NAME_RE = re.compile(
 
 class Error(base.Error):
   """Base GetFavorites exception."""
-
-
-def _FindID(user_name: str) -> int:
-  raise NotImplementedError()
-
-
-def _FindFolder(favorites_name: str) -> int:
-  raise NotImplementedError()
 
 
 def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> bytes:
@@ -84,6 +87,61 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
     raise Error('Invalid URL: %s (%s)' % (url, e)) from e
 
 
+def _FindID(user_name: str) -> tuple[int, str]:
+  """Convert user name into user ID by invoking the user's homepage.
+
+  Args:
+    user_name: The given user name
+
+  Returns:
+    (int user ID, actual user name)
+
+  Raises:
+    Error: if conversion failed
+  """
+  url = _USER_PAGE_URL(user_name)
+  logging.info('Fetching user page: %s', url)
+  user_html = _LimpingURLRead(url).decode('utf-8')
+  user_ids = _FIND_USER_ID_RE.findall(user_html)
+  if len(user_ids) != 1:
+    raise Error('Could not find ID for user %r' % user_name)
+  uid = int(user_ids[0])
+  actual_name = _FIND_ACTUAL_NAME.findall(user_html)
+  if len(actual_name) != 1:
+    raise Error('Could not find actual display name for user %r' % user_name)
+  logging.info('User %r = ID %d', actual_name[0], uid)
+  return (uid, actual_name[0])
+
+
+def _FindFolder(user_id: int, favorites_name: str) -> tuple[int, str]:
+  """Convert picture folder name into folder ID by finding it.
+
+  Args:
+    user_id: The user's int ID
+    favorites_name: The given picture folder name
+
+  Returns:
+    (int picture folder ID, actual folder name)
+
+  Raises:
+    Error: if conversion failed
+  """
+  page_num = 0
+  while True:
+    url = _FAVS_URL(user_id, page_num)
+    logging.info('Fetching favorites page: %s', url)
+    fav_html = _LimpingURLRead(url).decode('utf-8')
+    favs_page: list[tuple[str, str]] = _FIND_FOLDERS_RE.findall(fav_html)
+    if not favs_page:
+      raise Error('Could not find picture folder %r for user %d' % (favorites_name, user_id))
+    for fid, fname in favs_page:
+      if fname.lower() == favorites_name.lower():
+        # found it!
+        logging.info('Picture folder %r = ID %d', fname, int(fid))
+        return (int(fid), fname)
+    page_num += 1
+
+
 def _ExtractFavoriteIDs(user_id: int, folder_id: int, page_num: int) -> set[int]:
   """Get numerical IDs of all images in a picture folder by URL.
 
@@ -95,7 +153,7 @@ def _ExtractFavoriteIDs(user_id: int, folder_id: int, page_num: int) -> set[int]
   Returns:
     set of integer image IDs; empty set on URL error or last (empty) page
   """
-  url = _FAVS_URL(user_id, folder_id, page_num)
+  url = _FOLDER_URL(user_id, folder_id, page_num)
   logging.info('Fetching favorites page: %s', url)
   try:
     fav_html = _LimpingURLRead(url).decode('utf-8')
@@ -124,7 +182,6 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str]:
   img_html = _LimpingURLRead(url).decode('utf-8')
   full_res_urls = _FULL_IMG_RE.findall(img_html)
   if not full_res_urls:
-    pdb.set_trace()
     raise Error('No full resolution image in %s' % url)
   img_name = _IMG_NAME_RE.findall(img_html)
   if not img_name:
@@ -197,14 +254,16 @@ def _GetOperation(user_id: int, folder_id: int, output_path: str) -> None:
 @click.argument('operation', type=click.Choice(['get']))
 @click.option(
     '--user', '-u', 'user_name', type=click.STRING, default='',
-    help='The imagefap.com user name, as found in https://www.imagefap.com/profile/USER')
+    help='The imagefap.com user name, as found in https://www.imagefap.com/profile/USER; '
+         'we can\'t yet properly deal with HTML escaping names, so be aware of this')
 @click.option(
     '--id', '-i', 'user_id', type=click.INT, default=0,
     help='The imagefap.com user ID, as found in '
          'https://www.imagefap.com/showfavorites.php?userid=ID&folderid=FOLDER')
 @click.option(
     '--name', '-n', 'favorites_name', type=click.STRING, default='',
-    help='The user\'s image favorites (picture folder) name, ex: "Random Images"')
+    help='The user\'s image favorites (picture folder) name, ex: "Random Images"; '
+         'we can\'t yet properly deal with HTML escaping names, so be aware of this')
 @click.option(
     '--folder', '-f', 'folder_id', type=click.INT, default=0,
     help='The imagefap.com folder ID, as found in '
@@ -213,13 +272,18 @@ def _GetOperation(user_id: int, folder_id: int, output_path: str) -> None:
     '--output', '-o', 'output_path', type=click.STRING, default='~/Downloads/imagefap/',
     help='The intended local machine output directory path, '
          'ex: "~/somedir/"; will default to current directory')
+@click.option(
+    '--db/--no-db', 'make_db', default=True,
+    help='Save a imagefap.database file to output? Default is yes (--db). '
+         'Keeping this option on will avoid duplication of download effort.')
 @base.Timed('Total Imagefap get_favorites.py execution time')
 def main(operation: str,
          user_name: str,
          user_id: int,
          favorites_name: str,
          folder_id: int,
-         output_path: str) -> None:  # noqa: D301
+         output_path: str,
+         make_db: bool) -> None:  # noqa: D301
   """Download one imagefap.com image favorites (picture folder).
 
   ATTENTION: The script will deliberately pace its image fetching, taking
@@ -265,9 +329,9 @@ def main(operation: str,
       os.mkdir(output_path_expanded)
     # convert user to id and convert name to folder, if needed
     if not user_id:
-      user_id = _FindID(user_name)
+      user_id = _FindID(user_name)[0]
     if not folder_id:
-      folder_id = _FindFolder(favorites_name)
+      folder_id = _FindFolder(user_id, favorites_name)[0]
     # we should now have both IDs that we need
     if operation.lower() == 'get':
       _GetOperation(user_id, folder_id, output_path_expanded)

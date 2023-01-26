@@ -35,9 +35,30 @@ $ sudo pip3 install -U click sanitize_filename
 
 Run `./imagefap-favorites.py --help` for an options and flag summary.
 
-For now, just the basic download (`get`) if you know the user ID,
-picture folder ID, and give it an output directory. In the absence
+### GET command
+
+For now, just the basic download (`get`) if you know the user ID
+(or user name), picture folder ID (or picture folder name),
+and give it an output directory. We can't yet properly deal with HTML
+escaping names, so be aware of this. In the absence
 of an explicit directory, will default to `~/Downloads/imagefap/`.
+This command defaults to preserving file names and just straight
+saving them to disk instead of saving them as blobs. It will create
+a simple database file that, if kept in the directory, will avoid
+having to do repeated work for known images. You can disable the
+database file creation with the `--no-db` option.
+
+This example will find the user "dirtyperv8000" and the favorite
+gallery "twinks pics" and download all images to the default directory
+(`~/Downloads/imagefap/`). The names are case insensitive and the
+script will figure out the correct casing as it loads the IDs:
+
+```
+./imagefap-favorites.py get --user dirtyperv8000 --folder "twinks pics"
+```
+
+This example will get folder 5678 of user 1234 and place them in
+the given directory `~/somedir/`:
 
 ```
 ./imagefap-favorites.py get --id 1234 --folder 5678 --output "~/somedir/"
