@@ -42,7 +42,7 @@ _FAVS_URL = lambda u, p: 'https://www.imagefap.com/showfavorites.php?userid=%d&p
 _FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVS_URL(u, p), f)
 _IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
 
-# the regular expressions we use to navigae the pages
+# the regular expressions we use to navigate the pages
 _FIND_USER_ID_RE = re.compile(
     r'<a\s+class=.blk_header.\s+href="\/showfavorites.php\?userid=([0-9]+)".*>')
 _FIND_ACTUAL_NAME = re.compile(r'<td\s+class=.blk_profile_hdr.*>(.*)\sProfile\s+<\/td>')
@@ -227,7 +227,7 @@ def _GetOperation(user_id: int, folder_id: int, output_path: str) -> None:
     output_path: Output path
   """
   print("Excuting GET command")
-  # , so get the pages of links, until they end
+  # get the pages of links, until they end
   logging.info('Getting all picture folder pages and IDs')
   img_list, page_num = set(), 0
   while True:

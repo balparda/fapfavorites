@@ -23,9 +23,11 @@ along with this program. If not, see http://www.gnu.org/licenses/gpl-3.0.txt.
 
 ## Setup
 
-Just the basic, plus `click` Python 3 packages, and Balparda's base lib:
+Just the basics, plus a few Python 3 packages, and Balparda's base library.
+See below:
 
 ```
+$ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/imagefap-favorites.git
 $ sudo apt-get install python3-pip pylint3
 $ sudo pip3 install -U click sanitize_filename
