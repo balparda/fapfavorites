@@ -143,7 +143,8 @@ def main(operation: str,
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # save DB and end
-    database.Save(db_path)
+    if make_db:
+      database.Save(db_path)
     success_message = 'success'
   except Exception as e:
     success_message = 'error: ' + str(e)
