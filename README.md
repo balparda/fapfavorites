@@ -172,6 +172,7 @@ from a structure like:
     # stores the user-defined tags for later image re-shuffle
     tag_id: {
       'name': tag_name,
+      'type': 'u'|'g'|'c',  # 'u' for user name; 'g' for gallery name; 'c' for custom (user defined)
       'tags': {}  # None, or a nested dict of sub-tags, just like the top one
     }
   }

@@ -156,7 +156,7 @@ class FapDatabase():
     return self._db['favorites']
 
   @property
-  def _tags(self) -> dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]:
+  def _tags(self) -> dict[int, dict[Literal['name', 'type', 'tags'], Union[str, dict]]]:
     return self._db['tags']
 
   @property
