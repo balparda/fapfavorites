@@ -80,8 +80,9 @@ def _GetOperation(database: fapdata.FapDatabase,
          'ex: "~/somedir/"; will default to current directory')
 @click.option(
     '--db/--no-db', 'make_db', default=True,
-    help='Save a imagefap.database file to output? Default is yes (--db). '
-         'Keeping this option on will avoid duplication of download effort.')
+    help='Save a imagefap.database file to output? Default is yes (--db); '
+         'keeping this option on will avoid duplication of download effort; '
+         'you can\'t disable the DB for the `read` command')
 @base.Timed('Total Imagefap get_favorites.py execution time')
 def main(operation: str,  # noqa: C901
          user_name: str,
@@ -129,7 +130,7 @@ def main(operation: str,  # noqa: C901
   success_message = 'premature end? user paused?'
   random.seed()
   try:
-    # check inputs, create output directory if needed
+    # check inputs
     if not user_name and not user_id:
       raise AttributeError('You have to provide either the --user or the --id options')
     if user_name and user_id:
@@ -138,6 +139,9 @@ def main(operation: str,  # noqa: C901
       raise AttributeError('You have to provide either the --name or the --folder options')
     if favorites_name and folder_id:
       raise AttributeError('You should not provide both the --name and the --folder options')
+    if not make_db and operation.lower() == 'read':
+      raise AttributeError('The `read` command requires a database (--db option)')
+    # create output directory if needed
     output_path_expanded = os.path.expanduser(output_path)
     if os.path.isdir(output_path_expanded):
       logging.info('Output directory %r already exists', output_path)
@@ -145,6 +149,7 @@ def main(operation: str,  # noqa: C901
       logging.info('Creating output directory %r', output_path)
       os.mkdir(output_path_expanded)
     db_path = os.path.join(output_path_expanded, _DEFAULT_DB_NAME)
+    # load database, if any
     database = fapdata.FapDatabase(db_path)
     database.Load()
     # convert user to id and convert name to folder, if needed
