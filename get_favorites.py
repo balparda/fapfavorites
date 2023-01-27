@@ -70,8 +70,6 @@ def _ReadOperation(database: fapdata.FapDatabase,
     folder_id: Folder ID
     blob_path: Blob directory path
   """
-  if not folder_id:
-    raise NotImplementedError('for now, only one favorites folder at a time...')
   # create blob directory, if needed
   if os.path.isdir(blob_path):
     logging.info('Blob directory %r already exists', blob_path)
@@ -80,9 +78,11 @@ def _ReadOperation(database: fapdata.FapDatabase,
     os.mkdir(blob_path)
   # start
   print("Executing READ command")
-  database.AddFolderPics(user_id, folder_id)
-  database.DownloadFavorites(
-      user_id, folder_id, blob_path, checkpoint_size=_CHECKPOINT_LENGTH, save_as_blob=True)
+  found_folder_ids: set[int] = {folder_id} if folder_id else database.AddAllUserFolders(user_id)
+  for f_id in sorted(found_folder_ids):
+    database.AddFolderPics(user_id, f_id)
+    database.DownloadFavorites(
+        user_id, f_id, blob_path, checkpoint_size=_CHECKPOINT_LENGTH, save_as_blob=True)
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/

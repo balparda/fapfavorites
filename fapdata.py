@@ -17,6 +17,7 @@
 """Imagefap.com database."""
 
 import hashlib
+import html
 import logging
 import os
 import os.path
@@ -51,7 +52,7 @@ _PAGE_BACKTRACKING_THRESHOLD = 5
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
 _FAVORITES_URL = (
     lambda u, p: 'https://www.imagefap.com/showfavorites.php?userid=%d&page=%d' % (u, p))
-_FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVORITES_URL(u, p), f)
+_FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVORITES_URL(u, p), f)  # cspell:disable-line
 _IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
 
 # the regular expressions we use to navigate the pages
@@ -60,15 +61,15 @@ _FIND_ONLY_IN_GALLERIES_FOLDER = re.compile(
     r'<td\s+class=.blk_favorites_hdr.*<b>Gallery Name<\/span>')
 _FIND_NAME_IN_FAVORITES = re.compile(
     r'<a\s+class=.blk_header.\s+href="\/profile\.php\?user=(.*)"\s+style="')
-_FIND_USER_ID_RE = re.compile(
+_FIND_USER_ID_RE = re.compile(  # cspell:disable-next-line
     r'<a\s+class=.blk_header.\s+href="\/showfavorites.php\?userid=([0-9]+)".*>')
 _FIND_ACTUAL_NAME = re.compile(r'<td\s+class=.blk_profile_hdr.*>(.*)\sProfile\s+<\/td>')
 _FIND_NAME_IN_FOLDER = re.compile(
     r'<a\s+class=.blk_favorites.\s+href=".*none;">(.*)<\/a><\/td><\/tr>')
 _FIND_FOLDERS = re.compile(
     r'<td\s+class=.blk_favorites.><a\s+class=.blk_galleries.\s+href="'
-    r'https:\/\/www.imagefap.com\/showfavorites.php\?userid=[0-9]+'
-    r'&folderid=([0-9]+)".*>(.*)<\/a><\/td>')
+    r'https:\/\/www.imagefap.com\/showfavorites.php\?userid=[0-9]+'  # cspell:disable-line
+    r'&folderid=([0-9]+)".*>(.*)<\/a><\/td>')                        # cspell:disable-line
 _FAVORITE_IMAGE = re.compile(r'<td\s+class=.blk_favorites.\s+id="img-([0-9]+)"\s+align=')
 _FULL_IMAGE = re.compile(
     r'<img\s+id="mainPhoto".*src="(https:\/\/.*\/images\/full\/.*)">')
@@ -117,8 +118,8 @@ def _CheckFolderIsForImages(user_id: int, folder_id: int) -> None:
     Error: if folder is not an image folder (i.e. it might be a galleries folder)
   """
   url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder's 1st page
-  logging.info('Fetching favorites to check *not* a galleries folder: %s', url)
-  folder_html = LimpingURLRead(url).decode('utf-8')
+  logging.debug('Fetching favorites to check *not* a galleries folder: %s', url)
+  folder_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
   should_have = _FIND_ONLY_IN_PICTURE_FOLDER.findall(folder_html)
   should_not_have = _FIND_ONLY_IN_GALLERIES_FOLDER.findall(folder_html)
   if should_not_have or not should_have:
@@ -205,11 +206,11 @@ class FapDatabase():
       status = 'New'
       url = _FAVORITES_URL(user_id, 0)  # use the favorites page
       logging.info('Fetching favorites page: %s', url)
-      user_html = LimpingURLRead(url).decode('utf-8')
+      user_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
       user_names = _FIND_NAME_IN_FAVORITES.findall(user_html)
       if len(user_names) != 1:
         raise Error('Could not find user name for %d' % user_id)
-      self._users[user_id] = user_names[0]
+      self._users[user_id] = html.unescape(user_names[0])
     logging.info('%s user ID %d = %r', status, user_id, self._users[user_id])
     return self._users[user_id]
 
@@ -233,7 +234,7 @@ class FapDatabase():
     # not found: we have to find in actual site
     url = _USER_PAGE_URL(user_name)
     logging.info('Fetching user page: %s', url)
-    user_html = LimpingURLRead(url).decode('utf-8')
+    user_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
     user_ids = _FIND_USER_ID_RE.findall(user_html)
     if len(user_ids) != 1:
       raise Error('Could not find ID for user %r' % user_name)
@@ -241,9 +242,9 @@ class FapDatabase():
     actual_name = _FIND_ACTUAL_NAME.findall(user_html)
     if len(actual_name) != 1:
       raise Error('Could not find actual display name for user %r' % user_name)
-    logging.info('New user %r = ID %d', actual_name[0], uid)
-    self._users[uid] = actual_name[0]
-    return (uid, actual_name[0])
+    self._users[uid] = html.unescape(actual_name[0])
+    logging.info('New user %r = ID %d', self._users[uid], uid)
+    return (uid, self._users[uid])
 
   def AddFolderByID(self, user_id: int, folder_id: int) -> str:
     """Add folder by ID and find folder name in the process.
@@ -264,13 +265,13 @@ class FapDatabase():
       status = 'New'
       url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder page
       logging.info('Fetching favorites page: %s', url)
-      folder_html = LimpingURLRead(url).decode('utf-8')
+      folder_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
       folder_names = _FIND_NAME_IN_FOLDER.findall(folder_html)
       if len(folder_names) != 1:
         raise Error('Could not find folder name for %d/%d' % (user_id, folder_id))
       _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
       self._favorites.setdefault(user_id, {})[folder_id] = {
-          'name': folder_names[0], 'pages': 0, 'images': []}
+          'name': html.unescape(folder_names[0]), 'pages': 0, 'images': []}
     logging.info('%s folder ID %d/%d = %r',
                  status, user_id, folder_id, self._favorites[user_id][folder_id]['name'])
     return self._favorites[user_id][folder_id]['name']  # type: ignore
@@ -299,19 +300,65 @@ class FapDatabase():
     while True:
       url = _FAVORITES_URL(user_id, page_num)
       logging.info('Fetching favorites page: %s', url)
-      fav_html = LimpingURLRead(url).decode('utf-8')
+      fav_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
       favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
       if not favorites_page:
         raise Error('Could not find picture folder %r for user %d' % (favorites_name, user_id))
-      for fid, fname in favorites_page:
-        i_fid = int(fid)
-        if fname.lower() == favorites_name.lower():
+      for f_id, f_name in favorites_page:
+        i_f_id, f_name = int(f_id), html.unescape(f_name)
+        if f_name.lower() == favorites_name.lower():
           # found it!
-          _CheckFolderIsForImages(user_id, i_fid)  # raises Error if not valid
-          self._favorites.setdefault(user_id, {})[i_fid] = {'name': fname, 'pages': 0, 'images': []}
-          logging.info('New picture folder %r = ID %d', fname, i_fid)
-          return (i_fid, fname)
+          _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
+          self._favorites.setdefault(user_id, {})[i_f_id] = {
+              'name': f_name, 'pages': 0, 'images': []}
+          logging.info('New picture folder %r = ID %d', f_name, i_f_id)
+          return (i_f_id, f_name)
       page_num += 1
+
+  def AddAllUserFolders(self, user_id: int) -> set[int]:
+    """Add all user's folders that are images galleries.
+
+    Args:
+      user_id: The user's int ID
+
+    Returns:
+      set of int folder IDs
+    """
+    page_num, found_folder_ids, known_favorites, non_galleries = 0, set(), 0, 0
+    self._favorites.setdefault(user_id, {})  # just to make sure user is in _favorites
+    while True:
+      url = _FAVORITES_URL(user_id, page_num)
+      logging.info('Fetching favorites page: %s', url)
+      fav_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
+      favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
+      if not favorites_page:
+        break  # no favorites found, so we passed the last page
+      for f_id, f_name in favorites_page:
+        i_f_id, f_name = int(f_id), html.unescape(f_name)
+        # first check if we know it (for speed)
+        if i_f_id in self._favorites[user_id]:
+          # we already know of this gallery
+          logging.info('Known picture folder %r (ID %d)', f_name, i_f_id)
+          found_folder_ids.add(i_f_id)
+          known_favorites += 1
+          continue
+        # check if we can accept it as a images gallery
+        try:
+          _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
+        except base.Error:
+          # this is a galleries favorite, so we can skip: we want images gallery!
+          logging.info('Discarded galleries folder %r (ID %d)', f_name, i_f_id)
+          non_galleries += 1
+          continue
+        # we seem to have a valid new favorite here
+        found_folder_ids.add(i_f_id)
+        self._favorites[user_id][i_f_id] = {'name': f_name, 'pages': 0, 'images': []}
+        logging.info('New picture folder %r (ID %d)', f_name, i_f_id)
+      page_num += 1
+    logging.info('Found %d total favorite galleries in %d pages (%d were already known; '
+                 'also, %d non-image galleries were skipped)',
+                 len(found_folder_ids), page_num, known_favorites, non_galleries)
+    return found_folder_ids
 
   def AddFolderPics(self, user_id: int, folder_id: int) -> list[int]:  # noqa: C901
     """Read a folder and collect/compile all image IDs that are found, for all pages.
@@ -344,7 +391,7 @@ class FapDatabase():
       """
       url = _FOLDER_URL(user_id, folder_id, page_num)
       logging.info('Fetching favorites page: %s', url)
-      fav_html = LimpingURLRead(url).decode('utf-8')
+      fav_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
       ids = [int(id) for id in _FAVORITE_IMAGE.findall(fav_html)]
       logging.info('Got %d image IDs', len(ids))
       return ids
@@ -422,7 +469,7 @@ class FapDatabase():
       """
       url = _IMG_URL(img_id)
       logging.info('Fetching image page: %s', url)
-      img_html = LimpingURLRead(url).decode('utf-8')
+      img_html = LimpingURLRead(url).decode('utf-8', errors='ignore')
       full_res_urls = _FULL_IMAGE.findall(img_html)
       if not full_res_urls:
         raise Error('No full resolution image in %s' % url)
