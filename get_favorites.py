@@ -133,9 +133,13 @@ def main(operation: str,
     db_path = os.path.join(output_path_expanded, _DEFAULT_DB_NAME)
     database.Load(db_path)
     # convert user to id and convert name to folder, if needed
-    if not user_id:
+    if user_id:
+      database.AddUserByID(user_id)
+    else:
       user_id = database.AddUserByName(user_name)[0]
-    if not folder_id:
+    if folder_id:
+      database.AddFolderByID(user_id, folder_id)
+    else:
       folder_id = database.AddFolderByName(user_id, favorites_name)[0]
     # we should now have both IDs that we need
     if operation.lower() == 'get':

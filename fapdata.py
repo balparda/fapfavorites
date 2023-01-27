@@ -24,6 +24,7 @@ import os.path
 import random
 import re
 import time
+from typing import Literal, Union
 import urllib.error
 import urllib.request
 
@@ -43,6 +44,7 @@ _DB_MAIN_KEYS = {
     'blobs',
     'imageidsidx',
 }
+_DB_KEY = Literal['users', 'favorites', 'tags', 'blobs', 'imageidsidx']
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -51,9 +53,13 @@ _FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVS_URL(u, p), f)
 _IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
 
 # the regular expressions we use to navigate the pages
+_FIND_NAME_IN_FAVS = re.compile(
+    r'<a\s+class=.blk_header.\s+href="\/profile\.php\?user=(.*)"\s+style="')
 _FIND_USER_ID_RE = re.compile(
     r'<a\s+class=.blk_header.\s+href="\/showfavorites.php\?userid=([0-9]+)".*>')
 _FIND_ACTUAL_NAME = re.compile(r'<td\s+class=.blk_profile_hdr.*>(.*)\sProfile\s+<\/td>')
+_FIND_NAME_IN_FOLDER = re.compile(
+    r'<a\s+class=.blk_favorites.\s+href=".*none;">(.*)<\/a><\/td><\/tr>')
 _FIND_FOLDERS_RE = re.compile(
     r'<td\s+class=.blk_favorites.><a\s+class=.blk_galleries.\s+href="'
     r'https:\/\/www.imagefap.com\/showfavorites.php\?userid=[0-9]+'
@@ -101,9 +107,31 @@ class FapDatabase():
   def __init__(self):
     """Construct a clean database."""
     # start with a clean DB; see README.md for format
-    self._db: dict[str, dict] = {}
+    self._db: dict[_DB_KEY, dict] = {}
     for k in _DB_MAIN_KEYS:  # creates the main expected key entries
-      self._db[k] = {}
+      self._db[k] = {}  # type: ignore
+
+  @property
+  def _users(self) -> dict[int, str]:
+    return self._db['users']
+
+  @property
+  def _favorites(self) -> dict[int, dict[int, dict[Literal['name', 'images'],
+                                                   Union[str, list[int]]]]]:
+    return self._db['favorites']
+
+  @property
+  def _tags(self) -> dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]:
+    return self._db['tags']
+
+  @property
+  def _blobs(self) -> dict[str, dict[Literal['loc', 'tags'],
+                                     set[Union[int, tuple[int, str, str, int, int]]]]]:
+    return self._db['blobs']
+
+  @property
+  def _imageidsidx(self) -> dict[int, str]:
+    return self._db['imageidsidx']
 
   def Load(self, path: str) -> None:
     """Load DB from file.
@@ -132,8 +160,34 @@ class FapDatabase():
     base.BinSerialize(self._db, path)
     logging.info('Saved DB to %r', path)
 
+  def AddUserByID(self, user_id: int) -> str:
+    """Add user by ID and find user name in the process.
+
+    Args:
+      user_id: The user ID
+
+    Returns:
+      actual user name
+
+    Raises:
+      Error: if conversion failed
+    """
+    if user_id in self._users:
+      status = 'Known'
+    else:
+      status = 'New'
+      url = _FAVS_URL(user_id, 0)  # use the favs page
+      logging.info('Fetching favorites page: %s', url)
+      user_html = LimpingURLRead(url).decode('utf-8')
+      user_names = _FIND_NAME_IN_FAVS.findall(user_html)
+      if len(user_names) != 1:
+        raise Error('Could not find user name for %d' % user_id)
+      self._users[user_id] = user_names[0]
+    logging.info('%s user ID %d = %r', status, user_id, self._users[user_id])
+    return self._users[user_id]
+
   def AddUserByName(self, user_name: str) -> tuple[int, str]:
-    """Convert user name into user ID by invoking the user's homepage.
+    """Add user by handle. Find user ID in the process.
 
     Args:
       user_name: The given user name
@@ -144,6 +198,12 @@ class FapDatabase():
     Raises:
       Error: if conversion failed
     """
+    # first try to find in DB
+    for uid, unm in self._users.items():
+      if unm.lower() == user_name.lower():
+        logging.info('Known user %r = ID %d', unm, uid)
+        return (uid, unm)
+    # not found: we have to find in actual site
     url = _USER_PAGE_URL(user_name)
     logging.info('Fetching user page: %s', url)
     user_html = LimpingURLRead(url).decode('utf-8')
@@ -154,12 +214,41 @@ class FapDatabase():
     actual_name = _FIND_ACTUAL_NAME.findall(user_html)
     if len(actual_name) != 1:
       raise Error('Could not find actual display name for user %r' % user_name)
-    logging.info('User %r = ID %d', actual_name[0], uid)
-    self._db['users'][uid] = actual_name[0]
+    logging.info('New user %r = ID %d', actual_name[0], uid)
+    self._users[uid] = actual_name[0]
     return (uid, actual_name[0])
 
+  def AddFolderByID(self, user_id: int, folder_id: int) -> str:
+    """Add folder by ID and find folder name in the process.
+
+    Args:
+      user_id: User int ID
+      folder_id: Folder int ID
+
+    Returns:
+      actual folder name
+
+    Raises:
+      Error: if conversion failed
+    """
+    if folder_id in self._favorites.get(user_id, {}):
+      status = 'Known'
+    else:
+      status = 'New'
+      url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder page
+      logging.info('Fetching favorites page: %s', url)
+      folder_html = LimpingURLRead(url).decode('utf-8')
+      folder_names = _FIND_NAME_IN_FOLDER.findall(folder_html)
+      if len(folder_names) != 1:
+        raise Error('Could not find folder name for %d/%d' % (user_id, folder_id))
+      self._favorites.setdefault(user_id, {})[folder_id] = {
+          'name': folder_names[0], 'images': []}
+    logging.info('%s folder ID %d/%d = %r',
+                 status, user_id, folder_id, self._favorites[user_id][folder_id]['name'])
+    return self._favorites[user_id][folder_id]['name']  # type: ignore
+
   def AddFolderByName(self, user_id: int, favorites_name: str) -> tuple[int, str]:
-    """Convert picture folder name into folder ID by finding it.
+    """Add picture folder by name. Find folder ID in the process.
 
     Args:
       user_id: The user's int ID
@@ -171,6 +260,13 @@ class FapDatabase():
     Raises:
       Error: if conversion failed
     """
+    # first try to find in DB
+    if user_id in self._favorites:
+      for fid, fdata in self._favorites[user_id].items():
+        if fdata['name'].lower() == favorites_name.lower():  # type: ignore
+          logging.info('Known picture folder %r = ID %d', fdata['name'], fid)
+          return (fid, fdata['name'])  # type: ignore
+    # not found: we have to find in actual site
     page_num = 0
     while True:
       url = _FAVS_URL(user_id, page_num)
@@ -182,13 +278,16 @@ class FapDatabase():
       for fid, fname in favs_page:
         if fname.lower() == favorites_name.lower():
           # found it!
-          logging.info('Picture folder %r = ID %d', fname, int(fid))
-          self._db['favorites'].setdefault(user_id, {})[int(fid)] = {'name': fname, 'images': []}
+          self._favorites.setdefault(user_id, {})[int(fid)] = {'name': fname, 'images': []}
+          logging.info('New picture folder %r = ID %d', fname, int(fid))
           return (int(fid), fname)
       page_num += 1
 
   def AddFolderPics(self, user_id: int, folder_id: int) -> list[int]:
     """Read a folder and collect/compile all image IDs that are found, for all pages.
+
+    This always goes through all favorite pages, as we want to always
+    find new images, and it counts how many are new.
 
     Args:
       user_id: User int ID
@@ -198,8 +297,8 @@ class FapDatabase():
       list of all image ids
     """
     logging.info('Getting all picture folder pages and IDs for %d/%d', user_id, folder_id)
-    img_list = self._db['favorites'].setdefault(user_id, {}).setdefault(
-        folder_id, {'name': '???', 'images': []})['images']
+    img_list: list[int] = self._favorites.setdefault(user_id, {}).setdefault(
+        folder_id, {'name': '???', 'images': []})['images']  # type: ignore
     img_set = set(img_list)
 
     def _ExtractFavoriteIDs(page_num: int) -> list[int]:
@@ -219,7 +318,7 @@ class FapDatabase():
       return ids
 
     # get the pages of links, until they end
-    page_num = 0
+    page_num, new_count = 0, 0
     while True:
       new_ids = _ExtractFavoriteIDs(page_num)
       if not new_ids:
@@ -228,12 +327,14 @@ class FapDatabase():
       for i in new_ids:
         if i not in img_set:
           img_list.append(i)
+          new_count += 1
       img_set = set(img_list)
       page_num += 1
-    logging.info('Found a total of %d image IDs in %d pages', len(img_list), page_num)
+    logging.info('Found a total of %d image IDs in %d pages (%d are new in DB)',
+                 len(img_list), page_num, new_count)
     return img_list
 
-  def DownloadFavs(self, user_id: int, folder_id: int, output_path: str) -> int:
+  def DownloadFavs(self, user_id: int, folder_id: int, output_path: str) -> int:  # noqa: C901
     """Actually get the images in a picture folder.
 
     Args:
@@ -245,9 +346,8 @@ class FapDatabase():
       int size of all bytes downloaded
     """
     logging.info('Downloading all images in folder %d/%d', user_id, folder_id)
-    img_list = self._db['favorites'].setdefault(user_id, {}).setdefault(
-        folder_id, {'name': '???', 'images': []})['images']
-    blobs, imageidsidx = self._db['blobs'], self._db['imageidsidx']
+    img_list: list[int] = self._favorites.setdefault(user_id, {}).setdefault(
+        folder_id, {'name': '???', 'images': []})['images']  # type: ignore
 
     def _ExtractFullImageURL(img_id: int) -> tuple[str, str]:
       """Get URL path of the full resolution image by image ID.
@@ -301,15 +401,38 @@ class FapDatabase():
       logging.info('Got %s for image %s (%s)', base.HumanizedLength(sz), full_path, sha)
       return (sha, sz, new_name)
 
-    # dowload all full resolution images
-    total_sz = 0
+    # dowload all full resolution images we don't yet have
+    total_sz, saved_count, known_count, dup_count = 0, 0, 0, 0
     for img_id in img_list:
+      # figure out if we have it
+      sha = self._imageidsidx.get(img_id, None)
+      if sha is not None:
+        found = False
+        for _, _, _, uid, fid in self._blobs[sha]['loc']:  # type: ignore
+          if user_id == uid and folder_id == fid:
+            # this is an exact match and can be safely skipped
+            found = True
+            break
+        if found:
+          known_count += 1
+          continue
+      # get the image's full resolution URL
       url_path, full_name = _ExtractFullImageURL(img_id)
-      sha, sz, new_name = _SaveImage(url_path, full_name, output_path)
-      blobs.setdefault(sha, {'loc': set(), 'tags': set()})['loc'].add(
-          (img_id, url_path, new_name, user_id, folder_id))
-      imageidsidx[img_id] = sha
-      total_sz += sz
+      if sha is None:
+        # we never saw this image, so we create a full entry
+        sha, sz, new_name = _SaveImage(url_path, full_name, output_path)
+        self._blobs.setdefault(sha, {'loc': set(), 'tags': set()})['loc'].add(
+            (img_id, url_path, new_name, user_id, folder_id))
+        self._imageidsidx[img_id] = sha
+        total_sz += sz
+        saved_count += 1
+      else:
+        # we have this image in a blob, so we only update the blob indexing
+        self._blobs[sha]['loc'].add((img_id, url_path, full_name, user_id, folder_id))
+        dup_count += 1
     # all images were downloaded, the end
-    print('Saved %d images to disk (%s)' % (len(img_list), base.HumanizedLength(total_sz)))
+    print(
+        'Saved %d images to disk (%s); also %d images were already in DB and '
+        '%d images were duplicates from other albums' % (
+            saved_count, base.HumanizedLength(total_sz), known_count, dup_count))
     return total_sz
