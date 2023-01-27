@@ -32,11 +32,6 @@ __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
 
 
-_DEFAULT_DB_NAME = 'imagefap.database'
-_DEFAULT_BLOB_DIR_NAME = 'blobs/'
-_CHECKPOINT_LENGTH = 10
-
-
 def _GetOperation(database: fapdata.FapDatabase,
                   user_id: int,
                   folder_id: int,
@@ -55,7 +50,7 @@ def _GetOperation(database: fapdata.FapDatabase,
   database.AddFolderPics(user_id, folder_id)
   database.DownloadFavorites(
       user_id, folder_id, output_path,
-      checkpoint_size=(_CHECKPOINT_LENGTH if make_db else 0), save_as_blob=False)
+      checkpoint_size=(fapdata.CHECKPOINT_LENGTH if make_db else 0), save_as_blob=False)
 
 
 def _ReadOperation(database: fapdata.FapDatabase,
@@ -82,7 +77,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
   for f_id in sorted(found_folder_ids):
     database.AddFolderPics(user_id, f_id)
     database.DownloadFavorites(
-        user_id, f_id, blob_path, checkpoint_size=_CHECKPOINT_LENGTH, save_as_blob=True)
+        user_id, f_id, blob_path, checkpoint_size=fapdata.CHECKPOINT_LENGTH, save_as_blob=True)
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -120,7 +115,7 @@ def main(operation: str,  # noqa: C901
          folder_id: int,
          output_path: str,
          make_db: bool) -> None:  # noqa: D301
-  """Download one imagefap.com image favorites (picture folder).
+  """Download imagefap.com image favorites (picture folder).
 
   ATTENTION: The script will deliberately pace its image fetching, taking
   much longer than required to download all images. This is done so to not
@@ -138,17 +133,17 @@ def main(operation: str,  # noqa: C901
   Typical examples:
 
   \b
-  ./imagefap-favorites.py get --user "some-login" \\
+  ./get_favorites.py get --user "some-login" \\
       --name "Random Images" --output "~/some-dir/"
   (in this case the login/name is used and a specific output is given)
 
   \b
-  ./imagefap-favorites.py get --id 1234 --folder 5678
+  ./get_favorites.py get --id 1234 --folder 5678
   (in this case specific numerical IDs are used and
    output will be the current directory)
 
   \b
-  ./imagefap-favorites.py read --user "some-login"
+  ./get_favorites.py read --user "some-login"
   (in this case, will find all image favorite galleries for this user
    and place them in the database;)
   """
@@ -177,8 +172,8 @@ def main(operation: str,  # noqa: C901
     else:
       logging.info('Creating output directory %r', output_path)
       os.mkdir(output_path_expanded)
-    db_path = os.path.join(output_path_expanded, _DEFAULT_DB_NAME)
-    blob_path = os.path.join(output_path_expanded, _DEFAULT_BLOB_DIR_NAME)
+    db_path = os.path.join(output_path_expanded, fapdata.DEFAULT_DB_NAME)
+    blob_path = os.path.join(output_path_expanded, fapdata.DEFAULT_BLOB_DIR_NAME)
     # load database, if any
     database = fapdata.FapDatabase(db_path)
     database.Load()

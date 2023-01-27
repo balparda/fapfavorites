@@ -38,6 +38,13 @@ __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
 
 
+# useful globals
+DEFAULT_DB_NAME = 'imagefap.database'
+DEFAULT_BLOB_DIR_NAME = 'blobs/'
+CHECKPOINT_LENGTH = 10
+_PAGE_BACKTRACKING_THRESHOLD = 5
+
+# internal data utils
 _DB_MAIN_KEYS = {
     'users',
     'favorites',
@@ -46,7 +53,6 @@ _DB_MAIN_KEYS = {
     'image_ids_index',
 }
 _DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index']
-_PAGE_BACKTRACKING_THRESHOLD = 5
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n

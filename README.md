@@ -35,7 +35,7 @@ $ sudo pip3 install -U click sanitize_filename
 
 ## Usage
 
-Run `./imagefap-favorites.py --help` for an options and flag summary.
+Run `./get_favorites.py --help` for an options and flag summary.
 
 ### `get_favorites.py GET` command - _Simple Save of Favorite Images Gallery_
 
@@ -64,14 +64,14 @@ gallery _"my pics"_ and download all images to the default directory
 script will figure out the correct casing as it loads the IDs:
 
 ```
-./imagefap-favorites.py get --user dirty999 --folder "my pics"
+./get_favorites.py get --user dirty999 --folder "my pics"
 ```
 
 This example will get folder 5678 of user 1234 and place them in
 the given directory `~/some-dir/`:
 
 ```
-./imagefap-favorites.py get --id 1234 --folder 5678 --output "~/some-dir/"
+./get_favorites.py get --id 1234 --folder 5678 --output "~/some-dir/"
 ```
 
 If you use the `get` command with multiple favorite galleries and
@@ -98,14 +98,36 @@ the default directory (`~/Downloads/imagefap/`). The flags behave
 the same as for the `get` command:
 
 ```
-./imagefap-favorites.py read --user dirty999 --folder "my pics"
+./get_favorites.py read --user dirty999 --folder "my pics"
 ```
 
 For the `read` command you may instruct it to find all favorite
 image galleries in the user's favorite:
 
 ```
-./imagefap-favorites.py read --user dirty999
+./get_favorites.py read --user dirty999
+```
+
+### `process.py STATS` command - _See Database Statistics_
+
+The `stats` command prints interesting info on the database's metadata.
+This is intended to be used on a database that has been already constructed.
+This example will print stats for a database in `~/some-dir/`:
+
+```
+./process.py stats --dir "~/some-dir/"
+```
+
+### `process.py PRINT` command - _See All The Things!_
+
+The `print` command will do a "pretty" print of useful database metadata
+for a closer inspection. Can print a lot for a big database!
+This is intended to be used on a database that has been already constructed.
+This example will print all (relevant) data in a database located in
+the default directory (`~/Downloads/imagefap/`):
+
+```
+./process.py print
 ```
 
 ## Storage
