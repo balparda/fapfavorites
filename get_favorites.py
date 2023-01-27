@@ -57,7 +57,7 @@ def _GetOperation(database: fapdata.FapDatabase,
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
-@click.argument('operation', type=click.Choice(['get']))
+@click.argument('operation', type=click.Choice(['get', 'read']))
 @click.option(
     '--user', '-u', 'user_name', type=click.STRING, default='',
     help='The imagefap.com user name, as found in https://www.imagefap.com/profile/USER; '
@@ -83,7 +83,7 @@ def _GetOperation(database: fapdata.FapDatabase,
     help='Save a imagefap.database file to output? Default is yes (--db). '
          'Keeping this option on will avoid duplication of download effort.')
 @base.Timed('Total Imagefap get_favorites.py execution time')
-def main(operation: str,
+def main(operation: str,  # noqa: C901
          user_name: str,
          user_id: int,
          favorites_name: str,
@@ -101,7 +101,9 @@ def main(operation: str,
 
   You have to indicate the user by either the --user or the --id options.
   You have to indicate the image favorites (picture folder) by
-  either the --name or the --folder options.
+  either the --name or the --folder options if you are using `get`.
+  If you are using `read` then you can specify only the user and
+  let it browse for all image favorite galleries.
 
   Typical examples:
 
@@ -114,6 +116,11 @@ def main(operation: str,
   ./imagefap-favorites.py get --id 1234 --folder 5678
   (in this case specific numerical IDs are used and
    output will be the current directory)
+
+  \b
+  ./imagefap-favorites.py read --user "somelogin"
+  (in this case, will find all image favorite galleries for this user
+   and place them in the database;)
   """
   print('***********************************************')
   print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER   **')
@@ -125,8 +132,12 @@ def main(operation: str,
     # check inputs, create output directory if needed
     if not user_name and not user_id:
       raise AttributeError('You have to provide either the --user or the --id options')
-    if not favorites_name and not folder_id:
+    if user_name and user_id:
+      raise AttributeError('You should not provide both the --user and the --id options')
+    if (not favorites_name and not folder_id) and operation.lower() != 'read':
       raise AttributeError('You have to provide either the --name or the --folder options')
+    if favorites_name and folder_id:
+      raise AttributeError('You should not provide both the --name and the --folder options')
     output_path_expanded = os.path.expanduser(output_path)
     if os.path.isdir(output_path_expanded):
       logging.info('Output directory %r already exists', output_path)
@@ -144,10 +155,13 @@ def main(operation: str,
     if folder_id:
       database.AddFolderByID(user_id, folder_id)
     else:
-      folder_id = database.AddFolderByName(user_id, favorites_name)[0]
+      if favorites_name:
+        folder_id = database.AddFolderByName(user_id, favorites_name)[0]
     # we should now have both IDs that we need
     if operation.lower() == 'get':
       _GetOperation(database, user_id, folder_id, output_path_expanded, make_db)
+    elif operation.lower() == 'read':
+      raise NotImplementedError()
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # save DB and end

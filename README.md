@@ -37,21 +37,29 @@ $ sudo pip3 install -U click sanitize_filename
 
 Run `./imagefap-favorites.py --help` for an options and flag summary.
 
-### GET command
+### `get_favorites.py GET` command - _Simple Save of Favorite Images Gallery_
 
-For now, just the basic download (`get`) if you know the user ID
+The basic download command is `get`. Use it if you know the user ID
 (or user name), picture folder ID (or picture folder name),
-and give it an output directory. We can't yet properly deal with HTML
+and want those saved to a given (or default) output directory.
+We can't yet properly deal with HTML
 escaping names, so be aware of this. In the absence
 of an explicit directory, will default to `~/Downloads/imagefap/`.
 This command defaults to preserving file names and just straight
 saving them to disk instead of saving them as blobs. It will create
 a simple database file that, if kept in the directory, will avoid
-having to do repeated work for known images. You can disable the
-database file creation with the `--no-db` option.
+having to do repeated work for known images. (You can disable the
+database file creation with the `--no-db` option.)
+If you use the database you will save a lot of time for repeated
+uses or if your connection is broken. The system will remember
+the images you have (and skip them) and will remember the pages that
+were already seen (a huge difference for very big albums).
+You do ___not___ have to worry about missing images because the
+duplicate detection here uses `sha256` and will thus _only_ skip files
+that are _exactly the same_. No possible mistake here.
 
-This example will find the user "dirtyperv8000" and the favorite
-gallery "twinks pics" and download all images to the default directory
+This example will find the user _"dirtyperv8000"_ and the favorite
+gallery _"twinks pics"_ and download all images to the default directory
 (`~/Downloads/imagefap/`). The names are case insensitive and the
 script will figure out the correct casing as it loads the IDs:
 
@@ -66,18 +74,63 @@ the given directory `~/somedir/`:
 ./imagefap-favorites.py get --id 1234 --folder 5678 --output "~/somedir/"
 ```
 
-Many more features to come. Just laying the groundwork for now.
+If you use the `get` command with multiple favorite galleries and
+leave all of them to be saved to the same output directory (either
+default or some explicit other one), then exact duplicate images
+(again by `sha256`) will ___not___ be saved twice, and the file
+name will be the one give for the first time it was saved.
 
-## Storage Schema
+### `get_favorites.py READ` command - _Feed the Database!_
+
+This `read` command is for when you want to do more than just download
+images from one (or a few) galleries. This will store the images as blobs
+and will feed the database with data. It is _not_ meant for immediate
+consumption. The idea is to later run the advanced de-dup on them,
+and/or tag them, and/or re-export them in some other fashion.
+
+_(For now the mentioned "advanced" features are only planned and not
+implemented, so this option has limited use, but it is important
+to document.)_
+
+This example will find the user _"dirtyperv8000"_ and the favorite
+gallery _"twinks pics"_ and read all images into the database in
+the default directory (`~/Downloads/imagefap/`). The flags behave
+the same as for the `get` command:
+
+```
+./imagefap-favorites.py read --user dirtyperv8000 --folder "twinks pics"
+```
+
+For the `read` command you may instruct it to find all favorite
+image galleries in the user's favorite:
+
+```
+./imagefap-favorites.py read --user dirtyperv8000
+```
+
+## Storage
 
 ___You don't need to read this section unless you are a developer
 for this utility.___
 
-### Default Storage
+### Default Storage (`get` command)
 
 If no conflicting options are provided, the following storage of
-files will be adopted, with the objective of facilitating image
-tagging and re-organizing for re-upload:
+files will be adopted for the `get` operation:
+
+```
+~/                                       ==> User root dir
+~/Downloads/imagefap/                    ==> App root dir
+~/Downloads/imagefap/imagefap.database   ==> serialized metadadata file (see below)
+~/Downloads/imagefap/original-sanitized-name-1.jpg   ==> image
+~/Downloads/imagefap/original-sanitized-name-2.gif   ==> image
+```
+
+### Database Storage (`read` command)
+
+If no conflicting options are provided, the following storage of
+files will be adopted (`read` command), with the objective of
+facilitating image tagging and re-organizing:
 
 ```
 ~/                                       ==> User root dir
@@ -90,7 +143,7 @@ tagging and re-organizing for re-upload:
 ~/Downloads/imagefap/blobs/[file_sha_256_hexdigest].[jpg|gif|... original type]
 ```
 
-### Database
+### Database Schema
 
 If allowed, will save a database of Imagefap files so we don't have to
 hit the servers multiple times. The data will be serialized (pickled)
@@ -141,3 +194,7 @@ from a structure like:
 
 }
 ```
+
+When compressed this structure takes less space than would seem at a first
+glance, especially taking into account that it is stored compressed, and
+has shown to be a minimal fraction compared to the downloaded images size.
