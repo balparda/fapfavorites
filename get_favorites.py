@@ -33,7 +33,7 @@ __version__ = (1, 0)
 
 
 _DEFAULT_DB_NAME = 'imagefap.database'
-_CHECKPOINT_LENGTH = 20
+_CHECKPOINT_LENGTH = 10
 
 
 def _GetOperation(database: fapdata.FapDatabase,

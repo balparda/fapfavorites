@@ -109,6 +109,7 @@ from a structure like:
     user_id: {
       folder_id: {
         'name': folder_name,
+        'pages': max_pages_found,
         'images': [imagefap_image_id-1, imagefap_image_id-2, ...],  # in order
       }
     }

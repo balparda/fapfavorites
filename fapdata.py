@@ -45,6 +45,7 @@ _DB_MAIN_KEYS = {
     'imageidsidx',
 }
 _DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'imageidsidx']
+_PAGE_BACKTRACKING_THRESHOLD = 5
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -148,8 +149,8 @@ class FapDatabase():
     return self._db['users']
 
   @property
-  def _favorites(self) -> dict[int, dict[int, dict[Literal['name', 'images'],
-                                                   Union[str, list[int]]]]]:
+  def _favorites(self) -> dict[int, dict[int, dict[Literal['name', 'pages', 'images'],
+                                                   Union[str, int, list[int]]]]]:
     return self._db['favorites']
 
   @property
@@ -268,7 +269,7 @@ class FapDatabase():
         raise Error('Could not find folder name for %d/%d' % (user_id, folder_id))
       _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
       self._favorites.setdefault(user_id, {})[folder_id] = {
-          'name': folder_names[0], 'images': []}
+          'name': folder_names[0], 'pages': 0, 'images': []}
     logging.info('%s folder ID %d/%d = %r',
                  status, user_id, folder_id, self._favorites[user_id][folder_id]['name'])
     return self._favorites[user_id][folder_id]['name']  # type: ignore
@@ -306,12 +307,12 @@ class FapDatabase():
         if fname.lower() == favorites_name.lower():
           # found it!
           _CheckFolderIsForImages(user_id, ifid)  # raises Error if not valid
-          self._favorites.setdefault(user_id, {})[ifid] = {'name': fname, 'images': []}
+          self._favorites.setdefault(user_id, {})[ifid] = {'name': fname, 'pages': 0, 'images': []}
           logging.info('New picture folder %r = ID %d', fname, ifid)
           return (ifid, fname)
       page_num += 1
 
-  def AddFolderPics(self, user_id: int, folder_id: int) -> list[int]:
+  def AddFolderPics(self, user_id: int, folder_id: int) -> list[int]:  # noqa: C901
     """Read a folder and collect/compile all image IDs that are found, for all pages.
 
     This always goes through all favorite pages, as we want to always
@@ -325,9 +326,11 @@ class FapDatabase():
       list of all image ids
     """
     logging.info('Getting all picture folder pages and IDs for %d/%d', user_id, folder_id)
-    img_list: list[int] = self._favorites.setdefault(user_id, {}).setdefault(
-        folder_id, {'name': '???', 'images': []})['images']  # type: ignore
-    img_set = set(img_list)
+    try:
+      img_list: list[int] = self._favorites[user_id][folder_id]['images']  # type: ignore
+      seen_pages: int = self._favorites[user_id][folder_id]['pages']       # type: ignore
+    except KeyError:
+      raise base.Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
 
     def _ExtractFavoriteIDs(page_num: int) -> list[int]:
       """Get numerical IDs of all images in a picture folder by URL.
@@ -345,8 +348,21 @@ class FapDatabase():
       logging.info('Got %d image IDs', len(ids))
       return ids
 
+    # do the paging backtracking, if adequate; this is guaranteed to work because
+    # the site only adds images to the *end* of the images favorites; on the other
+    # hand there is the issue of the "disappearing" images, so we have to backtrack
+    # to make sure we don't loose any...
+    page_num, new_count, img_set = 0, 0, set(img_list)
+    if seen_pages >= _PAGE_BACKTRACKING_THRESHOLD:
+      logging.warning('Backtracking from last seen page (%d) to save time', seen_pages)
+      page_num = seen_pages - 1  # remember imagefap numbers pages starting on zero
+      while page_num >= 0:
+        new_ids = _ExtractFavoriteIDs(page_num)
+        if set(new_ids).intersection(img_set):
+          # found last page that matters to us because it has images we've seen before
+          break
+        page_num -= 1
     # get the pages of links, until they end
-    page_num, new_count = 0, 0
     while True:
       new_ids = _ExtractFavoriteIDs(page_num)
       if not new_ids:
@@ -358,6 +374,7 @@ class FapDatabase():
           new_count += 1
       img_set = set(img_list)
       page_num += 1
+    self._favorites[user_id][folder_id]['pages'] = page_num  # (pages start on zero)
     logging.info(
         'Found a total of %d image IDs in %d pages (%d are new in set, %d need downloading)',
         len(img_list), page_num, new_count, sum(1 for i in img_list if i not in self._imageidsidx))
@@ -382,8 +399,10 @@ class FapDatabase():
       logging.info('Will checkpoint DB every %d downloaded images', checkpoint_size)
     else:
       logging.warning('Will NOT checkpoint DB - work may be lost')
-    img_list: list[int] = self._favorites.setdefault(user_id, {}).setdefault(
-        folder_id, {'name': '???', 'images': []})['images']  # type: ignore
+    try:
+      img_list: list[int] = self._favorites[user_id][folder_id]['images']  # type: ignore
+    except KeyError:
+      raise base.Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
 
     def _ExtractFullImageURL(img_id: int) -> tuple[str, str]:
       """Get URL path of the full resolution image by image ID.
