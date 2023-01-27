@@ -156,7 +156,7 @@ class FapDatabase():
     return self._db['favorites']
 
   @property
-  def _tags(self) -> dict[int, dict[Literal['name', 'type', 'tags'], Union[str, dict]]]:
+  def _tags(self) -> dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]:
     return self._db['tags']
 
   @property
@@ -541,6 +541,7 @@ class FapDatabase():
         # we have this image in a blob, so we only update the blob indexing
         logging.info('Image %d/%r does not need downloading', img_id, full_name)
         self._blobs[sha]['loc'].add((img_id, url_path, full_name, user_id, folder_id))
+        self._image_ids_index[img_id] = sha
         dup_count += 1
     # all images were downloaded, the end
     print(
