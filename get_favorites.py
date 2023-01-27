@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see http://www.gnu.org/licenses/gpl-3.0.txt.
 #
-"""Imagefap.com image favorites (picture folder) dowloader."""
+"""Imagefap.com image favorites (picture folder) downloader."""
 
 import logging
 import os
@@ -33,6 +33,7 @@ __version__ = (1, 0)
 
 
 _DEFAULT_DB_NAME = 'imagefap.database'
+_DEFAULT_BLOB_DIR_NAME = 'blobs/'
 _CHECKPOINT_LENGTH = 10
 
 
@@ -50,10 +51,38 @@ def _GetOperation(database: fapdata.FapDatabase,
     output_path: Output path
     make_db: The user option to save DB or not
   """
-  print("Excuting GET command")
+  print("Executing GET command")
   database.AddFolderPics(user_id, folder_id)
-  database.DownloadFavs(user_id, folder_id, output_path,
-                        checkpoint_size=(_CHECKPOINT_LENGTH if make_db else 0))
+  database.DownloadFavorites(
+      user_id, folder_id, output_path,
+      checkpoint_size=(_CHECKPOINT_LENGTH if make_db else 0), save_as_blob=False)
+
+
+def _ReadOperation(database: fapdata.FapDatabase,
+                   user_id: int,
+                   folder_id: int,
+                   blob_path: str) -> None:
+  """Implement `read` user operation: Read into database either one or all favorites.
+
+  Args:
+    database: Active fapdata.FapDatabase
+    user_id: User ID
+    folder_id: Folder ID
+    blob_path: Blob directory path
+  """
+  if not folder_id:
+    raise NotImplementedError('for now, only one favorites folder at a time...')
+  # create blob directory, if needed
+  if os.path.isdir(blob_path):
+    logging.info('Blob directory %r already exists', blob_path)
+  else:
+    logging.info('Creating blob directory %r', blob_path)
+    os.mkdir(blob_path)
+  # start
+  print("Executing READ command")
+  database.AddFolderPics(user_id, folder_id)
+  database.DownloadFavorites(
+      user_id, folder_id, blob_path, checkpoint_size=_CHECKPOINT_LENGTH, save_as_blob=True)
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -77,7 +106,7 @@ def _GetOperation(database: fapdata.FapDatabase,
 @click.option(
     '--output', '-o', 'output_path', type=click.STRING, default='~/Downloads/imagefap/',
     help='The intended local machine output directory path, '
-         'ex: "~/somedir/"; will default to current directory')
+         'ex: "~/some-dir/"; will default to ~/Downloads/imagefap/')
 @click.option(
     '--db/--no-db', 'make_db', default=True,
     help='Save a imagefap.database file to output? Default is yes (--db); '
@@ -109,8 +138,8 @@ def main(operation: str,  # noqa: C901
   Typical examples:
 
   \b
-  ./imagefap-favorites.py get --user "somelogin" \\
-      --name "Random Images" --output "~/somedir/"
+  ./imagefap-favorites.py get --user "some-login" \\
+      --name "Random Images" --output "~/some-dir/"
   (in this case the login/name is used and a specific output is given)
 
   \b
@@ -119,7 +148,7 @@ def main(operation: str,  # noqa: C901
    output will be the current directory)
 
   \b
-  ./imagefap-favorites.py read --user "somelogin"
+  ./imagefap-favorites.py read --user "some-login"
   (in this case, will find all image favorite galleries for this user
    and place them in the database;)
   """
@@ -141,7 +170,7 @@ def main(operation: str,  # noqa: C901
       raise AttributeError('You should not provide both the --name and the --folder options')
     if not make_db and operation.lower() == 'read':
       raise AttributeError('The `read` command requires a database (--db option)')
-    # create output directory if needed
+    # create output directory, if needed
     output_path_expanded = os.path.expanduser(output_path)
     if os.path.isdir(output_path_expanded):
       logging.info('Output directory %r already exists', output_path)
@@ -149,6 +178,7 @@ def main(operation: str,  # noqa: C901
       logging.info('Creating output directory %r', output_path)
       os.mkdir(output_path_expanded)
     db_path = os.path.join(output_path_expanded, _DEFAULT_DB_NAME)
+    blob_path = os.path.join(output_path_expanded, _DEFAULT_BLOB_DIR_NAME)
     # load database, if any
     database = fapdata.FapDatabase(db_path)
     database.Load()
@@ -166,7 +196,7 @@ def main(operation: str,  # noqa: C901
     if operation.lower() == 'get':
       _GetOperation(database, user_id, folder_id, output_path_expanded, make_db)
     elif operation.lower() == 'read':
-      raise NotImplementedError()
+      _ReadOperation(database, user_id, folder_id, blob_path)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # save DB and end

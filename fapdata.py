@@ -42,36 +42,37 @@ _DB_MAIN_KEYS = {
     'favorites',
     'tags',
     'blobs',
-    'imageidsidx',
+    'image_ids_index',
 }
-_DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'imageidsidx']
+_DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index']
 _PAGE_BACKTRACKING_THRESHOLD = 5
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
-_FAVS_URL = lambda u, p: 'https://www.imagefap.com/showfavorites.php?userid=%d&page=%d' % (u, p)
-_FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVS_URL(u, p), f)
+_FAVORITES_URL = (
+    lambda u, p: 'https://www.imagefap.com/showfavorites.php?userid=%d&page=%d' % (u, p))
+_FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVORITES_URL(u, p), f)
 _IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
 
 # the regular expressions we use to navigate the pages
 _FIND_ONLY_IN_PICTURE_FOLDER = re.compile(r'<\/a><\/td><\/tr>\s+<\/table>\s+<table')
 _FIND_ONLY_IN_GALLERIES_FOLDER = re.compile(
     r'<td\s+class=.blk_favorites_hdr.*<b>Gallery Name<\/span>')
-_FIND_NAME_IN_FAVS = re.compile(
+_FIND_NAME_IN_FAVORITES = re.compile(
     r'<a\s+class=.blk_header.\s+href="\/profile\.php\?user=(.*)"\s+style="')
 _FIND_USER_ID_RE = re.compile(
     r'<a\s+class=.blk_header.\s+href="\/showfavorites.php\?userid=([0-9]+)".*>')
 _FIND_ACTUAL_NAME = re.compile(r'<td\s+class=.blk_profile_hdr.*>(.*)\sProfile\s+<\/td>')
 _FIND_NAME_IN_FOLDER = re.compile(
     r'<a\s+class=.blk_favorites.\s+href=".*none;">(.*)<\/a><\/td><\/tr>')
-_FIND_FOLDERS_RE = re.compile(
+_FIND_FOLDERS = re.compile(
     r'<td\s+class=.blk_favorites.><a\s+class=.blk_galleries.\s+href="'
     r'https:\/\/www.imagefap.com\/showfavorites.php\?userid=[0-9]+'
     r'&folderid=([0-9]+)".*>(.*)<\/a><\/td>')
-_FAV_IMG_RE = re.compile(r'<td\s+class=.blk_favorites.\s+id="img-([0-9]+)"\s+align=')
-_FULL_IMG_RE = re.compile(
+_FAVORITE_IMAGE = re.compile(r'<td\s+class=.blk_favorites.\s+id="img-([0-9]+)"\s+align=')
+_FULL_IMAGE = re.compile(
     r'<img\s+id="mainPhoto".*src="(https:\/\/.*\/images\/full\/.*)">')
-_IMG_NAME_RE = re.compile(
+_IMAGE_NAME = re.compile(
     r'<meta\s+name="description"\s+content="View this hot (.*) porn pic uploaded by')
 
 
@@ -163,8 +164,8 @@ class FapDatabase():
     return self._db['blobs']
 
   @property
-  def _imageidsidx(self) -> dict[int, str]:
-    return self._db['imageidsidx']
+  def _image_ids_index(self) -> dict[int, str]:
+    return self._db['image_ids_index']
 
   def Load(self) -> None:
     """Load DB from file.
@@ -202,10 +203,10 @@ class FapDatabase():
       status = 'Known'
     else:
       status = 'New'
-      url = _FAVS_URL(user_id, 0)  # use the favs page
+      url = _FAVORITES_URL(user_id, 0)  # use the favorites page
       logging.info('Fetching favorites page: %s', url)
       user_html = LimpingURLRead(url).decode('utf-8')
-      user_names = _FIND_NAME_IN_FAVS.findall(user_html)
+      user_names = _FIND_NAME_IN_FAVORITES.findall(user_html)
       if len(user_names) != 1:
         raise Error('Could not find user name for %d' % user_id)
       self._users[user_id] = user_names[0]
@@ -289,27 +290,27 @@ class FapDatabase():
     """
     # first try to find in DB
     if user_id in self._favorites:
-      for fid, fdata in self._favorites[user_id].items():
-        if fdata['name'].lower() == favorites_name.lower():  # type: ignore
-          logging.info('Known picture folder %r = ID %d', fdata['name'], fid)
-          return (fid, fdata['name'])  # type: ignore
+      for fid, f_data in self._favorites[user_id].items():
+        if f_data['name'].lower() == favorites_name.lower():  # type: ignore
+          logging.info('Known picture folder %r = ID %d', f_data['name'], fid)
+          return (fid, f_data['name'])  # type: ignore
     # not found: we have to find in actual site
     page_num = 0
     while True:
-      url = _FAVS_URL(user_id, page_num)
+      url = _FAVORITES_URL(user_id, page_num)
       logging.info('Fetching favorites page: %s', url)
       fav_html = LimpingURLRead(url).decode('utf-8')
-      favs_page: list[tuple[str, str]] = _FIND_FOLDERS_RE.findall(fav_html)
-      if not favs_page:
+      favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
+      if not favorites_page:
         raise Error('Could not find picture folder %r for user %d' % (favorites_name, user_id))
-      for fid, fname in favs_page:
-        ifid = int(fid)
+      for fid, fname in favorites_page:
+        i_fid = int(fid)
         if fname.lower() == favorites_name.lower():
           # found it!
-          _CheckFolderIsForImages(user_id, ifid)  # raises Error if not valid
-          self._favorites.setdefault(user_id, {})[ifid] = {'name': fname, 'pages': 0, 'images': []}
-          logging.info('New picture folder %r = ID %d', fname, ifid)
-          return (ifid, fname)
+          _CheckFolderIsForImages(user_id, i_fid)  # raises Error if not valid
+          self._favorites.setdefault(user_id, {})[i_fid] = {'name': fname, 'pages': 0, 'images': []}
+          logging.info('New picture folder %r = ID %d', fname, i_fid)
+          return (i_fid, fname)
       page_num += 1
 
   def AddFolderPics(self, user_id: int, folder_id: int) -> list[int]:  # noqa: C901
@@ -344,7 +345,7 @@ class FapDatabase():
       url = _FOLDER_URL(user_id, folder_id, page_num)
       logging.info('Fetching favorites page: %s', url)
       fav_html = LimpingURLRead(url).decode('utf-8')
-      ids = [int(id) for id in _FAV_IMG_RE.findall(fav_html)]
+      ids = [int(id) for id in _FAVORITE_IMAGE.findall(fav_html)]
       logging.info('Got %d image IDs', len(ids))
       return ids
 
@@ -355,7 +356,7 @@ class FapDatabase():
     page_num, new_count, img_set = 0, 0, set(img_list)
     if seen_pages >= _PAGE_BACKTRACKING_THRESHOLD:
       logging.warning('Backtracking from last seen page (%d) to save time', seen_pages)
-      page_num = seen_pages - 1  # remember imagefap numbers pages starting on zero
+      page_num = seen_pages - 1  # remember the site numbers pages starting on zero
       while page_num >= 0:
         new_ids = _ExtractFavoriteIDs(page_num)
         if set(new_ids).intersection(img_set):
@@ -377,11 +378,13 @@ class FapDatabase():
     self._favorites[user_id][folder_id]['pages'] = page_num  # (pages start on zero)
     logging.info(
         'Found a total of %d image IDs in %d pages (%d are new in set, %d need downloading)',
-        len(img_list), page_num, new_count, sum(1 for i in img_list if i not in self._imageidsidx))
+        len(img_list), page_num, new_count,
+        sum(1 for i in img_list if i not in self._image_ids_index))
     return img_list
 
-  def DownloadFavs(self, user_id: int, folder_id: int,  # noqa: C901
-                   output_path: str, checkpoint_size: int = 0) -> int:
+  def DownloadFavorites(self, user_id: int, folder_id: int,  # noqa: C901
+                        output_path: str, checkpoint_size: int = 0,
+                        save_as_blob: bool = False) -> int:
     """Actually get the images in a picture folder.
 
     Args:
@@ -390,6 +393,7 @@ class FapDatabase():
       output_path: Output path
       checkpoint_size: (default 0) Commit database to disk every `checkpoint_size`
           images actually downloaded; if zero will not checkpoint at all
+      save_as_blob: (default False) Save images with sha256 names (not original names)
 
     Returns:
       int size of all bytes downloaded
@@ -419,10 +423,10 @@ class FapDatabase():
       url = _IMG_URL(img_id)
       logging.info('Fetching image page: %s', url)
       img_html = LimpingURLRead(url).decode('utf-8')
-      full_res_urls = _FULL_IMG_RE.findall(img_html)
+      full_res_urls = _FULL_IMAGE.findall(img_html)
       if not full_res_urls:
         raise Error('No full resolution image in %s' % url)
-      img_name = _IMG_NAME_RE.findall(img_html)
+      img_name = _IMAGE_NAME.findall(img_html)
       if not img_name:
         raise Error('No image name path in %s' % url)
       return (full_res_urls[0], img_name[0])
@@ -432,7 +436,7 @@ class FapDatabase():
 
       Args:
         url: Image URL path
-        name: Image (unsanitized) name
+        name: Image (un-sanitized) name
         dir_path: Local disk directory path
 
       Returns:
@@ -449,18 +453,20 @@ class FapDatabase():
       new_name = sanitize_filename.sanitize(name)
       if new_name != name:
         logging.warning('Filename sanitization necessary %r ==> %r', name, new_name)
-      full_path = os.path.join(dir_path, new_name)
+      sha = hashlib.sha256(img).hexdigest()
+      extension = new_name.split('.')[-1] if '.' in new_name else 'jpg'
+      full_path = os.path.join(dir_path, '%s.%s' % (sha, extension) if save_as_blob else new_name)
       with open(full_path, 'wb') as f:
         f.write(img)
-      sha = hashlib.sha256(img).hexdigest()
-      logging.info('Got %s for image %s (%s)', base.HumanizedLength(sz), full_path, sha)
+      logging.info('Got %s for image %s (%s)',
+                   base.HumanizedLength(sz), full_path, new_name if save_as_blob else sha)
       return (sha, sz, new_name)
 
-    # dowload all full resolution images we don't yet have
+    # download all full resolution images we don't yet have
     total_sz, saved_count, known_count, dup_count = 0, 0, 0, 0
     for img_id in img_list:
       # figure out if we have it
-      sha = self._imageidsidx.get(img_id, None)
+      sha = self._image_ids_index.get(img_id, None)
       if sha is not None:
         found = False
         for i, _, n, uid, fid in self._blobs[sha]['loc']:  # type: ignore
@@ -479,7 +485,7 @@ class FapDatabase():
         sha, sz, new_name = _SaveImage(url_path, full_name, output_path)
         self._blobs.setdefault(sha, {'loc': set(), 'tags': set()})['loc'].add(
             (img_id, url_path, new_name, user_id, folder_id))
-        self._imageidsidx[img_id] = sha
+        self._image_ids_index[img_id] = sha
         total_sz += sz
         saved_count += 1
         if checkpoint_size and not saved_count % checkpoint_size:

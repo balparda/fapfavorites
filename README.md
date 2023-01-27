@@ -1,7 +1,7 @@
 # Imagefap Favorites
 
 Python code that downloads an entire Imagefap favorites image
-(picture folder) collection, de-dups, and helps organize them.
+(picture folder) collection, de-duplicates, and helps organize them.
 
 Started in January/2023, by Daniel Balparda.
 
@@ -58,20 +58,20 @@ You do ___not___ have to worry about missing images because the
 duplicate detection here uses `sha256` and will thus _only_ skip files
 that are _exactly the same_. No possible mistake here.
 
-This example will find the user _"dirtyperv8000"_ and the favorite
-gallery _"twinks pics"_ and download all images to the default directory
+This example will find the user _"dirty999"_ and the favorite
+gallery _"my pics"_ and download all images to the default directory
 (`~/Downloads/imagefap/`). The names are case insensitive and the
 script will figure out the correct casing as it loads the IDs:
 
 ```
-./imagefap-favorites.py get --user dirtyperv8000 --folder "twinks pics"
+./imagefap-favorites.py get --user dirty999 --folder "my pics"
 ```
 
 This example will get folder 5678 of user 1234 and place them in
-the given directory `~/somedir/`:
+the given directory `~/some-dir/`:
 
 ```
-./imagefap-favorites.py get --id 1234 --folder 5678 --output "~/somedir/"
+./imagefap-favorites.py get --id 1234 --folder 5678 --output "~/some-dir/"
 ```
 
 If you use the `get` command with multiple favorite galleries and
@@ -92,20 +92,20 @@ _(For now the mentioned "advanced" features are only planned and not
 implemented, so this option has limited use, but it is important
 to document.)_
 
-This example will find the user _"dirtyperv8000"_ and the favorite
-gallery _"twinks pics"_ and read all images into the database in
+This example will find the user _"dirty999"_ and the favorite
+gallery _"my pics"_ and read all images into the database in
 the default directory (`~/Downloads/imagefap/`). The flags behave
 the same as for the `get` command:
 
 ```
-./imagefap-favorites.py read --user dirtyperv8000 --folder "twinks pics"
+./imagefap-favorites.py read --user dirty999 --folder "my pics"
 ```
 
 For the `read` command you may instruct it to find all favorite
 image galleries in the user's favorite:
 
 ```
-./imagefap-favorites.py read --user dirtyperv8000
+./imagefap-favorites.py read --user dirty999
 ```
 
 ## Storage
@@ -121,7 +121,7 @@ files will be adopted for the `get` operation:
 ```
 ~/                                       ==> User root dir
 ~/Downloads/imagefap/                    ==> App root dir
-~/Downloads/imagefap/imagefap.database   ==> serialized metadadata file (see below)
+~/Downloads/imagefap/imagefap.database   ==> serialized metadata file (see below)
 ~/Downloads/imagefap/original-sanitized-name-1.jpg   ==> image
 ~/Downloads/imagefap/original-sanitized-name-2.gif   ==> image
 ```
@@ -135,12 +135,12 @@ facilitating image tagging and re-organizing:
 ```
 ~/                                       ==> User root dir
 ~/Downloads/imagefap/                    ==> App root dir
-~/Downloads/imagefap/imagefap.database   ==> serialized metadadata file (see below)
+~/Downloads/imagefap/imagefap.database   ==> serialized metadata file (see below)
 ~/Downloads/imagefap/blobs/              ==> raw images storage directory
 ~/Downloads/imagefap/blobs/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.jpg  ==> blob
 ~/Downloads/imagefap/blobs/3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.gif  ==> blob
 [... etc ... each blob is:]
-~/Downloads/imagefap/blobs/[file_sha_256_hexdigest].[jpg|gif|... original type]
+~/Downloads/imagefap/blobs/[file_sha_256_hex_digest].[jpg|gif|... original type]
 ```
 
 ### Database Schema
@@ -178,18 +178,18 @@ from a structure like:
 
   'blobs': {
     # stored blob metadata: where has each blob been seen and what tags have been attached
-    file_sha_256_hexdigest: {
+    file_sha_256_hex_digest: {
       'loc': {
         (imagefap_image_id-1, imagefap_full_res_url-1, imagefap_file_name_sanitized-1, user_id-1, folder_id-1),
         (imagefap_image_id-2, imagefap_full_res_url-2, imagefap_file_name_sanitized-2, user_id-2, folder_id-2),
-        ... this is a set of every occurance of the blob in the downloaded favorites ...
+        ... this is a set of every occurrence of the blob in the downloaded favorites ...
       }
       'tags': {tag_id-1, tag_id-2, ...}
     }
   }
-  'imageidsidx': {
+  'image_ids_index': {
     # this is a reverse index for 'blobs' so we can easily search by imagefap_image_id
-    imagefap_image_id: file_sha_256_hexdigest
+    imagefap_image_id: file_sha_256_hex_digest
   }
 
 }
