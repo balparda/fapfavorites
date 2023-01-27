@@ -53,6 +53,9 @@ _FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVS_URL(u, p), f)
 _IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
 
 # the regular expressions we use to navigate the pages
+_FIND_ONLY_IN_PICTURE_FOLDER = re.compile(r'<\/a><\/td><\/tr>\s+<\/table>\s+<table')
+_FIND_ONLY_IN_GALLERIES_FOLDER = re.compile(
+    r'<td\s+class=.blk_favorites_hdr.*<b>Gallery Name<\/span>')
 _FIND_NAME_IN_FAVS = re.compile(
     r'<a\s+class=.blk_header.\s+href="\/profile\.php\?user=(.*)"\s+style="')
 _FIND_USER_ID_RE = re.compile(
@@ -99,6 +102,25 @@ def LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> by
     return url_data
   except urllib.error.URLError as e:
     raise Error('Invalid URL: %s (%s)' % (url, e)) from e
+
+
+def _CheckFolderIsForImages(user_id: int, folder_id: int) -> None:
+  """Check that a folder is an *image* folder, not a *galleries* folder.
+
+  Args:
+    user_id: User int ID
+    folder_id: Folder int ID
+
+  Raises:
+    Error: if folder is not an image folder (i.e. it might be a galleries folder)
+  """
+  url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder's 1st page
+  logging.info('Fetching favorites to check *not* a galleries folder: %s', url)
+  folder_html = LimpingURLRead(url).decode('utf-8')
+  should_have = _FIND_ONLY_IN_PICTURE_FOLDER.findall(folder_html)
+  should_not_have = _FIND_ONLY_IN_GALLERIES_FOLDER.findall(folder_html)
+  if should_not_have or not should_have:
+    raise base.Error('This is not a valid images folder! Maybe it is a galleries folder?')
 
 
 class FapDatabase():
@@ -244,6 +266,7 @@ class FapDatabase():
       folder_names = _FIND_NAME_IN_FOLDER.findall(folder_html)
       if len(folder_names) != 1:
         raise Error('Could not find folder name for %d/%d' % (user_id, folder_id))
+      _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
       self._favorites.setdefault(user_id, {})[folder_id] = {
           'name': folder_names[0], 'images': []}
     logging.info('%s folder ID %d/%d = %r',
@@ -279,11 +302,13 @@ class FapDatabase():
       if not favs_page:
         raise Error('Could not find picture folder %r for user %d' % (favorites_name, user_id))
       for fid, fname in favs_page:
+        ifid = int(fid)
         if fname.lower() == favorites_name.lower():
           # found it!
-          self._favorites.setdefault(user_id, {})[int(fid)] = {'name': fname, 'images': []}
-          logging.info('New picture folder %r = ID %d', fname, int(fid))
-          return (int(fid), fname)
+          _CheckFolderIsForImages(user_id, ifid)  # raises Error if not valid
+          self._favorites.setdefault(user_id, {})[ifid] = {'name': fname, 'images': []}
+          logging.info('New picture folder %r = ID %d', fname, ifid)
+          return (ifid, fname)
       page_num += 1
 
   def AddFolderPics(self, user_id: int, folder_id: int) -> list[int]:
