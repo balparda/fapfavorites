@@ -33,12 +33,14 @@ __version__ = (1, 0)
 
 
 _DEFAULT_DB_NAME = 'imagefap.database'
+_CHECKPOINT_LENGTH = 20
 
 
 def _GetOperation(database: fapdata.FapDatabase,
                   user_id: int,
                   folder_id: int,
-                  output_path: str) -> None:
+                  output_path: str,
+                  make_db: bool) -> None:
   """Implement `get` user operation: Straight download into a destination directory.
 
   Args:
@@ -46,10 +48,12 @@ def _GetOperation(database: fapdata.FapDatabase,
     user_id: User ID
     folder_id: Folder ID
     output_path: Output path
+    make_db: The user option to save DB or not
   """
   print("Excuting GET command")
   database.AddFolderPics(user_id, folder_id)
-  database.DownloadFavs(user_id, folder_id, output_path)
+  database.DownloadFavs(user_id, folder_id, output_path,
+                        checkpoint_size=(_CHECKPOINT_LENGTH if make_db else 0))
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -117,7 +121,6 @@ def main(operation: str,
   print('***********************************************')
   success_message = 'premature end? user paused?'
   random.seed()
-  database = fapdata.FapDatabase()
   try:
     # check inputs, create output directory if needed
     if not user_name and not user_id:
@@ -131,7 +134,8 @@ def main(operation: str,
       logging.info('Creating output directory %r', output_path)
       os.mkdir(output_path_expanded)
     db_path = os.path.join(output_path_expanded, _DEFAULT_DB_NAME)
-    database.Load(db_path)
+    database = fapdata.FapDatabase(db_path)
+    database.Load()
     # convert user to id and convert name to folder, if needed
     if user_id:
       database.AddUserByID(user_id)
@@ -143,12 +147,12 @@ def main(operation: str,
       folder_id = database.AddFolderByName(user_id, favorites_name)[0]
     # we should now have both IDs that we need
     if operation.lower() == 'get':
-      _GetOperation(database, user_id, folder_id, output_path_expanded)
+      _GetOperation(database, user_id, folder_id, output_path_expanded, make_db)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # save DB and end
     if make_db:
-      database.Save(db_path)
+      database.Save()
     success_message = 'success'
   except Exception as e:
     success_message = 'error: ' + str(e)

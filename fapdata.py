@@ -44,7 +44,7 @@ _DB_MAIN_KEYS = {
     'blobs',
     'imageidsidx',
 }
-_DB_KEY = Literal['users', 'favorites', 'tags', 'blobs', 'imageidsidx']
+_DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'imageidsidx']
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -104,10 +104,20 @@ def LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> by
 class FapDatabase():
   """Imagefap.com database."""
 
-  def __init__(self):
-    """Construct a clean database."""
+  def __init__(self, path):
+    """Construct a clean database.
+
+    Args:
+      path: The file path to load/save DB from
+
+    Raises:
+      AttributeError: on empty path
+    """
     # start with a clean DB; see README.md for format
-    self._db: dict[_DB_KEY, dict] = {}
+    if not path:
+      raise AttributeError('Database path cannot be empty')
+    self._path: str = path
+    self._db: dict[_DB_KEY_TYPE, dict] = {}
     for k in _DB_MAIN_KEYS:  # creates the main expected key entries
       self._db[k] = {}  # type: ignore
 
@@ -133,32 +143,25 @@ class FapDatabase():
   def _imageidsidx(self) -> dict[int, str]:
     return self._db['imageidsidx']
 
-  def Load(self, path: str) -> None:
+  def Load(self) -> None:
     """Load DB from file.
-
-    Args:
-      path: The file path to load DB from
 
     Raises:
       Error: if found DB does not check out
     """
-    if os.path.exists(path):
-      self._db = base.BinDeSerialize(file_path=path)
+    if os.path.exists(self._path):
+      self._db = base.BinDeSerialize(file_path=self._path)
       # just a quick dirty check that we got what we expected
       if any(k not in self._db for k in _DB_MAIN_KEYS):
         raise Error('Loaded DB is invalid!')
-      logging.info('Loaded DB from %r', path)
+      logging.info('Loaded DB from %r', self._path)
     else:
-      logging.warning('No DB found in %r', path)
+      logging.warning('No DB found in %r', self._path)
 
-  def Save(self, path: str) -> None:
-    """Save DB to file.
-
-    Args:
-      path: The file path to save DB to
-    """
-    base.BinSerialize(self._db, path)
-    logging.info('Saved DB to %r', path)
+  def Save(self) -> None:
+    """Save DB to file."""
+    base.BinSerialize(self._db, self._path)
+    logging.info('Saved DB to %r', self._path)
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.
@@ -330,22 +333,30 @@ class FapDatabase():
           new_count += 1
       img_set = set(img_list)
       page_num += 1
-    logging.info('Found a total of %d image IDs in %d pages (%d are new in DB)',
-                 len(img_list), page_num, new_count)
+    logging.info(
+        'Found a total of %d image IDs in %d pages (%d are new in set, %d need downloading)',
+        len(img_list), page_num, new_count, sum(1 for i in img_list if i not in self._imageidsidx))
     return img_list
 
-  def DownloadFavs(self, user_id: int, folder_id: int, output_path: str) -> int:  # noqa: C901
+  def DownloadFavs(self, user_id: int, folder_id: int,  # noqa: C901
+                   output_path: str, checkpoint_size: int = 0) -> int:
     """Actually get the images in a picture folder.
 
     Args:
       user_id: User ID
       folder_id: Folder ID
       output_path: Output path
+      checkpoint_size: (default 0) Commit database to disk every `checkpoint_size`
+          images actually downloaded; if zero will not checkpoint at all
 
     Returns:
       int size of all bytes downloaded
     """
     logging.info('Downloading all images in folder %d/%d', user_id, folder_id)
+    if checkpoint_size:
+      logging.info('Will checkpoint DB every %d downloaded images', checkpoint_size)
+    else:
+      logging.warning('Will NOT checkpoint DB - work may be lost')
     img_list: list[int] = self._favorites.setdefault(user_id, {}).setdefault(
         folder_id, {'name': '???', 'images': []})['images']  # type: ignore
 
@@ -408,10 +419,11 @@ class FapDatabase():
       sha = self._imageidsidx.get(img_id, None)
       if sha is not None:
         found = False
-        for _, _, _, uid, fid in self._blobs[sha]['loc']:  # type: ignore
+        for i, _, n, uid, fid in self._blobs[sha]['loc']:  # type: ignore
           if user_id == uid and folder_id == fid:
             # this is an exact match and can be safely skipped
             found = True
+            logging.info('Image %d/%r is already in DB from this album', i, n)
             break
         if found:
           known_count += 1
@@ -426,8 +438,11 @@ class FapDatabase():
         self._imageidsidx[img_id] = sha
         total_sz += sz
         saved_count += 1
+        if checkpoint_size and not saved_count % checkpoint_size:
+          self.Save()
       else:
         # we have this image in a blob, so we only update the blob indexing
+        logging.info('Image %d/%r does not need downloading', img_id, full_name)
         self._blobs[sha]['loc'].add((img_id, url_path, full_name, user_id, folder_id))
         dup_count += 1
     # all images were downloaded, the end
