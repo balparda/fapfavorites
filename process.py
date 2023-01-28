@@ -38,8 +38,12 @@ def _StatsOperation(database: fapdata.FapDatabase) -> None:
   Args:
     database: Active fapdata.FapDatabase
   """
-  print("Executing STATS command")
-  raise NotImplementedError()
+  print('Executing STATS command')
+  print()
+  print()
+  database.PrintStats()
+  print()
+  print()
 
 
 def _PrintOperation(database: fapdata.FapDatabase) -> None:
@@ -48,8 +52,32 @@ def _PrintOperation(database: fapdata.FapDatabase) -> None:
   Args:
     database: Active fapdata.FapDatabase
   """
-  print("Executing PRINT command")
-  raise NotImplementedError()
+  print('Executing PRINT command')
+  print()
+  print()
+  print('================================================================================')
+  print('================================================================================')
+  print()
+  print('                             **** USERS & FAVORITES ****')
+  print()
+  database.PrintUsers()
+  print()
+  print('================================================================================')
+  print()
+  print('                             **** TAGS ****')
+  print()
+  database.PrintTags()
+  print()
+  print('================================================================================')
+  print()
+  print('                             **** IMAGE BLOBS METADATA ****')
+  print()
+  database.PrintBlobs()
+  print()
+  print('================================================================================')
+  print('================================================================================')
+  print()
+  print()
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/

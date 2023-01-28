@@ -24,6 +24,7 @@ import os.path
 # import pdb
 import random
 import re
+import statistics
 import time
 from typing import Literal, Union
 import urllib.error
@@ -193,6 +194,65 @@ class FapDatabase():
     """Save DB to file."""
     base.BinSerialize(self._db, self._path)
     logging.info('Saved DB to %r', self._path)
+
+  def PrintStats(self) -> None:
+    """Print database stats."""
+    db_dir = os.path.split(self._path)[0]
+    file_sizes = []
+    for dirpath, _, filenames in os.walk(os.path.join(db_dir, DEFAULT_BLOB_DIR_NAME)):
+      for f in filenames:
+        fp = os.path.join(dirpath, f)
+        if not os.path.islink(fp) and len(f.split('.')[0]) == 64:
+          file_sizes.append(os.path.getsize(fp))
+    all_files_size = sum(file_sizes)
+    print('Database is located in %r, and is %s (%0.5f%% of total images size)' % (
+        self._path,
+        base.HumanizedLength(os.path.getsize(self._path)),
+        100.0 * os.path.getsize(self._path) / (all_files_size if all_files_size else 1)))
+    print('%s total image files size (%s min, %s max, %s mean with %s standard deviation)' % (
+        base.HumanizedLength(all_files_size),
+        base.HumanizedLength(min(file_sizes)),
+        base.HumanizedLength(max(file_sizes)),
+        base.HumanizedLength(int(statistics.mean(file_sizes))),
+        base.HumanizedLength(int(statistics.stdev(file_sizes)))))
+    print()
+    print('%d users' % len(self._users))
+    print('%d favorite galleries' % sum(len(f) for _, f in self._favorites.items()))
+    print('%d unique images (%d total, %d duplicates)' % (
+        len(self._blobs),
+        sum(len(b['loc']) for _, b in self._blobs.items()),
+        sum(len(b['loc']) - 1 for _, b in self._blobs.items())))
+
+  def PrintUsers(self) -> None:
+    """Print database users."""
+    print('ID: USER_NAME')
+    print('    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT)')
+    for i in sorted(self._users.keys()):
+      u = self._users[i]
+      print()
+      print('%d: %r' % (i, u))
+      for j in sorted(self._favorites.get(i, {}).keys()):
+        f = self._favorites[i][j]
+        print('    => %d: %r (%d / %d)' % (
+            j, f['name'], len(f['images']), f['pages']))  # type: ignore
+
+  def PrintTags(self) -> None:
+    """Print database tags."""
+    # TODO: finish tag printing
+    # raise NotImplementedError()
+
+  def PrintBlobs(self) -> None:
+    """Print database blobs metadata."""
+    print('SHA256_HASH: ID1/\'NAME1\' or ID2/\'NAME2\' or ...')
+    print('    => {\'TAG1\', \'TAG2\', ...}')
+    print()
+    for h in sorted(self._blobs.keys()):
+      b = self._blobs[h]
+      print('%s: %s' % (h, ' or '.join(
+          '%d/%r' % (i, n) for i, _, n, _, _ in b['loc'])))  # type: ignore
+      if b['tags']:
+        # TODO: translate tag names instead of IDs!
+        print('    => {%s}' % ', '.join(repr(i) for i in b['tags']))
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.

@@ -49,7 +49,9 @@ This command defaults to preserving file names and just straight
 saving them to disk instead of saving them as blobs. It will create
 a simple database file that, if kept in the directory, will avoid
 having to do repeated work for known images. (You can disable the
-database file creation with the `--no-db` option.)
+database file creation with the `--no-db` option, but there really
+is no need to, as the file is typically tiny: _much less than 0.02%_
+of the size of the downloaded images and usually less than 1Mb.)
 If you use the database you will save a lot of time for repeated
 uses or if your connection is broken. The system will remember
 the images you have (and skip them) and will remember the pages that
@@ -57,6 +59,10 @@ were already seen (a huge difference for very big albums).
 You do ___not___ have to worry about missing images because the
 duplicate detection here uses `sha256` and will thus _only_ skip files
 that are _exactly the same_. No possible mistake here.
+
+For really big jobs, imagefap.com will sometimes just block. When
+this happens, use `Ctrl-C` and run the command again. The database
+will prevent a lot of duplicate work.
 
 This example will find the user _"dirty999"_ and the favorite
 gallery _"my pics"_ and download all images to the default directory
@@ -91,6 +97,10 @@ and/or tag them, and/or re-export them in some other fashion.
 _(For now the mentioned "advanced" features are only planned and not
 implemented, so this option has limited use, but it is important
 to document.)_
+
+For really big jobs, imagefap.com will sometimes just block. When
+this happens, use `Ctrl-C` and run the command again. The database
+will prevent a lot of duplicate work.
 
 This example will find the user _"dirty999"_ and the favorite
 gallery _"my pics"_ and read all images into the database in
@@ -220,3 +230,5 @@ from a structure like:
 When compressed this structure takes less space than would seem at a first
 glance, especially taking into account that it is stored compressed, and
 has shown to be a minimal fraction compared to the downloaded images size.
+Typically it will take much less than 0.02% of the size of the actual images
+and usually the whole database file won't even reach 1Mb.

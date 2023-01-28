@@ -46,7 +46,7 @@ def _GetOperation(database: fapdata.FapDatabase,
     output_path: Output path
     make_db: The user option to save DB or not
   """
-  print("Executing GET command")
+  print('Executing GET command')
   database.AddFolderPics(user_id, folder_id)
   database.DownloadFavorites(
       user_id, folder_id, output_path,
@@ -72,7 +72,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
     logging.info('Creating blob directory %r', blob_path)
     os.mkdir(blob_path)
   # start
-  print("Executing READ command")
+  print('Executing READ command')
   found_folder_ids: set[int] = {folder_id} if folder_id else database.AddAllUserFolders(user_id)
   for f_id in sorted(found_folder_ids):
     database.AddFolderPics(user_id, f_id)
