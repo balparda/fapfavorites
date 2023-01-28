@@ -439,8 +439,10 @@ class FapDatabase():
     Returns:
       list of all image ids
     """
-    logging.info('Getting all picture folder pages and IDs for %d/%d', user_id, folder_id)
     try:
+      logging.info(
+          'Getting all picture folder pages and IDs for %r/%r (%d/%d)',
+          self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id)
       img_list: list[int] = self._favorites[user_id][folder_id]['images']  # type: ignore
       seen_pages: int = self._favorites[user_id][folder_id]['pages']       # type: ignore
     except KeyError:
@@ -511,12 +513,14 @@ class FapDatabase():
     Returns:
       int size of all bytes downloaded
     """
-    logging.info('Downloading all images in folder %d/%d', user_id, folder_id)
-    if checkpoint_size:
-      logging.info('Will checkpoint DB every %d downloaded images', checkpoint_size)
-    else:
-      logging.warning('Will NOT checkpoint DB - work may be lost')
     try:
+      logging.info(
+          'Downloading all images in folder %r/%r (%d/%d)',
+          self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id)
+      if checkpoint_size:
+        logging.info('Will checkpoint DB every %d downloaded images', checkpoint_size)
+      else:
+        logging.warning('Will NOT checkpoint DB - work may be lost')
       img_list: list[int] = self._favorites[user_id][folder_id]['images']  # type: ignore
     except KeyError:
       raise base.Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
