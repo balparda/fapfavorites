@@ -54,6 +54,7 @@ _DB_MAIN_KEYS = {
     'image_ids_index',
 }
 _DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index']
+_TAG_TYPE = dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -163,7 +164,7 @@ class FapDatabase():
     return self._db['favorites']
 
   @property
-  def _tags(self) -> dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]:
+  def _tags(self) -> _TAG_TYPE:
     return self._db['tags']
 
   @property
@@ -194,6 +195,43 @@ class FapDatabase():
     """Save DB to file."""
     base.BinSerialize(self._db, self._path)
     logging.info('Saved DB to %r', self._path)
+
+  def GetTag(self, tag_id: int) -> list[tuple[int, str]]:  # noqa: C901
+    """Search recursively for specific tag object, returning parents too, if any.
+
+    Args:
+      tag_id: The wanted tag ID
+
+    Returns:
+      list of (id, name), starting with the parents and ending with the wanted tag;
+      this means that GetTag(id)[-1] is always the wanted tag
+
+    Raises:
+      Error: not found or invalid
+    """
+    hierarchy = []
+
+    def _get_recursive(obj: _TAG_TYPE) -> bool:
+      if tag_id in obj:
+        try:
+          hierarchy.append((tag_id, obj[tag_id]['name']))  # found!
+        except KeyError:
+          raise base.Error('Found tag %d is empty (has no \'name\')!' % tag_id)
+        return True
+      for i, o in obj .items():
+        if o.get('tags', {}):
+          if _get_recursive(o['tags']):  # type: ignore
+            try:
+              hierarchy.append((i, o['name']))  # this is a parent to a found tag
+            except KeyError:
+              raise base.Error('Parent tag %d (of %d) is empty (has no \'name\')!' % (i, tag_id))
+            return True
+      return False
+
+    if not _get_recursive(self._tags):
+      raise base.Error('Tag ID %d was not found' % tag_id)
+    hierarchy.reverse()
+    return hierarchy
 
   def PrintStats(self) -> None:
     """Print database stats."""

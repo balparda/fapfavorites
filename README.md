@@ -30,7 +30,7 @@ See below:
 $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/imagefap-favorites.git
 $ sudo apt-get install python3-pip pylint3
-$ sudo pip3 install -U click sanitize_filename
+$ sudo pip3 install -U click sanitize_filename coverage
 ```
 
 ## Usage
