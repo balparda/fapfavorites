@@ -26,7 +26,7 @@ import random
 import re
 import statistics
 import time
-from typing import Literal, Union
+from typing import Iterator, Literal, Optional, Union
 import urllib.error
 import urllib.request
 
@@ -236,6 +236,27 @@ class FapDatabase():
     hierarchy.reverse()
     return hierarchy
 
+  def TagsWalk(
+      self, start_tag: Optional[_TAG_TYPE] = None, depth: int = 0) -> Iterator[
+          tuple[int, str, int, _TAG_TYPE]]:
+    """Walk all tags recursively, depth first.
+
+    Args:
+      start_tag: (Default None) The tag to start at; None means start at root
+      depth: (Default 0) DO NOT USE - Internal depth count
+
+    Yields:
+      (tag_id, tag_name, depth, sub_tags)
+    """
+    if start_tag is None:
+      start_tag = self._tags
+    for tag_id in sorted(start_tag.keys()):
+      yield (tag_id, start_tag[tag_id]['name'], depth, start_tag[tag_id]['tags'])  # type: ignore
+      if start_tag[tag_id]['tags']:
+        for o in self.TagsWalk(
+            start_tag=start_tag[tag_id]['tags'], depth=(depth + 1)):  # type: ignore
+          yield o
+
   def PrintStats(self) -> None:
     """Print database stats."""
     file_sizes: list[int] = [s['sz'] for s in self._blobs.values()]  # type: ignore
@@ -300,8 +321,19 @@ class FapDatabase():
 
   def PrintTags(self) -> None:
     """Print database tags."""
-    # TODO: finish tag printing
-    # raise NotImplementedError()
+    if not self._tags:
+      print('NO TAGS CREATED')
+      return
+    print('TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)')
+    print()
+    for tag_id, tag_name, depth, _ in self.TagsWalk():
+      count, sz = 0, 0
+      for b in self._blobs.values():
+        if tag_id in b['tags']:  # type: ignore
+          count += 1
+          sz += b['sz']  # type: ignore
+      print('%s%d: %r (%d / %s)' % (
+          '    ' * depth, tag_id, tag_name, count, base.HumanizedLength(sz)))
 
   def PrintBlobs(self) -> None:
     """Print database blobs metadata."""
@@ -313,8 +345,8 @@ class FapDatabase():
       print('%s: %s' % (h, ' or '.join(
           '%d/%r' % (i, n) for i, _, n, _, _ in b['loc'])))  # type: ignore
       if b['tags']:
-        # TODO: translate tag names instead of IDs!
-        print('    => {%s}' % ', '.join(repr(i) for i in b['tags']))  # type: ignore
+        print('    => {%s}' % ', '.join(
+            repr(self.GetTag(i)[-1][1]) for i in b['tags']))  # type: ignore
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.

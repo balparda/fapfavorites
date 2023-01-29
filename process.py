@@ -141,8 +141,8 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
       _PrintOperation(database, print_blobs)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
-    # save DB and end
-    database.Save()
+    # for now, no operation needs to save DB
+    # database.Save()
     success_message = 'success'
   except Exception as e:
     success_message = 'error: ' + str(e)
