@@ -40,10 +40,12 @@ __version__ = (1, 0)
 
 
 # useful globals
+DEFAULT_DB_DIRECTORY = '~/Downloads/imagefap/'
 DEFAULT_DB_NAME = 'imagefap.database'
 DEFAULT_BLOB_DIR_NAME = 'blobs/'
 CHECKPOINT_LENGTH = 10
 _PAGE_BACKTRACKING_THRESHOLD = 5
+_FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 
 # internal data utils
 _DB_MAIN_KEYS = {
@@ -159,7 +161,7 @@ class FapDatabase():
     return self._db['users']
 
   @property
-  def _favorites(self) -> dict[int, dict[int, dict[Literal['name', 'pages', 'images'],
+  def _favorites(self) -> dict[int, dict[int, dict[Literal['name', 'pages', 'date', 'images'],
                                                    Union[str, int, list[int]]]]]:
     return self._db['favorites']
 
@@ -168,8 +170,9 @@ class FapDatabase():
     return self._db['tags']
 
   @property
-  def _blobs(self) -> dict[str, dict[Literal['loc', 'tags'],
-                                     set[Union[int, tuple[int, str, str, int, int]]]]]:
+  def _blobs(self) -> dict[str, dict[Literal['loc', 'tags', 'sz', 'ext'],
+                                     Union[int, str,
+                                           set[Union[int, tuple[int, str, str, int, int]]]]]]:
     return self._db['blobs']
 
   @property
@@ -235,44 +238,65 @@ class FapDatabase():
 
   def PrintStats(self) -> None:
     """Print database stats."""
-    db_dir = os.path.split(self._path)[0]
-    file_sizes = []
-    for dirpath, _, filenames in os.walk(os.path.join(db_dir, DEFAULT_BLOB_DIR_NAME)):
-      for f in filenames:
-        fp = os.path.join(dirpath, f)
-        if not os.path.islink(fp) and len(f.split('.')[0]) == 64:
-          file_sizes.append(os.path.getsize(fp))
+    file_sizes: list[int] = [s['sz'] for s in self._blobs.values()]  # type: ignore
     all_files_size = sum(file_sizes)
+    db_size = os.path.getsize(self._path)
     print('Database is located in %r, and is %s (%0.5f%% of total images size)' % (
-        self._path,
-        base.HumanizedLength(os.path.getsize(self._path)),
-        100.0 * os.path.getsize(self._path) / (all_files_size if all_files_size else 1)))
-    print('%s total image files size (%s min, %s max, %s mean with %s standard deviation)' % (
-        base.HumanizedLength(all_files_size),
-        base.HumanizedLength(min(file_sizes)),
-        base.HumanizedLength(max(file_sizes)),
-        base.HumanizedLength(int(statistics.mean(file_sizes))),
-        base.HumanizedLength(int(statistics.stdev(file_sizes)))))
+        self._path, base.HumanizedLength(db_size),
+        100.0 * db_size / (all_files_size if all_files_size else 1)))
+    print(
+        '%s total unique image files size (%s min, %s max, %s mean with %s standard deviation)' % (
+            base.HumanizedLength(all_files_size),
+            base.HumanizedLength(min(file_sizes)),
+            base.HumanizedLength(max(file_sizes)),
+            base.HumanizedLength(int(statistics.mean(file_sizes))),
+            base.HumanizedLength(int(statistics.stdev(file_sizes)))))
     print()
     print('%d users' % len(self._users))
-    print('%d favorite galleries' % sum(len(f) for _, f in self._favorites.items()))
+    all_dates = [f['date'] for u in self._favorites.values() for f in u.values()]
+    min_date, max_date = min(all_dates), max(all_dates)
+    print('%d favorite galleries (oldest: %s / newer: %s)' % (
+        sum(len(f) for _, f in self._favorites.items()),
+        base.STD_TIME_STRING(min_date) if min_date else 'pending',
+        base.STD_TIME_STRING(max_date) if max_date else 'pending'))
     print('%d unique images (%d total, %d duplicates)' % (
         len(self._blobs),
-        sum(len(b['loc']) for _, b in self._blobs.items()),
-        sum(len(b['loc']) - 1 for _, b in self._blobs.items())))
+        sum(len(b['loc']) for _, b in self._blobs.items()),       # type: ignore
+        sum(len(b['loc']) - 1 for _, b in self._blobs.items())))  # type: ignore
 
-  def PrintUsers(self) -> None:
+  def PrintUsersAndFavorites(self) -> None:
     """Print database users."""
     print('ID: USER_NAME')
-    print('    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT)')
+    print('    FILE STATS FOR USER')
+    print('    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)')
+    print('           FILE STATS FOR FAVORITES')
     for i in sorted(self._users.keys()):
       u = self._users[i]
       print()
       print('%d: %r' % (i, u))
+      file_sizes: list[int] = [
+          self._blobs[
+              self._image_ids_index[i]]['sz'] for u in self._favorites.values()
+              for f in u.values() for i in f['images']]   # type: ignore # noqa: C901,E131
+      print('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
+          base.HumanizedLength(sum(file_sizes)),
+          base.HumanizedLength(min(file_sizes)),
+          base.HumanizedLength(max(file_sizes)),
+          base.HumanizedLength(int(statistics.mean(file_sizes))),
+          base.HumanizedLength(int(statistics.stdev(file_sizes)))))
       for j in sorted(self._favorites.get(i, {}).keys()):
         f = self._favorites[i][j]
-        print('    => %d: %r (%d / %d)' % (
-            j, f['name'], len(f['images']), f['pages']))  # type: ignore
+        file_sizes: list[int] = [
+            self._blobs[self._image_ids_index[i]]['sz'] for i in f['images']]  # type: ignore
+        print('    => %d: %r (%d / %d / %s)' % (
+            j, f['name'], len(f['images']), f['pages'],  # type: ignore
+            base.STD_TIME_STRING(f['date']) if f['date'] else 'pending'))
+        print('           %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
+            base.HumanizedLength(sum(file_sizes)),
+            base.HumanizedLength(min(file_sizes)),
+            base.HumanizedLength(max(file_sizes)),
+            base.HumanizedLength(int(statistics.mean(file_sizes))),
+            base.HumanizedLength(int(statistics.stdev(file_sizes)))))
 
   def PrintTags(self) -> None:
     """Print database tags."""
@@ -290,7 +314,7 @@ class FapDatabase():
           '%d/%r' % (i, n) for i, _, n, _, _ in b['loc'])))  # type: ignore
       if b['tags']:
         # TODO: translate tag names instead of IDs!
-        print('    => {%s}' % ', '.join(repr(i) for i in b['tags']))
+        print('    => {%s}' % ', '.join(repr(i) for i in b['tags']))  # type: ignore
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.
@@ -375,7 +399,7 @@ class FapDatabase():
         raise Error('Could not find folder name for %d/%d' % (user_id, folder_id))
       _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
       self._favorites.setdefault(user_id, {})[folder_id] = {
-          'name': html.unescape(folder_names[0]), 'pages': 0, 'images': []}
+          'name': html.unescape(folder_names[0]), 'pages': 0, 'date': 0, 'images': []}
     logging.info('%s folder ID %d/%d = %r',
                  status, user_id, folder_id, self._favorites[user_id][folder_id]['name'])
     return self._favorites[user_id][folder_id]['name']  # type: ignore
@@ -414,7 +438,7 @@ class FapDatabase():
           # found it!
           _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
           self._favorites.setdefault(user_id, {})[i_f_id] = {
-              'name': f_name, 'pages': 0, 'images': []}
+              'name': f_name, 'pages': 0, 'date': 0, 'images': []}
           logging.info('New picture folder %r = ID %d', f_name, i_f_id)
           return (i_f_id, f_name)
       page_num += 1
@@ -456,7 +480,7 @@ class FapDatabase():
           continue
         # we seem to have a valid new favorite here
         found_folder_ids.add(i_f_id)
-        self._favorites[user_id][i_f_id] = {'name': f_name, 'pages': 0, 'images': []}
+        self._favorites[user_id][i_f_id] = {'name': f_name, 'pages': 0, 'date': 0, 'images': []}
         logging.info('New picture folder %r (ID %d)', f_name, i_f_id)
       page_num += 1
     logging.info('Found %d total favorite galleries in %d pages (%d were already known; '
@@ -478,6 +502,13 @@ class FapDatabase():
       list of all image ids
     """
     try:
+      tm: int = self._favorites[user_id][folder_id]['date']  # type: ignore
+      if tm and (tm + _FAVORITES_MIN_DOWNLOAD_WAIT) > base.INT_TIME():
+        logging.warning(
+            'Picture folder %r/%r (%d/%d) downloaded recently (%s): SKIP',
+            self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
+            base.STD_TIME_STRING(tm))
+        return self._favorites[user_id][folder_id]['images']  # type: ignore
       logging.info(
           'Getting all picture folder pages and IDs for %r/%r (%d/%d)',
           self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id)
@@ -552,6 +583,13 @@ class FapDatabase():
       int size of all bytes downloaded
     """
     try:
+      tm: int = self._favorites[user_id][folder_id]['date']  # type: ignore
+      if tm and (tm + _FAVORITES_MIN_DOWNLOAD_WAIT) > base.INT_TIME():
+        logging.warning(
+            'Picture folder %r/%r (%d/%d) downloaded recently (%s): SKIP',
+            self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
+            base.STD_TIME_STRING(tm))
+        return 0
       logging.info(
           'Downloading all images in folder %r/%r (%d/%d)',
           self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id)
@@ -586,7 +624,14 @@ class FapDatabase():
         raise Error('No image name path in %s' % url)
       return (full_res_urls[0], img_name[0])
 
-    def _SaveImage(url: str, name: str, dir_path: str) -> tuple[str, int, str]:
+    def _NormalizeExtension(extension: str) -> str:
+      """Normalize image file extensions."""
+      extension = extension.lower()
+      if extension == 'jpeg':
+        extension = 'jpg'
+      return extension
+
+    def _SaveImage(url: str, name: str, dir_path: str) -> tuple[str, int, str, str]:
       """Get an image by URL and save to directory. Will sanitize the file name if needed.
 
       Args:
@@ -595,7 +640,7 @@ class FapDatabase():
         dir_path: Local disk directory path
 
       Returns:
-        (the image sha256 hexdigest, the retrieved image bytes length, sanitized name)
+        (the image sha256 hexdigest, the retrieved image bytes length, sanitized name, extension)
 
       Raises:
         Error: for invalid URLs or empty images
@@ -609,13 +654,15 @@ class FapDatabase():
       if new_name != name:
         logging.warning('Filename sanitization necessary %r ==> %r', name, new_name)
       sha = hashlib.sha256(img).hexdigest()
-      extension = new_name.split('.')[-1] if '.' in new_name else 'jpg'
-      full_path = os.path.join(dir_path, '%s.%s' % (sha, extension) if save_as_blob else new_name)
+      main_name, extension = new_name.rsplit('.', 1) if '.' in new_name else (new_name, 'jpg')
+      extension = _NormalizeExtension(extension)
+      actual_name = '%s.%s' % (sha if save_as_blob else main_name, extension)
+      full_path = os.path.join(dir_path, actual_name)
       with open(full_path, 'wb') as f:
         f.write(img)
       logging.info('Got %s for image %s (%s)',
-                   base.HumanizedLength(sz), full_path, new_name if save_as_blob else sha)
-      return (sha, sz, new_name)
+                   base.HumanizedLength(sz), full_path, actual_name if save_as_blob else sha)
+      return (sha, sz, actual_name, extension)
 
     # download all full resolution images we don't yet have
     total_sz, saved_count, known_count, dup_count = 0, 0, 0, 0
@@ -637,9 +684,10 @@ class FapDatabase():
       url_path, full_name = _ExtractFullImageURL(img_id)
       if sha is None:
         # we never saw this image, so we create a full entry
-        sha, sz, new_name = _SaveImage(url_path, full_name, output_path)
-        self._blobs.setdefault(sha, {'loc': set(), 'tags': set()})['loc'].add(
-            (img_id, url_path, new_name, user_id, folder_id))
+        sha, sz, new_name, ext = _SaveImage(url_path, full_name, output_path)
+        self._blobs.setdefault(
+            sha, {'loc': set(), 'tags': set(), 'sz': sz, 'ext': ext})['loc'].add(  # type: ignore
+                (img_id, url_path, new_name, user_id, folder_id))
         self._image_ids_index[img_id] = sha
         total_sz += sz
         saved_count += 1
@@ -648,10 +696,12 @@ class FapDatabase():
       else:
         # we have this image in a blob, so we only update the blob indexing
         logging.info('Image %d/%r does not need downloading', img_id, full_name)
-        self._blobs[sha]['loc'].add((img_id, url_path, full_name, user_id, folder_id))
+        self._blobs[sha]['loc'].add(  # type: ignore
+            (img_id, url_path, full_name, user_id, folder_id))
         self._image_ids_index[img_id] = sha
         dup_count += 1
     # all images were downloaded, the end
+    self._favorites[user_id][folder_id]['date'] = base.INT_TIME()  # this marks album as done
     print(
         'Saved %d images to disk (%s); also %d images were already in DB and '
         '%d images were duplicates from other albums' % (

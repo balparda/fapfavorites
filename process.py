@@ -46,11 +46,12 @@ def _StatsOperation(database: fapdata.FapDatabase) -> None:
   print()
 
 
-def _PrintOperation(database: fapdata.FapDatabase) -> None:
+def _PrintOperation(database: fapdata.FapDatabase, print_blobs: bool) -> None:
   """Implement `print` user operation: Print statistics.
 
   Args:
     database: Active fapdata.FapDatabase
+    print_blobs: Print blobs?
   """
   print('Executing PRINT command')
   print()
@@ -60,7 +61,7 @@ def _PrintOperation(database: fapdata.FapDatabase) -> None:
   print()
   print('                             **** USERS & FAVORITES ****')
   print()
-  database.PrintUsers()
+  database.PrintUsersAndFavorites()
   print()
   print('=' * 80)
   print()
@@ -68,12 +69,13 @@ def _PrintOperation(database: fapdata.FapDatabase) -> None:
   print()
   database.PrintTags()
   print()
-  print('=' * 80)
-  print()
-  print('                             **** IMAGE BLOBS METADATA ****')
-  print()
-  database.PrintBlobs()
-  print()
+  if print_blobs:
+    print('=' * 80)
+    print()
+    print('                             **** IMAGE BLOBS METADATA ****')
+    print()
+    database.PrintBlobs()
+    print()
   print('=' * 80)
   print('=' * 80)
   print()
@@ -83,11 +85,14 @@ def _PrintOperation(database: fapdata.FapDatabase) -> None:
 @click.command()  # see `click` module usage in http://click.pocoo.org/
 @click.argument('operation', type=click.Choice(['stats', 'print']))
 @click.option(
-    '--dir', '-d', 'db_dir', type=click.STRING, default='~/Downloads/imagefap/',
+    '--dir', '-d', 'db_dir', type=click.STRING, default=fapdata.DEFAULT_DB_DIRECTORY,
     help='The local machine database directory path to use, '
-         'ex: "~/some-dir/"; will default to ~/Downloads/imagefap/')
+         'ex: "~/some-dir/"; will default to %r' % fapdata.DEFAULT_DB_DIRECTORY)
+@click.option(
+    '--blobs/--no-blobs', 'print_blobs', default=False,
+    help='Print all blobs in `print` command? Default is False ("no")')
 @base.Timed('Total Imagefap process.py execution time')
-def main(operation: str, db_dir: str) -> None:  # noqa: D301
+def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
   """imagefap.com database operations utility.
 
   This is intended to be used on a database that has been constructed
@@ -133,7 +138,7 @@ def main(operation: str, db_dir: str) -> None:  # noqa: D301
     if operation.lower() == 'stats':
       _StatsOperation(database)
     elif operation.lower() == 'print':
-      _PrintOperation(database)
+      _PrintOperation(database, print_blobs)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # save DB and end

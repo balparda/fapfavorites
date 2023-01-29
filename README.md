@@ -186,7 +186,7 @@ from a structure like:
 
   'users': {
     # stores the seen users
-    user_id: user_name
+    user_id: user_name,
   }
 
   'favorites': {
@@ -195,6 +195,8 @@ from a structure like:
       folder_id: {
         'name': folder_name,
         'pages': max_pages_found,
+        'date': int_time_last_success_download,  # int(time.time()) of last time all images finished
+            # will start as 0, meaning never finished yet
         'images': [imagefap_image_id-1, imagefap_image_id-2, ...],  # in order
       }
     }
@@ -204,7 +206,7 @@ from a structure like:
     # stores the user-defined tags for later image re-shuffle
     tag_id: {
       'name': tag_name,
-      'tags': {}  # None, or a nested dict of sub-tags, just like the top one
+      'tags': {},  # None, or a nested dict of sub-tags, just like the top one
     }
   }
 
@@ -215,13 +217,15 @@ from a structure like:
         (imagefap_image_id-1, imagefap_full_res_url-1, imagefap_file_name_sanitized-1, user_id-1, folder_id-1),
         (imagefap_image_id-2, imagefap_full_res_url-2, imagefap_file_name_sanitized-2, user_id-2, folder_id-2),
         ... this is a set of every occurrence of the blob in the downloaded favorites ...
-      }
-      'tags': {tag_id-1, tag_id-2, ...}
+      },
+      'tags': {tag_id-1, tag_id-2, ...},
+      'sz': int_size_bytes,
+      'ext': string_file_extension,  # the saved file extension ('jpg', 'gif', ...)
     }
   }
   'image_ids_index': {
     # this is a reverse index for 'blobs' so we can easily search by imagefap_image_id
-    imagefap_image_id: file_sha_256_hex_digest
+    imagefap_image_id: file_sha_256_hex_digest,
   }
 
 }

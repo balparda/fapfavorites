@@ -99,9 +99,9 @@ def _ReadOperation(database: fapdata.FapDatabase,
     help='The imagefap.com folder ID, as found in '
          'https://www.imagefap.com/showfavorites.php?userid=ID&folderid=FOLDER')
 @click.option(
-    '--output', '-o', 'output_path', type=click.STRING, default='~/Downloads/imagefap/',
+    '--output', '-o', 'output_path', type=click.STRING, default=fapdata.DEFAULT_DB_DIRECTORY,
     help='The intended local machine output directory path, '
-         'ex: "~/some-dir/"; will default to ~/Downloads/imagefap/')
+         'ex: "~/some-dir/"; will default to %r' % fapdata.DEFAULT_DB_DIRECTORY)
 @click.option(
     '--db/--no-db', 'make_db', default=True,
     help='Save a imagefap.database file to output? Default is yes (--db); '
