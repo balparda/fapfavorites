@@ -36,7 +36,8 @@ def _GetOperation(database: fapdata.FapDatabase,
                   user_id: int,
                   folder_id: int,
                   output_path: str,
-                  make_db: bool) -> None:
+                  make_db: bool,
+                  force_download: bool) -> None:
   """Implement `get` user operation: Straight download into a destination directory.
 
   Args:
@@ -45,18 +46,20 @@ def _GetOperation(database: fapdata.FapDatabase,
     folder_id: Folder ID
     output_path: Output path
     make_db: The user option to save DB or not
+    force_download: If True will download even if recently downloaded
   """
   print('Executing GET command')
-  database.AddFolderPics(user_id, folder_id)
+  database.AddFolderPics(user_id, folder_id, force_download)
   database.DownloadFavorites(
-      user_id, folder_id, output_path,
-      checkpoint_size=(fapdata.CHECKPOINT_LENGTH if make_db else 0), save_as_blob=False)
+      user_id, folder_id, output_path, fapdata.CHECKPOINT_LENGTH if make_db else 0,
+      False, force_download)
 
 
 def _ReadOperation(database: fapdata.FapDatabase,
                    user_id: int,
                    folder_id: int,
-                   blob_path: str) -> None:
+                   blob_path: str,
+                   force_download: bool) -> None:
   """Implement `read` user operation: Read into database either one or all favorites.
 
   Args:
@@ -64,6 +67,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
     user_id: User ID
     folder_id: Folder ID
     blob_path: Blob directory path
+    force_download: If True will download even if recently downloaded
   """
   # create blob directory, if needed
   if os.path.isdir(blob_path):
@@ -75,9 +79,9 @@ def _ReadOperation(database: fapdata.FapDatabase,
   print('Executing READ command')
   found_folder_ids: set[int] = {folder_id} if folder_id else database.AddAllUserFolders(user_id)
   for f_id in sorted(found_folder_ids):
-    database.AddFolderPics(user_id, f_id)
+    database.AddFolderPics(user_id, f_id, force_download)
     database.DownloadFavorites(
-        user_id, f_id, blob_path, checkpoint_size=fapdata.CHECKPOINT_LENGTH, save_as_blob=True)
+        user_id, f_id, blob_path, fapdata.CHECKPOINT_LENGTH, True, force_download)
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -104,9 +108,14 @@ def _ReadOperation(database: fapdata.FapDatabase,
          'ex: "~/some-dir/"; will default to %r' % fapdata.DEFAULT_DB_DIRECTORY)
 @click.option(
     '--db/--no-db', 'make_db', default=True,
-    help='Save a imagefap.database file to output? Default is yes (--db); '
+    help='Save a imagefap.database file to output? Default is True ("yes"); '
          'keeping this option on will avoid duplication of download effort; '
          'you can\'t disable the DB for the `read` command')
+@click.option(
+    '--force/--no-force', 'force_download', default=False,
+    help='Ignore recency check for download of favorite images? Default '
+         'is False ("no"). This will force a download even if the album '
+         'is fresh in the database')
 @base.Timed('Total Imagefap get_favorites.py execution time')
 def main(operation: str,  # noqa: C901
          user_name: str,
@@ -114,7 +123,8 @@ def main(operation: str,  # noqa: C901
          favorites_name: str,
          folder_id: int,
          output_path: str,
-         make_db: bool) -> None:  # noqa: D301
+         make_db: bool,
+         force_download: bool) -> None:  # noqa: D301
   """Download imagefap.com image favorites (picture folder).
 
   ATTENTION: The script will deliberately pace its image fetching, taking
@@ -189,9 +199,9 @@ def main(operation: str,  # noqa: C901
         folder_id = database.AddFolderByName(user_id, favorites_name)[0]
     # we should now have both IDs that we need
     if operation.lower() == 'get':
-      _GetOperation(database, user_id, folder_id, output_path_expanded, make_db)
+      _GetOperation(database, user_id, folder_id, output_path_expanded, make_db, force_download)
     elif operation.lower() == 'read':
-      _ReadOperation(database, user_id, folder_id, blob_path)
+      _ReadOperation(database, user_id, folder_id, blob_path, force_download)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # save DB and end

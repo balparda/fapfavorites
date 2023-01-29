@@ -45,7 +45,7 @@ DEFAULT_DB_NAME = 'imagefap.database'
 DEFAULT_BLOB_DIR_NAME = 'blobs/'
 CHECKPOINT_LENGTH = 10
 _PAGE_BACKTRACKING_THRESHOLD = 5
-_FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
+FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 
 # internal data utils
 _DB_MAIN_KEYS = {
@@ -263,15 +263,15 @@ class FapDatabase():
     all_files_size = sum(file_sizes)
     db_size = os.path.getsize(self._path)
     print('Database is located in %r, and is %s (%0.5f%% of total images size)' % (
-        self._path, base.HumanizedLength(db_size),
+        self._path, base.HumanizedBytes(db_size),
         100.0 * db_size / (all_files_size if all_files_size else 1)))
     print(
         '%s total unique image files size (%s min, %s max, %s mean with %s standard deviation)' % (
-            base.HumanizedLength(all_files_size),
-            base.HumanizedLength(min(file_sizes)),
-            base.HumanizedLength(max(file_sizes)),
-            base.HumanizedLength(int(statistics.mean(file_sizes))),
-            base.HumanizedLength(int(statistics.stdev(file_sizes)))))
+            base.HumanizedBytes(all_files_size),
+            base.HumanizedBytes(min(file_sizes)),
+            base.HumanizedBytes(max(file_sizes)),
+            base.HumanizedBytes(int(statistics.mean(file_sizes))),
+            base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
     print()
     print('%d users' % len(self._users))
     all_dates = [f['date'] for u in self._favorites.values() for f in u.values()]
@@ -300,11 +300,11 @@ class FapDatabase():
               self._image_ids_index[i]]['sz'] for u in self._favorites.values()
               for f in u.values() for i in f['images']]   # type: ignore # noqa: C901,E131
       print('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
-          base.HumanizedLength(sum(file_sizes)),
-          base.HumanizedLength(min(file_sizes)),
-          base.HumanizedLength(max(file_sizes)),
-          base.HumanizedLength(int(statistics.mean(file_sizes))),
-          base.HumanizedLength(int(statistics.stdev(file_sizes)))))
+          base.HumanizedBytes(sum(file_sizes)),
+          base.HumanizedBytes(min(file_sizes)),
+          base.HumanizedBytes(max(file_sizes)),
+          base.HumanizedBytes(int(statistics.mean(file_sizes))),
+          base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
       for j in sorted(self._favorites.get(i, {}).keys()):
         f = self._favorites[i][j]
         file_sizes: list[int] = [
@@ -313,11 +313,11 @@ class FapDatabase():
             j, f['name'], len(f['images']), f['pages'],  # type: ignore
             base.STD_TIME_STRING(f['date']) if f['date'] else 'pending'))
         print('           %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
-            base.HumanizedLength(sum(file_sizes)),
-            base.HumanizedLength(min(file_sizes)),
-            base.HumanizedLength(max(file_sizes)),
-            base.HumanizedLength(int(statistics.mean(file_sizes))),
-            base.HumanizedLength(int(statistics.stdev(file_sizes)))))
+            base.HumanizedBytes(sum(file_sizes)),
+            base.HumanizedBytes(min(file_sizes)),
+            base.HumanizedBytes(max(file_sizes)),
+            base.HumanizedBytes(int(statistics.mean(file_sizes))),
+            base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
 
   def PrintTags(self) -> None:
     """Print database tags."""
@@ -333,7 +333,7 @@ class FapDatabase():
           count += 1
           sz += b['sz']  # type: ignore
       print('%s%d: %r (%d / %s)' % (
-          '    ' * depth, tag_id, tag_name, count, base.HumanizedLength(sz)))
+          '    ' * depth, tag_id, tag_name, count, base.HumanizedBytes(sz)))
 
   def PrintBlobs(self) -> None:
     """Print database blobs metadata."""
@@ -520,7 +520,8 @@ class FapDatabase():
                  len(found_folder_ids), page_num, known_favorites, non_galleries)
     return found_folder_ids
 
-  def AddFolderPics(self, user_id: int, folder_id: int) -> list[int]:  # noqa: C901
+  def AddFolderPics(  # noqa: C901
+      self, user_id: int, folder_id: int, force_download: bool) -> list[int]:
     """Read a folder and collect/compile all image IDs that are found, for all pages.
 
     This always goes through all favorite pages, as we want to always
@@ -529,18 +530,22 @@ class FapDatabase():
     Args:
       user_id: User int ID
       folder_id: Folder int ID
+      force_download: If True will download even if recently downloaded
 
     Returns:
       list of all image ids
     """
     try:
-      tm: int = self._favorites[user_id][folder_id]['date']  # type: ignore
-      if tm and (tm + _FAVORITES_MIN_DOWNLOAD_WAIT) > base.INT_TIME():
+      tm_download: int = self._favorites[user_id][folder_id]['date']  # type: ignore
+      tm_now = base.INT_TIME()
+      if tm_download and (tm_download + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
         logging.warning(
-            'Picture folder %r/%r (%d/%d) downloaded recently (%s): SKIP',
+            'Picture folder %r/%r (%d/%d) downloaded recently (%s, %s ago): %s!',
             self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
-            base.STD_TIME_STRING(tm))
-        return self._favorites[user_id][folder_id]['images']  # type: ignore
+            base.STD_TIME_STRING(tm_download), base.HumanizedSeconds(tm_now - tm_download),
+            'ignoring time limit and downloading again' if force_download else 'SKIP')
+        if not force_download:
+          return self._favorites[user_id][folder_id]['images']  # type: ignore
       logging.info(
           'Getting all picture folder pages and IDs for %r/%r (%d/%d)',
           self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id)
@@ -599,29 +604,33 @@ class FapDatabase():
     return img_list
 
   def DownloadFavorites(self, user_id: int, folder_id: int,  # noqa: C901
-                        output_path: str, checkpoint_size: int = 0,
-                        save_as_blob: bool = False) -> int:
+                        output_path: str, checkpoint_size: int,
+                        save_as_blob: bool, force_download: bool) -> int:
     """Actually get the images in a picture folder.
 
     Args:
       user_id: User ID
       folder_id: Folder ID
       output_path: Output path
-      checkpoint_size: (default 0) Commit database to disk every `checkpoint_size`
-          images actually downloaded; if zero will not checkpoint at all
-      save_as_blob: (default False) Save images with sha256 names (not original names)
+      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
+          if zero will not checkpoint at all
+      save_as_blob: Save images with sha256 names (not original names)
+      force_download: If True will download even if recently downloaded
 
     Returns:
       int size of all bytes downloaded
     """
     try:
-      tm: int = self._favorites[user_id][folder_id]['date']  # type: ignore
-      if tm and (tm + _FAVORITES_MIN_DOWNLOAD_WAIT) > base.INT_TIME():
+      tm_download: int = self._favorites[user_id][folder_id]['date']  # type: ignore
+      tm_now = base.INT_TIME()
+      if tm_download and (tm_download + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
         logging.warning(
-            'Picture folder %r/%r (%d/%d) downloaded recently (%s): SKIP',
+            'Picture folder %r/%r (%d/%d) downloaded recently (%s, %s ago): %s!',
             self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
-            base.STD_TIME_STRING(tm))
-        return 0
+            base.STD_TIME_STRING(tm_download), base.HumanizedSeconds(tm_now - tm_download),
+            'ignoring time limit and downloading again' if force_download else 'SKIP')
+        if not force_download:
+          return 0
       logging.info(
           'Downloading all images in folder %r/%r (%d/%d)',
           self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id)
@@ -693,7 +702,7 @@ class FapDatabase():
       with open(full_path, 'wb') as f:
         f.write(img)
       logging.info('Got %s for image %s (%s)',
-                   base.HumanizedLength(sz), full_path, actual_name if save_as_blob else sha)
+                   base.HumanizedBytes(sz), full_path, actual_name if save_as_blob else sha)
       return (sha, sz, actual_name, extension)
 
     # download all full resolution images we don't yet have
@@ -737,5 +746,5 @@ class FapDatabase():
     print(
         'Saved %d images to disk (%s); also %d images were already in DB and '
         '%d images were duplicates from other albums' % (
-            saved_count, base.HumanizedLength(total_sz), known_count, dup_count))
+            saved_count, base.HumanizedBytes(total_sz), known_count, dup_count))
     return total_sz
