@@ -15,12 +15,9 @@
 # along with this program. If not, see http://www.gnu.org/licenses/gpl-3.0.txt.
 #
 """Imagefap.com image favorites (picture folder) downloader."""
+# TODO: rename module to favorites.py
 
-import logging
-import os
-import os.path
 # import pdb
-import random
 
 import click
 
@@ -35,7 +32,6 @@ __version__ = (1, 0)
 def _GetOperation(database: fapdata.FapDatabase,
                   user_id: int,
                   folder_id: int,
-                  output_path: str,
                   make_db: bool,
                   force_download: bool) -> None:
   """Implement `get` user operation: Straight download into a destination directory.
@@ -44,21 +40,18 @@ def _GetOperation(database: fapdata.FapDatabase,
     database: Active fapdata.FapDatabase
     user_id: User ID
     folder_id: Folder ID
-    output_path: Output path
     make_db: The user option to save DB or not
     force_download: If True will download even if recently downloaded
   """
   print('Executing GET command')
   database.AddFolderPics(user_id, folder_id, force_download)
   database.DownloadFavorites(
-      user_id, folder_id, output_path, fapdata.CHECKPOINT_LENGTH if make_db else 0,
-      False, force_download)
+      user_id, folder_id, fapdata.CHECKPOINT_LENGTH if make_db else 0, False, force_download)
 
 
 def _ReadOperation(database: fapdata.FapDatabase,
                    user_id: int,
                    folder_id: int,
-                   blob_path: str,
                    force_download: bool) -> None:
   """Implement `read` user operation: Read into database either one or all favorites.
 
@@ -66,22 +59,16 @@ def _ReadOperation(database: fapdata.FapDatabase,
     database: Active fapdata.FapDatabase
     user_id: User ID
     folder_id: Folder ID
-    blob_path: Blob directory path
     force_download: If True will download even if recently downloaded
   """
-  # create blob directory, if needed
-  if os.path.isdir(blob_path):
-    logging.info('Blob directory %r already exists', blob_path)
-  else:
-    logging.info('Creating blob directory %r', blob_path)
-    os.mkdir(blob_path)
   # start
   print('Executing READ command')
   found_folder_ids: set[int] = {folder_id} if folder_id else database.AddAllUserFolders(user_id)
   for f_id in sorted(found_folder_ids):
     database.AddFolderPics(user_id, f_id, force_download)
-    database.DownloadFavorites(
-        user_id, f_id, blob_path, fapdata.CHECKPOINT_LENGTH, True, force_download)
+    database.DownloadFavorites(user_id, f_id, fapdata.CHECKPOINT_LENGTH, True, force_download)
+  # find perceptual duplicates
+  database.FindDuplicates()
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -162,7 +149,6 @@ def main(operation: str,  # noqa: C901
   print('**   balparda@gmail.com (Daniel Balparda)    **')
   print('***********************************************')
   success_message = 'premature end? user paused?'
-  random.seed()
   try:
     # check inputs
     if not user_name and not user_id:
@@ -175,17 +161,8 @@ def main(operation: str,  # noqa: C901
       raise AttributeError('You should not provide both the --name and the --folder options')
     if not make_db and operation.lower() == 'read':
       raise AttributeError('The `read` command requires a database (--db option)')
-    # create output directory, if needed
-    output_path_expanded = os.path.expanduser(output_path)
-    if os.path.isdir(output_path_expanded):
-      logging.info('Output directory %r already exists', output_path)
-    else:
-      logging.info('Creating output directory %r', output_path)
-      os.mkdir(output_path_expanded)
-    db_path = os.path.join(output_path_expanded, fapdata.DEFAULT_DB_NAME)
-    blob_path = os.path.join(output_path_expanded, fapdata.DEFAULT_BLOB_DIR_NAME)
     # load database, if any
-    database = fapdata.FapDatabase(db_path)
+    database = fapdata.FapDatabase(output_path)
     database.Load()
     # convert user to id and convert name to folder, if needed
     if user_id:
@@ -199,9 +176,9 @@ def main(operation: str,  # noqa: C901
         folder_id = database.AddFolderByName(user_id, favorites_name)[0]
     # we should now have both IDs that we need
     if operation.lower() == 'get':
-      _GetOperation(database, user_id, folder_id, output_path_expanded, make_db, force_download)
+      _GetOperation(database, user_id, folder_id, make_db, force_download)
     elif operation.lower() == 'read':
-      _ReadOperation(database, user_id, folder_id, blob_path, force_download)
+      _ReadOperation(database, user_id, folder_id, force_download)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # save DB and end

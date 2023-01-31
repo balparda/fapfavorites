@@ -16,11 +16,7 @@
 #
 """Imagefap.com image database operations."""
 
-# import logging
-import os
-import os.path
 # import pdb
-import random
 
 import click
 
@@ -77,6 +73,10 @@ def _PrintOperation(database: fapdata.FapDatabase, print_blobs: bool) -> None:
     database.PrintBlobs()
     print()
   print('=' * 80)
+  print()
+  database.PrintStats()
+  print()
+  print('=' * 80)
   print('=' * 80)
   print()
   print()
@@ -119,21 +119,13 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
   print('**   balparda@gmail.com (Daniel Balparda)    **')
   print('***********************************************')
   success_message = 'premature end? user paused?'
-  random.seed()
   try:
-    # check inputs, make sure we have a database to load
-    db_dir_expanded = os.path.expanduser(db_dir)
-    db_path = os.path.join(db_dir_expanded, fapdata.DEFAULT_DB_NAME)
-    blob_path = os.path.join(db_dir_expanded, fapdata.DEFAULT_BLOB_DIR_NAME)
-    if not os.path.isdir(db_dir_expanded):
-      raise base.Error('Given database directory does not exist: %r' % db_dir)
-    if not os.path.isdir(blob_path):
-      raise base.Error('Database blobs directory does not exist: %r' % blob_path)
-    if not os.path.exists(db_path):
-      raise base.Error('Database file does not exist: %r' % db_path)
     # load database
-    database = fapdata.FapDatabase(db_path)
-    database.Load()
+    database = fapdata.FapDatabase(db_dir, create_if_needed=False)
+    if not database.Load():
+      raise base.Error('Database does not exist in given path: %r' % db_dir)
+    if not database.blobs_dir_exists:
+      raise base.Error('Database blobs directory does not inside %r' % db_dir)
     # we should now have both IDs that we need
     if operation.lower() == 'stats':
       _StatsOperation(database)

@@ -30,7 +30,7 @@ See below:
 $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/imagefap-favorites.git
 $ sudo apt-get install python3-pip pylint3
-$ sudo pip3 install -U click sanitize_filename coverage
+$ sudo pip3 install -U click sanitize_filename coverage imagededup Django
 ```
 
 ## Usage
@@ -41,9 +41,7 @@ Run `./get_favorites.py --help` for an options and flag summary.
 
 The basic download command is `get`. Use it if you know the user ID
 (or user name), picture folder ID (or picture folder name),
-and want those saved to a given (or default) output directory.
-We can't yet properly deal with HTML
-escaping names, so be aware of this. In the absence
+and want those saved to a given (or default) output directory. In the absence
 of an explicit directory, will default to `~/Downloads/imagefap/`.
 This command defaults to preserving file names and just straight
 saving them to disk instead of saving them as blobs. It will create
@@ -85,6 +83,8 @@ leave all of them to be saved to the same output directory (either
 default or some explicit other one), then exact duplicate images
 (again by `sha256`) will ___not___ be saved twice, and the file
 name will be the one give for the first time it was saved.
+
+For now, don't mix `get` and `read` or images might disappear.
 
 ### `get_favorites.py READ` command - _Feed the Database!_
 
@@ -195,8 +195,11 @@ from a structure like:
       folder_id: {
         'name': folder_name,
         'pages': max_pages_found,
-        'date': int_time_last_success_download,  # int(time.time()) of last time all images finished
-            # will start as 0, meaning never finished yet
+        'date_straight': int_time_last_success_download_for_direct_saving,
+        'date_blobs':    int_time_last_success_download_for_blobs,
+            # these dates are int(time.time()) of last time all images finished; the fields will
+            # start as 0, meaning never finished yet, and we have one for straight image saves
+            # (coming from `get` operation) and one for blobs (coming from `read` operation)
         'images': [imagefap_image_id-1, imagefap_image_id-2, ...],  # in order
       }
     }
@@ -221,11 +224,17 @@ from a structure like:
       'tags': {tag_id-1, tag_id-2, ...},
       'sz': int_size_bytes,
       'ext': string_file_extension,  # the saved file extension ('jpg', 'gif', ...)
+      'percept': perceptual_hash,    # 16 character hexadecimal string perceptual hash for the image
     }
   }
+
   'image_ids_index': {
     # this is a reverse index for 'blobs' so we can easily search by imagefap_image_id
     imagefap_image_id: file_sha_256_hex_digest,
+  }
+
+  'duplicates_index': {
+    # TODO
   }
 
 }
