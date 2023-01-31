@@ -103,7 +103,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
     help='Ignore recency check for download of favorite images? Default '
          'is False ("no"). This will force a download even if the album '
          'is fresh in the database')
-@base.Timed('Total Imagefap get_favorites.py execution time')
+@base.Timed('Total Imagefap favorites.py execution time')
 def main(operation: str,  # noqa: C901
          user_name: str,
          user_id: int,
@@ -130,17 +130,17 @@ def main(operation: str,  # noqa: C901
   Typical examples:
 
   \b
-  ./get_favorites.py get --user "some-login" \\
+  ./favorites.py get --user "some-login" \\
       --name "Random Images" --output "~/some-dir/"
   (in this case the login/name is used and a specific output is given)
 
   \b
-  ./get_favorites.py get --id 1234 --folder 5678
+  ./favorites.py get --id 1234 --folder 5678
   (in this case specific numerical IDs are used and
    output will be the current directory)
 
   \b
-  ./get_favorites.py read --user "some-login"
+  ./favorites.py read --user "some-login"
   (in this case, will find all image favorite galleries for this user
    and place them in the database;)
   """

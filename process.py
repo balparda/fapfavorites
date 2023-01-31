@@ -96,8 +96,8 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
   """imagefap.com database operations utility.
 
   This is intended to be used on a database that has been constructed
-  by reading imagefap.com data. To construct a database, use the `get_favorites.py`
-  utility.
+  by reading imagefap.com data. To construct a database, use the `read`
+  command of the `favorites.py` utility.
 
   The `stats` command prints interesting info on the database's metadata.
 

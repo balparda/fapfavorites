@@ -33,11 +33,11 @@ $ sudo apt-get install python3-pip pylint3
 $ sudo pip3 install -U click sanitize_filename coverage imagededup Django
 ```
 
-## Usage
+## Usage of `favorites.py`
 
-Run `./get_favorites.py --help` for an options and flag summary.
+Run `./favorites.py --help` for an options and flag summary.
 
-### `get_favorites.py GET` command - _Simple Save of Favorite Images Gallery_
+### `favorites.py GET` command - _Simple Save of Favorite Images Gallery_
 
 The basic download command is `get`. Use it if you know the user ID
 (or user name), picture folder ID (or picture folder name),
@@ -68,14 +68,14 @@ gallery _"my pics"_ and download all images to the default directory
 script will figure out the correct casing as it loads the IDs:
 
 ```
-./get_favorites.py get --user dirty999 --folder "my pics"
+./favorites.py get --user dirty999 --folder "my pics"
 ```
 
 This example will get folder 5678 of user 1234 and place them in
 the given directory `~/some-dir/`:
 
 ```
-./get_favorites.py get --id 1234 --folder 5678 --output "~/some-dir/"
+./favorites.py get --id 1234 --folder 5678 --output "~/some-dir/"
 ```
 
 If you use the `get` command with multiple favorite galleries and
@@ -86,7 +86,7 @@ name will be the one give for the first time it was saved.
 
 For now, don't mix `get` and `read` or images might disappear.
 
-### `get_favorites.py READ` command - _Feed the Database!_
+### `favorites.py READ` command - _Feed the Database!_
 
 This `read` command is for when you want to do more than just download
 images from one (or a few) galleries. This will store the images as blobs
@@ -108,15 +108,19 @@ the default directory (`~/Downloads/imagefap/`). The flags behave
 the same as for the `get` command:
 
 ```
-./get_favorites.py read --user dirty999 --folder "my pics"
+./favorites.py read --user dirty999 --folder "my pics"
 ```
 
 For the `read` command you may instruct it to find all favorite
 image galleries in the user's favorite:
 
 ```
-./get_favorites.py read --user dirty999
+./favorites.py read --user dirty999
 ```
+
+## Usage of `process.py`
+
+Run `./process.py --help` for an options and flag summary.
 
 ### `process.py STATS` command - _See Database Statistics_
 
