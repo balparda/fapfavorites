@@ -277,12 +277,27 @@ class FapDatabase():
         self._db_path, base.HumanizedBytes(db_size),
         100.0 * db_size / (all_files_size if all_files_size else 1)))
     print(
-        '%s total unique image files size (%s min, %s max, %s mean with %s standard deviation)' % (
+        '%s total (unique) images size (%s min, %s max, '
+        '%s mean with %s standard deviation, %d are animated)' % (
             base.HumanizedBytes(all_files_size),
             base.HumanizedBytes(min(file_sizes)),
             base.HumanizedBytes(max(file_sizes)),
             base.HumanizedBytes(int(statistics.mean(file_sizes))),
-            base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
+            base.HumanizedBytes(int(statistics.stdev(file_sizes))),
+            sum(int(s['animated']) for s in self._blobs.values())))  # type: ignore
+    wh_sizes: list[tuple[int, int]] = [
+        (s['width'], s['height']) for s in self._blobs.values()]  # type: ignore
+    pixel_sizes: list[int] = [
+        s['width'] * s['height'] for s in self._blobs.values()]  # type: ignore
+    print(
+        'Pixel size (width, height): %spixels min %r, %spixels max %r, '  # cspell:disable-line
+        '%s mean with %s standard deviation' % (
+            base.HumanizedDecimal(min(pixel_sizes)),
+            wh_sizes[pixel_sizes.index(min(pixel_sizes))],
+            base.HumanizedDecimal(max(pixel_sizes)),
+            wh_sizes[pixel_sizes.index(max(pixel_sizes))],
+            base.HumanizedDecimal(int(statistics.mean(pixel_sizes))),
+            base.HumanizedDecimal(int(statistics.stdev(pixel_sizes)))))
     print()
     print('%d users' % len(self._users))
     all_dates = [max(f['date_straight'], f['date_blobs'])
@@ -292,7 +307,7 @@ class FapDatabase():
         sum(len(f) for _, f in self._favorites.items()),
         base.STD_TIME_STRING(min_date) if min_date else 'pending',
         base.STD_TIME_STRING(max_date) if max_date else 'pending'))
-    print('%d unique images (%d total, %d duplicates)' % (
+    print('%d unique images (%d total, %d exact duplicates)' % (
         len(self._blobs),
         sum(len(b['loc']) for _, b in self._blobs.items()),       # type: ignore
         sum(len(b['loc']) - 1 for _, b in self._blobs.items())))  # type: ignore
@@ -303,34 +318,36 @@ class FapDatabase():
     print('    FILE STATS FOR USER')
     print('    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)')
     print('           FILE STATS FOR FAVORITES')
-    for i in sorted(self._users.keys()):
-      u = self._users[i]
+    for uid in sorted(self._users.keys()):
       print()
-      print('%d: %r' % (i, u))
+      print('%d: %r' % (uid, self._users[uid]))
       file_sizes: list[int] = [
-          self._blobs[
-              self._image_ids_index[i]]['sz'] for u in self._favorites.values()
-              for f in u.values() for i in f['images']]   # type: ignore # noqa: E131
+          self._blobs[self._image_ids_index[i]]['sz']
+          for d, u in self._favorites.items() if d == uid
+          for f in u.values()
+          for i in f['images'] if i in self._image_ids_index]   # type: ignore # noqa: E131
       print('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
           base.HumanizedBytes(sum(file_sizes)),
           base.HumanizedBytes(min(file_sizes)),
           base.HumanizedBytes(max(file_sizes)),
           base.HumanizedBytes(int(statistics.mean(file_sizes))),
           base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
-      for j in sorted(self._favorites.get(i, {}).keys()):
-        f = self._favorites[i][j]
+      for fid in sorted(self._favorites.get(uid, {}).keys()):
+        obj = self._favorites[uid][fid]
         file_sizes: list[int] = [
-            self._blobs[self._image_ids_index[i]]['sz'] for i in f['images']]  # type: ignore
+            self._blobs[self._image_ids_index[i]]['sz']
+            for i in obj['images'] if i in self._image_ids_index]  # type: ignore
         print('    => %d: %r (%d / %d / %s)' % (
-            j, f['name'], len(f['images']), f['pages'],  # type: ignore
-            base.STD_TIME_STRING(max(f['date_straight'], f['date_blobs']))
-            if f['date_straight'] or f['date_blobs'] else 'pending'))
-        print('           %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
-            base.HumanizedBytes(sum(file_sizes)),
-            base.HumanizedBytes(min(file_sizes)),
-            base.HumanizedBytes(max(file_sizes)),
-            base.HumanizedBytes(int(statistics.mean(file_sizes))),
-            base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
+            fid, obj['name'], len(obj['images']), obj['pages'],  # type: ignore
+            base.STD_TIME_STRING(max(obj['date_straight'], obj['date_blobs']))
+            if obj['date_straight'] or obj['date_blobs'] else 'pending'))
+        if file_sizes:
+          print('           %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
+              base.HumanizedBytes(sum(file_sizes)),
+              base.HumanizedBytes(min(file_sizes)),
+              base.HumanizedBytes(max(file_sizes)),
+              base.HumanizedBytes(int(statistics.mean(file_sizes))),
+              base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
 
   def PrintTags(self) -> None:
     """Print database tags."""
@@ -350,13 +367,16 @@ class FapDatabase():
 
   def PrintBlobs(self) -> None:
     """Print database blobs metadata."""
-    print('SHA256_HASH: ID1/\'NAME1\' or ID2/\'NAME2\' or ...')
+    print('SHA256_HASH: ID1/\'NAME1\' or ID2/\'NAME2\' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED]')
     print('    => {\'TAG1\', \'TAG2\', ...}')
     print()
     for h in sorted(self._blobs.keys()):
       b = self._blobs[h]
-      print('%s: %s' % (h, ' or '.join(
-          '%d/%r' % (i, n) for i, _, n, _, _ in b['loc'])))  # type: ignore
+      print('%s: %s, %s %r%s' % (
+          h, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in b['loc']),  # type: ignore
+          base.HumanizedDecimal(b['width'] * b['height']),                 # type: ignore
+          (b['width'], b['height']),
+          ' animated' if b['animated'] else ''))
       if b['tags']:
         print('    => {%s}' % ', '.join(
             repr(self.GetTag(i)[-1][1]) for i in b['tags']))  # type: ignore
