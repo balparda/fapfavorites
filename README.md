@@ -58,10 +58,6 @@ You do ___not___ have to worry about missing images because the
 duplicate detection here uses `sha256` and will thus _only_ skip files
 that are _exactly the same_. No possible mistake here.
 
-For really big jobs, imagefap.com will sometimes just block. When
-this happens, use `Ctrl-C` and run the command again. The database
-will prevent a lot of duplicate work.
-
 This example will find the user _"dirty999"_ and the favorite
 gallery _"my pics"_ and download all images to the default directory
 (`~/Downloads/imagefap/`). The names are case insensitive and the
@@ -95,10 +91,6 @@ and/or tag them, and/or re-export them in some other fashion.
 _(For now the mentioned "advanced" features are only planned and not
 implemented, so this option has limited use, but it is important
 to document.)_
-
-For really big jobs, imagefap.com will sometimes just block. When
-this happens, use `Ctrl-C` and run the command again. The database
-will prevent a lot of duplicate work.
 
 This example will find the user _"dirty999"_ and the favorite
 gallery _"my pics"_ and read all images into the database in

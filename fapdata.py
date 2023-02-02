@@ -861,13 +861,18 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
       # sleep if succeeded
       time.sleep(tm)
       return url_data
-    except urllib.error.URLError as e:
-      if not isinstance(e.reason, socket.timeout):
-        raise Error('Invalid URL: %s (%s)' % (url, e)) from e
-      # this was a timeout, so we can try again
+    except socket.timeout:
+      # this was a timeout, so try again
       n_retry += 1
       logging.error('Timeout on %r, RETRY # %d', url, n_retry)
       continue
+    except (urllib.error.URLError, urllib.error.HTTPError) as e:
+      if 'timed out' in str(e).lower():
+        # also a timeout, so try again
+        n_retry += 1
+        logging.error('Timeout on %r, RETRY # %d', url, n_retry)
+        continue
+      raise Error('Failed URL: %s (%s)' % (url, e)) from e
   # only way to reach here is exceeding retries
   raise Error('Max retries reached on URL %r' % url)
 
