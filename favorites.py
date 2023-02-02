@@ -163,7 +163,8 @@ def main(operation: str,  # noqa: C901
       raise AttributeError('The `read` command requires a database (--db option)')
     # load database, if any
     database = fapdata.FapDatabase(output_path)
-    database.Load()
+    if make_db:
+      database.Load()
     # convert user to id and convert name to folder, if needed
     if user_id:
       database.AddUserByID(user_id)

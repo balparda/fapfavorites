@@ -6,9 +6,9 @@
 
 # import pdb
 import unittest
-# from unittest import mock
+from unittest import mock
 
-# import favorites
+import process
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -17,9 +17,55 @@ __version__ = (1, 0)
 class TestProcess(unittest.TestCase):
   """Tests for process.py."""
 
-  def test_TODO(self):
+  @mock.patch('process.fapdata.os.path.isdir')
+  @mock.patch('process.fapdata.FapDatabase.Load')
+  @mock.patch('process.fapdata.FapDatabase.Save')
+  @mock.patch('process.fapdata.FapDatabase.PrintStats')
+  @mock.patch('process.fapdata.FapDatabase.PrintUsersAndFavorites')
+  @mock.patch('process.fapdata.FapDatabase.PrintTags')
+  @mock.patch('process.fapdata.FapDatabase.PrintBlobs')
+  def test_StatsOperation(
+      self, print_blobs, print_tags, print_users, print_stats, save, load, mock_is_dir):
     """Test."""
-    # TODO: write a test
+    mock_is_dir.return_value = True
+    try:
+      process.main(['stats', '--dir', '/path/'])
+    except SystemExit as e:
+      if e.code:
+        raise
+    self.assertListEqual(
+        mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
+    load.assert_called_with()
+    print_stats.assert_called_with()
+    save.assert_not_called()
+    print_blobs.assert_not_called()
+    print_tags.assert_not_called()
+    print_users.assert_not_called()
+
+  @mock.patch('process.fapdata.os.path.isdir')
+  @mock.patch('process.fapdata.FapDatabase.Load')
+  @mock.patch('process.fapdata.FapDatabase.Save')
+  @mock.patch('process.fapdata.FapDatabase.PrintStats')
+  @mock.patch('process.fapdata.FapDatabase.PrintUsersAndFavorites')
+  @mock.patch('process.fapdata.FapDatabase.PrintTags')
+  @mock.patch('process.fapdata.FapDatabase.PrintBlobs')
+  def test_PrintOperation(
+      self, print_blobs, print_tags, print_users, print_stats, save, load, mock_is_dir):
+    """Test."""
+    mock_is_dir.return_value = True
+    try:
+      process.main(['print', '--dir', '/path/', '--blobs'])
+    except SystemExit as e:
+      if e.code:
+        raise
+    self.assertListEqual(
+        mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
+    load.assert_called_with()
+    print_users.assert_called_with()
+    print_tags.assert_called_with()
+    print_blobs.assert_called_with()
+    print_stats.assert_called_with()
+    save.assert_not_called()
 
 
 SUITE = unittest.TestLoader().loadTestsFromTestCase(TestProcess)

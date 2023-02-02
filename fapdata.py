@@ -400,7 +400,7 @@ class FapDatabase():
       url = _FAVORITES_URL(user_id, 0)  # use the favorites page
       logging.info('Fetching favorites page: %s', url)
       user_html = _FapHTMLRead(url)
-      user_names = _FIND_NAME_IN_FAVORITES.findall(user_html)
+      user_names: list[str] = _FIND_NAME_IN_FAVORITES.findall(user_html)
       if len(user_names) != 1:
         raise Error('Could not find user name for %d' % user_id)
       self._users[user_id] = html.unescape(user_names[0])
@@ -428,11 +428,11 @@ class FapDatabase():
     url = _USER_PAGE_URL(user_name)
     logging.info('Fetching user page: %s', url)
     user_html = _FapHTMLRead(url)
-    user_ids = _FIND_USER_ID_RE.findall(user_html)
+    user_ids: list[str] = _FIND_USER_ID_RE.findall(user_html)
     if len(user_ids) != 1:
       raise Error('Could not find ID for user %r' % user_name)
     uid = int(user_ids[0])
-    actual_name = _FIND_ACTUAL_NAME.findall(user_html)
+    actual_name: list[str] = _FIND_ACTUAL_NAME.findall(user_html)
     if len(actual_name) != 1:
       raise Error('Could not find actual display name for user %r' % user_name)
     self._users[uid] = html.unescape(actual_name[0])
@@ -459,7 +459,7 @@ class FapDatabase():
       url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder page
       logging.info('Fetching favorites page: %s', url)
       folder_html = _FapHTMLRead(url)
-      folder_names = _FIND_NAME_IN_FOLDER.findall(folder_html)
+      folder_names: list[str] = _FIND_NAME_IN_FOLDER.findall(folder_html)
       if len(folder_names) != 1:
         raise Error('Could not find folder name for %d/%d' % (user_id, folder_id))
       _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
@@ -918,8 +918,8 @@ def _CheckFolderIsForImages(user_id: int, folder_id: int) -> None:
   url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder's 1st page
   logging.debug('Fetching favorites to check *not* a galleries folder: %s', url)
   folder_html = _FapHTMLRead(url)
-  should_have = _FIND_ONLY_IN_PICTURE_FOLDER.findall(folder_html)
-  should_not_have = _FIND_ONLY_IN_GALLERIES_FOLDER.findall(folder_html)
+  should_have: list[str] = _FIND_ONLY_IN_PICTURE_FOLDER.findall(folder_html)
+  should_not_have: list[str] = _FIND_ONLY_IN_GALLERIES_FOLDER.findall(folder_html)
   if should_not_have or not should_have:
     raise base.Error('This is not a valid images folder! Maybe it is a galleries folder?')
 
@@ -946,9 +946,10 @@ def _ExtractFavoriteIDs(page_num: int, user_id: int, folder_id: int) -> list[int
   url = _FOLDER_URL(user_id, folder_id, page_num)
   logging.info('Fetching favorites page: %s', url)
   fav_html = _FapHTMLRead(url)
-  ids = [int(id) for id in _FAVORITE_IMAGE.findall(fav_html)]
-  logging.info('Got %d image IDs', len(ids))
-  return ids
+  images: list[str] = _FAVORITE_IMAGE.findall(fav_html)
+  image_ids = [int(id) for id in images]
+  logging.info('Got %d image IDs', len(image_ids))
+  return image_ids
 
 
 def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
@@ -967,11 +968,11 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   url = _IMG_URL(img_id)
   logging.info('Fetching image page: %s', url)
   img_html = _FapHTMLRead(url)
-  full_res_urls = _FULL_IMAGE.findall(img_html)
+  full_res_urls: list[str] = _FULL_IMAGE.findall(img_html)
   if not full_res_urls:
     raise Error('No full resolution image in %s' % url)
   # from the same source extract image file name
-  img_name = _IMAGE_NAME.findall(img_html)
+  img_name: list[str] = _IMAGE_NAME.findall(img_html)
   if not img_name:
     raise Error('No image name path in %s' % url)
   # sanitize image name before returning
