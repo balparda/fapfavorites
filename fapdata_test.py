@@ -8,7 +8,6 @@
 import unittest
 # from unittest import mock
 
-from baselib import base
 import fapdata
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
@@ -20,21 +19,21 @@ class TestFapDatabase(unittest.TestCase):
 
   def test_GetTag(self):
     """Test."""
-    db = fapdata.FapDatabase('/foo/')
+    db = fapdata.FapDatabase('/tmp/')
     db._db['tags'] = _TEST_TAGS_1
     self.assertListEqual(db._GetTag(0), [(0, 'plain')])
     self.assertListEqual(db._GetTag(2), [(2, 'two')])
     self.assertListEqual(db._GetTag(22), [(2, 'two'), (22, 'two-two')])
     self.assertListEqual(db._GetTag(24), [(2, 'two'), (24, 'two-four')])
     self.assertListEqual(db._GetTag(246), [(2, 'two'), (24, 'two-four'), (246, 'deep')])
-    with self.assertRaisesRegex(base.Error, r'tag 11 is empty'):
+    with self.assertRaisesRegex(fapdata.base.Error, r'tag 11 is empty'):
       db._GetTag(11)
-    with self.assertRaisesRegex(base.Error, r'tag 3 \(of 33\) is empty'):
+    with self.assertRaisesRegex(fapdata.base.Error, r'tag 3 \(of 33\) is empty'):
       db._GetTag(33)
 
   def test_TagsWalk(self):
     """Test."""
-    db = fapdata.FapDatabase('/foo/')
+    db = fapdata.FapDatabase('/tmp/')
     db._db['tags'] = _TEST_TAGS_2
     self.assertListEqual(
         list((i, n, d) for i, n, d, _ in db._TagsWalk()),
