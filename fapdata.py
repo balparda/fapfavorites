@@ -32,11 +32,11 @@ from typing import Iterator, Literal, Optional, Union
 import urllib.error
 import urllib.request
 
-from imagededup import methods as image_methods
 from PIL import Image as PilImage
 import sanitize_filename
 
 from baselib import base
+import duplicates
 
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
@@ -64,7 +64,6 @@ _DB_MAIN_KEYS = {
 }
 _DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index', 'duplicates_index']
 _TAG_TYPE = dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]
-_DUPLICATES_TYPE = dict[tuple[str, ...], dict[str, Literal['new', 'false', 'keep', 'skip']]]
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -127,7 +126,7 @@ class FapDatabase():
     self._db: dict[_DB_KEY_TYPE, dict] = {}
     for k in _DB_MAIN_KEYS:  # creates the main expected key entries
       self._db[k] = {}  # type: ignore
-    self._duplicates = _Duplicates(self._duplicates_index)
+    self._duplicates = duplicates.Duplicates(self._duplicates_index)
     # check output directory, create if needed
     if not os.path.isdir(self._db_dir):
       if not create_if_needed:
@@ -161,7 +160,7 @@ class FapDatabase():
     return self._db['image_ids_index']
 
   @property
-  def _duplicates_index(self) -> _DUPLICATES_TYPE:
+  def _duplicates_index(self) -> duplicates.DUPLICATES_TYPE:
     return self._db['duplicates_index']
 
   @property
@@ -183,7 +182,7 @@ class FapDatabase():
       # just a quick dirty check that we got what we expected
       if any(k not in self._db for k in _DB_MAIN_KEYS):
         raise Error('Loaded DB is invalid!')
-      self._duplicates = _Duplicates(self._duplicates_index)  # duplicates has to be reloaded!
+      self._duplicates = duplicates.Duplicates(self._duplicates_index)  # has to be reloaded!
       logging.info('Loaded DB from %r', self._db_path)
       return True
     logging.warning('No DB found in %r', self._db_path)
@@ -833,89 +832,6 @@ class FapDatabase():
       dict of {sha: set_of_other_sha_duplicates}
     """
     self._duplicates.FindDuplicates(self._perceptual_hashes_map)
-
-
-class _Duplicates():
-  """Stores and manipulates duplicates data."""
-
-  def __init__(self, duplicates_index: _DUPLICATES_TYPE):
-    """Construct.
-
-    Args:
-      duplicates_index: The self._duplicates_index from FapDatabase.
-    """
-    self._index = duplicates_index
-    self._perceptual_hasher = image_methods.PHash()
-
-  @property
-  def hashes(self) -> set[str]:
-    """All sha256 keys that are currently affected by duplicates."""
-    # pdb.set_trace()
-    all_sha: set[str] = set()
-    for sha_tuple in self._index.keys():
-      all_sha.update(sha_tuple)
-    return all_sha
-
-  def _GetSetKey(self, sha: str) -> Optional[tuple[str, ...]]:
-    """Find and return the key containing `sha`, or None if not found."""
-    for k in self._index.keys():
-      if sha in k:
-        # pdb.set_trace()
-        return k
-    return None
-
-  def Encode(self, image_path: str) -> str:
-    """Get perceptual hash for one specific image in image_path."""
-    return self._perceptual_hasher.encode_image(image_file=image_path)
-
-  def AddDuplicateSet(self, sha_set: set[str]) -> int:
-    """Add a new duplicate set to the collection.
-
-    Args:
-      sha_set: The set of sha256 to add
-
-    Returns:
-      Number of *NEW* sha256 added (the ones marked as 'new' in the database)
-    """
-    # pdb.set_trace()
-    # first we try to find our keys in the existing index
-    for sha in sha_set:
-      key = self._GetSetKey(sha)
-      if key is not None:
-        # this is the key to use, for the whole sha_set!
-        new_sha_set = sha_set.union(key)
-        diff_sha_set = new_sha_set.difference(key)
-        if not diff_sha_set:
-          return 0  # there is no new sha entry in sha_set
-        # we have new entries, so first we create a new dict entry and delete the previous one
-        new_sha_key = tuple(sorted(new_sha_set))
-        self._index[new_sha_key] = self._index[key]
-        del self._index[key]
-        # now we add the new duplicates to the old entries
-        for k in diff_sha_set:
-          self._index[new_sha_key][k] = 'new'
-        return len(diff_sha_set)
-    # there is no entry that matches any duplicate, so this is all new to us
-    self._index[tuple(sorted(sha_set))] = {sha: 'new' for sha in sha_set}
-    return len(sha_set)
-
-  def FindDuplicates(self, perceptual_hashes_map: dict[str, str]) -> None:
-    """Find (perceptual) duplicates.
-
-    Returns:
-      dict of {sha: set_of_other_sha_duplicates}
-    """
-    # pdb.set_trace()
-    logging.info('Searching for perceptual duplicates in database...')
-    duplicates: dict[str, list[str]] = self._perceptual_hasher.find_duplicates(
-        encoding_map=perceptual_hashes_map)
-    filtered_duplicates = {k: set(d) for k, d in duplicates.items() if d}
-    new_duplicates = 0
-    for sha, sha_set in filtered_duplicates.items():
-      new_duplicates += self.AddDuplicateSet(sha_set.union({sha}))
-    # pdb.set_trace()
-    logging.info('Found %d new perceptual duplicates, database has %d images marked as duplicates',
-                 new_duplicates, len(self.hashes))
 
 
 def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> bytes:
