@@ -42,7 +42,6 @@ class Duplicates():
   @property
   def hashes(self) -> set[str]:
     """All sha256 keys that are currently affected by duplicates."""
-    # pdb.set_trace()
     all_sha: set[str] = set()
     for sha_tuple in self._index.keys():
       all_sha.update(sha_tuple)
@@ -52,7 +51,6 @@ class Duplicates():
     """Find and return the key containing `sha`, or None if not found."""
     for k in self._index.keys():
       if sha in k:
-        # pdb.set_trace()
         return k
     return None
 
@@ -69,7 +67,6 @@ class Duplicates():
     Returns:
       Number of *NEW* sha256 added (the ones marked as 'new' in the database)
     """
-    # pdb.set_trace()
     # first we try to find our keys in the existing index
     for sha in sha_set:
       key = self._GetSetKey(sha)
@@ -97,7 +94,6 @@ class Duplicates():
     Returns:
       dict of {sha: set_of_other_sha_duplicates}
     """
-    # pdb.set_trace()
     logging.info('Searching for perceptual duplicates in database...')
     duplicates: dict[str, list[str]] = self._perceptual_hasher.find_duplicates(
         encoding_map=perceptual_hashes_map)
@@ -105,6 +101,5 @@ class Duplicates():
     new_duplicates = 0
     for sha, sha_set in filtered_duplicates.items():
       new_duplicates += self.AddDuplicateSet(sha_set.union({sha}))
-    # pdb.set_trace()
     logging.info('Found %d new perceptual duplicates, database has %d images marked as duplicates',
                  new_duplicates, len(self.hashes))
