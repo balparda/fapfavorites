@@ -21,16 +21,18 @@ import html
 import logging
 import os
 import os.path
-import pdb
+# import pdb
 import random
 import re
 import statistics
+import tempfile
 import time
 from typing import Iterator, Literal, Optional, Union
 import urllib.error
 import urllib.request
 
 from imagededup import methods as image_methods
+from PIL import Image as PilImage
 import sanitize_filename
 
 from baselib import base
@@ -55,9 +57,11 @@ _DB_MAIN_KEYS = {
     'tags',
     'blobs',
     'image_ids_index',
+    'duplicates_index',
 }
-_DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index']
+_DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index', 'duplicates_index']
 _TAG_TYPE = dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]
+_DUPLICATES_TYPE = dict[tuple[str, ...], dict[str, Literal['new', 'false', 'keep', 'skip']]]
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -120,7 +124,7 @@ class FapDatabase():
     self._db: dict[_DB_KEY_TYPE, dict] = {}
     for k in _DB_MAIN_KEYS:  # creates the main expected key entries
       self._db[k] = {}  # type: ignore
-    self._perceptual_hasher = image_methods.PHash()
+    self._duplicates = _Duplicates(self._duplicates_index)
     # check output directory, create if needed
     if not os.path.isdir(self._db_dir):
       if not create_if_needed:
@@ -143,14 +147,19 @@ class FapDatabase():
     return self._db['tags']
 
   @property
-  def _blobs(self) -> dict[str, dict[Literal['loc', 'tags', 'sz', 'ext', 'percept'],
-                                     Union[int, str,
+  def _blobs(self) -> dict[str, dict[Literal['loc', 'tags', 'sz', 'ext', 'percept',
+                                             'width', 'height', 'animated'],
+                                     Union[int, str, bool,
                                            set[Union[int, tuple[int, str, str, int, int]]]]]]:
     return self._db['blobs']
 
   @property
   def _image_ids_index(self) -> dict[int, str]:
     return self._db['image_ids_index']
+
+  @property
+  def _duplicates_index(self) -> _DUPLICATES_TYPE:
+    return self._db['duplicates_index']
 
   @property
   def blobs_dir_exists(self) -> bool:
@@ -171,6 +180,7 @@ class FapDatabase():
       # just a quick dirty check that we got what we expected
       if any(k not in self._db for k in _DB_MAIN_KEYS):
         raise Error('Loaded DB is invalid!')
+      self._duplicates = _Duplicates(self._duplicates_index)  # duplicates has to be reloaded!
       logging.info('Loaded DB from %r', self._db_path)
       return True
     logging.warning('No DB found in %r', self._db_path)
@@ -181,15 +191,24 @@ class FapDatabase():
     base.BinSerialize(self._db, self._db_path)
     logging.info('Saved DB to %r', self._db_path)
 
-  # TODO: create HasBlob as auxiliary for refactor
   def _BlobPath(self, sha: str) -> str:
-    """Get full file path for a blob hash (sha)."""
+    """Get full file path for a blob hash (`sha`)."""
     try:
       return os.path.join(self._blobs_dir, '%s.%s' % (sha, self._blobs[sha]['ext']))
     except KeyError:
       raise base.Error('Blob %r not found' % sha)
 
-  def GetTag(self, tag_id: int) -> list[tuple[int, str]]:  # noqa: C901
+  def _HasBlob(self, sha: str) -> bool:
+    """Check if blob `sha` is available in blobs/ directory."""
+    return os.path.exists(self._BlobPath(sha))
+
+  def _GetBlob(self, sha: str) -> bytes:
+    """Get the blob binary data for `sha` entry."""
+    # pdb.set_trace()
+    with open('rb', self._BlobPath(sha)) as f:
+      return f.read()
+
+  def _GetTag(self, tag_id: int) -> list[tuple[int, str]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
 
     Args:
@@ -226,7 +245,7 @@ class FapDatabase():
     hierarchy.reverse()
     return hierarchy
 
-  def TagsWalk(
+  def _TagsWalk(
       self, start_tag: Optional[_TAG_TYPE] = None, depth: int = 0) -> Iterator[
           tuple[int, str, int, _TAG_TYPE]]:
     """Walk all tags recursively, depth first.
@@ -243,7 +262,7 @@ class FapDatabase():
     for tag_id in sorted(start_tag.keys()):
       yield (tag_id, start_tag[tag_id]['name'], depth, start_tag[tag_id]['tags'])  # type: ignore
       if start_tag[tag_id]['tags']:
-        for o in self.TagsWalk(
+        for o in self._TagsWalk(
             start_tag=start_tag[tag_id]['tags'], depth=(depth + 1)):  # type: ignore
           yield o
 
@@ -289,7 +308,7 @@ class FapDatabase():
       file_sizes: list[int] = [
           self._blobs[
               self._image_ids_index[i]]['sz'] for u in self._favorites.values()
-              for f in u.values() for i in f['images']]   # type: ignore # noqa: C901,E131
+              for f in u.values() for i in f['images']]   # type: ignore # noqa: E131
       print('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
           base.HumanizedBytes(sum(file_sizes)),
           base.HumanizedBytes(min(file_sizes)),
@@ -318,7 +337,7 @@ class FapDatabase():
       return
     print('TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)')
     print()
-    for tag_id, tag_name, depth, _ in self.TagsWalk():
+    for tag_id, tag_name, depth, _ in self._TagsWalk():
       count, sz = 0, 0
       for b in self._blobs.values():
         if tag_id in b['tags']:  # type: ignore
@@ -582,9 +601,100 @@ class FapDatabase():
         sum(1 for i in img_list if i not in self._image_ids_index))
     return img_list
 
-  # TODO: needs serious refactoring, split into 2 methods for `get` and `read`
-  def DownloadFavorites(self, user_id: int, folder_id: int,  # noqa: C901
-                        checkpoint_size: int, save_as_blobs: bool, force_download: bool) -> int:
+  def _FindOrCreateBlobLocationEntry(self, user_id: int, folder_id: int, img_id: int) -> tuple[
+      Optional[bytes], str, str, str, str]:
+    """Find entry for user_id/folder_id/img_id or create one, if none is found.
+
+    Args:
+      user_id: User int ID
+      folder_id: Folder int ID
+      img_id: Imagefap int image ID
+
+    Returns:
+      (image_bytes, sha256_hexdigest,
+       imagefap_full_res_url, file_name_sanitized, file_extension_sanitized)
+      image_bytes can be None if the image's hash is known!
+    """
+    # figure out if we have it in the index
+    sha = self._image_ids_index.get(img_id, None)
+    if sha is None:
+      # we don't know about this specific img_id yet: get image's full resolution URL + name
+      url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
+      # get actual binary data
+      image_bytes, sha, perceptual_hash, width, height, is_animated = self._GetBinary(
+          url_path, extension)
+      # create DB entries and return
+      self._image_ids_index[img_id] = sha
+      sz = len(image_bytes)
+      if sha in self._blobs:
+        # in this case we haven't seen this img_id, but the actual binary (sha) was seen in
+        # some other album, so we do some checks and add to the 'loc' entry
+        # pdb.set_trace()
+        if (self._blobs[sha]['sz'] != sz or self._blobs[sha]['percept'] != perceptual_hash or
+            self._blobs[sha]['width'] != width or self._blobs[sha]['height'] != height or
+            self._blobs[sha]['animated'] != is_animated):
+          logging.error(  # this would be truly weird case, especially for the sz data!
+              'Mismatch in %r: stored %d/%s/%s/%d/%d/%r versus new %d/%s/%s/%d/%d/%r',
+              sha, self._blobs[sha]['sz'], self._blobs[sha]['percept'], self._blobs[sha]['ext'],
+              self._blobs[sha]['width'], self._blobs[sha]['height'], self._blobs[sha]['animated'],
+              sz, perceptual_hash, extension, width, height, is_animated)
+        self._blobs[sha]['loc'].add(  # type: ignore
+            (img_id, url_path, sanitized_image_name, user_id, folder_id))
+      else:
+        # in this case this is a truly new image: never seen img_id or sha
+        self._blobs[sha] = {
+            'loc': {(img_id, url_path, sanitized_image_name, user_id, folder_id)},
+            'tags': set(), 'sz': sz, 'ext': extension, 'percept': perceptual_hash,
+            'width': width, 'height': height, 'animated': is_animated}
+      return (image_bytes, sha, url_path, sanitized_image_name, extension)
+    # we have seen this img_id before, and can skip a lot of computation
+    # first: could it be we saw it in this same user_id/folder_id?
+    for iid, url, nm, uid, fid in self._blobs[sha]['loc']:  # type: ignore
+      if img_id == iid and user_id == uid and folder_id == fid:
+        # this is an exact match (img_id/user_id/folder_id) and we won't download or search for URL
+        return (None, sha, url, nm, self._blobs[sha]['ext'])  # type: ignore
+    # in this last case we know the img_id but it seems to be duplicated in another album,
+    # so we have to get the img_id metadata (url, name) at least, and add to the database
+    # pdb.set_trace()
+    url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
+    self._blobs[sha]['loc'].add(  # type: ignore
+        (img_id, url_path, sanitized_image_name, user_id, folder_id))
+    return (None, sha, url_path, sanitized_image_name, extension)
+
+  def _CheckWorkHysteresis(self, user_id: int, folder_id: int,
+                           checkpoint_size: int, force_download: bool, tm_last: int) -> bool:
+    """Check if work should be done, or if album has recently been downloaded.
+
+    Args:
+      user_id: User ID
+      folder_id: Folder ID
+      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
+          if zero will not checkpoint at all
+      force_download: If True will download even if recently downloaded
+      tm_last: Time last download was done
+
+    Returns:
+      True if work should be done; False otherwise
+    """
+    # check for the timestamp: should we even do this work?
+    tm_now = base.INT_TIME()
+    if tm_last and (tm_last + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
+      logging.warning(
+          'Picture folder %r/%r (%d/%d) images downloaded recently (%s, %s ago): %s!',
+          self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
+          base.STD_TIME_STRING(tm_last), base.HumanizedSeconds(tm_now - tm_last),
+          'ignoring time limit and downloading again' if force_download else 'SKIP')
+      if not force_download:
+        return False
+    logging.info(
+        'Downloading all images in folder %r/%r (%d/%d); %s',
+        self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
+        'checkpoint DB every %d downloads' % checkpoint_size if checkpoint_size else
+        'NO checkpoints (work may be lost)')
+    return True
+
+  def DownloadFavorites(self, user_id: int, folder_id: int,
+                        checkpoint_size: int, force_download: bool) -> int:
     """Actually get the images in a picture folder.
 
     Args:
@@ -592,180 +702,217 @@ class FapDatabase():
       folder_id: Folder ID
       checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
           if zero will not checkpoint at all
-      save_as_blobs: Save images with sha256 names (not original names)
       force_download: If True will download even if recently downloaded
 
     Returns:
       int size of all bytes downloaded
     """
-    try:
-      # check for the timestamp: should we even do this work?
-      tm_download: int = (
-          self._favorites[user_id][folder_id]['date_blobs'] if save_as_blobs else  # type: ignore
-          self._favorites[user_id][folder_id]['date_straight'])
-      tm_now = base.INT_TIME()
-      if tm_download and (tm_download + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
-        logging.warning(
-            'Picture folder %r/%r (%d/%d) images downloaded recently (%s, %s ago): %s!',
-            self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
-            base.STD_TIME_STRING(tm_download), base.HumanizedSeconds(tm_now - tm_download),
-            'ignoring time limit and downloading again' if force_download else 'SKIP')
-        if not force_download:
-          return 0
-      logging.info(
-          'Downloading all images in folder %r/%r (%d/%d); %s',
-          self._users[user_id], self._favorites[user_id][folder_id]['name'], user_id, folder_id,
-          'checkpoint DB every %d downloads' % checkpoint_size if checkpoint_size else
-          'NO checkpoints (work may be lost)')
-      img_list: list[int] = self._favorites[user_id][folder_id]['images']  # type: ignore
-    except KeyError:
-      raise base.Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
+    return self._DownloadAll(
+        user_id, folder_id, checkpoint_size, force_download, self._db_dir, 'date_straight')
+
+  def ReadFavoritesIntoBlobs(self, user_id: int, folder_id: int,
+                             checkpoint_size: int, force_download: bool) -> int:
+    """Actually get the images in a picture folder.
+
+    Args:
+      user_id: User ID
+      folder_id: Folder ID
+      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
+          if zero will not checkpoint at all
+      force_download: If True will download even if recently downloaded
+
+    Returns:
+      int size of all bytes downloaded
+    """
     # create blobs directory, if needed
-    if save_as_blobs and not self.blobs_dir_exists:
+    if not self.blobs_dir_exists:
       logging.info('Creating blob directory %r', self._blobs_dir)
       os.mkdir(self._blobs_dir)
+    # delegate the actual work
+    return self._DownloadAll(
+        user_id, folder_id, checkpoint_size, force_download, self._blobs_dir, 'date_blobs')
+
+  def _DownloadAll(self, user_id: int, folder_id: int,
+                   checkpoint_size: int, force_download: bool, output_dir: str,
+                   date_key: Literal['date_blobs', 'date_straight']) -> int:
+    """Actually get the images in a picture folder.
+
+    Args:
+      user_id: User ID
+      folder_id: Folder ID
+      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
+          if zero will not checkpoint at all
+      force_download: If True will download even if recently downloaded
+      output_dir: Output directory to use
+      date_key: Date key to use (either 'date_blobs' or 'date_straight')
+
+    Returns:
+      int size of all bytes downloaded
+    """
+    # check if work needs to be done
+    try:
+      tm_download: int = self._favorites[user_id][folder_id][date_key]  # type: ignore
+      if not self._CheckWorkHysteresis(
+          user_id, folder_id, checkpoint_size, force_download, tm_download):
+        return 0
+    except KeyError:
+      raise base.Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
     # download all full resolution images we don't yet have
-    total_sz, saved_count, known_count, dup_count = 0, 0, 0, 0
-    for img_id in img_list:
-      # figure out if we have it in the index
-      # TODO: finding in index should be its own method apart
-      sha = self._image_ids_index.get(img_id, None)
-      if sha is not None:
-        # this img_id has been seen somewhere: could it be in this same user_id/folder_id?
-        found = False
-        for i, _, n, uid, fid in self._blobs[sha]['loc']:  # type: ignore
-          if user_id == uid and folder_id == fid:
-            # this is an exact match (user_id/folder_id) and can be safely skipped
-            found = True
-            logging.info('Image %d/%r is already in DB from this same album: skip', i, n)
-            break
-        if found:
-          # TODO: if you mix `get` and `read` images will be skipped here that shouldn't be
-          known_count += 1
-          continue
-      # get the image's full resolution URL
-      url_path, new_name = _ExtractFullImageURL(img_id)
-      # figure out the file name
-      main_name, extension = new_name.rsplit('.', 1) if '.' in new_name else (new_name, 'jpg')
-      extension = _NormalizeExtension(extension)
-      sanitized_image_name = '%s.%s' % (main_name, extension)
-      actual_file_name = '%s.%s' % (sha if save_as_blobs else main_name, extension)
-      # start going through the possibilities for download
-      if sha and not save_as_blobs:
-        # this img_id has been seen in another favorites album (but not in the current one), but
-        # the user asked for a direct download, so we have to save it again
-        pdb.set_trace()
-        logging.info('Image %d/%r (%s) is already known from another album',
-                     img_id, sanitized_image_name, sha)
-        _, sz, percept = self._SaveImage(url_path, actual_file_name, user_id, folder_id, False)
-        if self._blobs[sha]['sz'] != sz or self._blobs[sha]['ext'] != extension:
-          pdb.set_trace()
-          logging.error(  # this would be truly weird case, especially for the sz data!
-              'Mismatch in %r: stored %d/%r versus new %d/%r',
-              sha, self._blobs[sha]['sz'], self._blobs[sha]['ext'], sz, extension)
-        self._blobs[sha]['loc'].add(  # type: ignore
-            (img_id, url_path, sanitized_image_name, user_id, folder_id))
-        total_sz += sz
-        saved_count += 1
-        if checkpoint_size and not saved_count % checkpoint_size:
-          self.Save()
+    total_sz, saved_count, known_count, exists_count = 0, 0, 0, 0
+    for img_id in self._favorites[user_id][folder_id]['images']:  # type: ignore
+      # add image to database
+      image_bytes, sha, url_path, sanitized_image_name, extension = (
+          self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id))
+      known_count += 1 if image_bytes is None else 0
+      full_path = (os.path.join(output_dir, sanitized_image_name)
+                   if date_key == 'date_straight' else self._BlobPath(sha))
+      # check for output path existence so we don't clobber images that are already there
+      if os.path.exists(full_path):
+        logging.info('Image already exists at %r', full_path)
+        exists_count += 1
         continue
-      if sha:
-        # this img_id has been seen in another favorites album (but not in the current one), and
-        # we must make sure we have the image stored as a blob; save_as_blobs must be True here!
-        pdb.set_trace()
-        if not os.path.exists(self._BlobPath(sha)):
-          raise base.Error('Image (%d/%r) exists in blobs but not on disk: %r' % (
-              img_id, sanitized_image_name, self._BlobPath(sha)))
-        logging.info('Image %d/%r does not need downloading', img_id, sanitized_image_name)
-        self._blobs[sha]['loc'].add(  # type: ignore
-            (img_id, url_path, sanitized_image_name, user_id, folder_id))
-        dup_count += 1
-        continue
-      # having exhausted the previous possibilities, we now can be sure we have never seen this
-      # img_id, but we still may be downloading a duplicate (from another img_id)
-      sha, sz, percept = self._SaveImage(
-          url_path, actual_file_name, user_id, folder_id, save_as_blobs)
-      if sha in self._blobs:
-        pdb.set_trace()
-        if self._blobs[sha]['sz'] != sz or self._blobs[sha]['ext'] != extension:
-          pdb.set_trace()
-          logging.error(  # this would be truly weird case, especially for the sz data!
-              'Mismatch in %r: stored %d/%r versus new %d/%r',
-              sha, self._blobs[sha]['sz'], self._blobs[sha]['ext'], sz, extension)
-        self._blobs[sha]['loc'].add(  # type: ignore
-            (img_id, url_path, sanitized_image_name, user_id, folder_id))
-      else:
-        self._blobs[sha] = {
-            'loc': {(img_id, url_path, sanitized_image_name, user_id, folder_id)},
-            'tags': set(), 'sz': sz, 'ext': extension, 'percept': percept}
-      self._image_ids_index[img_id] = sha
-      total_sz += sz
+      # if we still don't have the image data, check if we have the data in the DB
+      if image_bytes is None and self._HasBlob(sha):
+        image_bytes = self._GetBlob(sha)
+      # save image and get data if we couldn't find it in DB yet
+      total_sz += _SaveImage(full_path, self._GetBinary(
+          url_path, extension)[0] if image_bytes is None else image_bytes)
       saved_count += 1
+      # checkpoint database, if needed
       if checkpoint_size and not saved_count % checkpoint_size:
         self.Save()
     # all images were downloaded, the end
-    self._favorites[user_id][folder_id][
-        'date_blobs' if save_as_blobs else 'date_straight'] = base.INT_TIME()  # marks album as done
+    self._favorites[user_id][folder_id][date_key] = base.INT_TIME()  # marks album as done
     print(
         'Saved %d images to disk (%s); also %d images were already in DB and '
-        '%d images were duplicates from other albums' % (
-            saved_count, base.HumanizedBytes(total_sz), known_count, dup_count))
+        '%d images were already saved to destination' % (
+            saved_count, base.HumanizedBytes(total_sz), known_count, exists_count))
     return total_sz
 
-  def _SaveImage(
-      self, url: str, name: str, user_id: int, folder_id: int,
-      save_as_blobs: bool) -> tuple[str, int, str]:
-    """Get an image by URL and save to directory. Will sanitize the file name if needed.
+  def _GetBinary(self, url: str, image_extension: str) -> tuple[bytes, str, str, int, int, bool]:
+    """Get an image by URL and compute data that depends only on the binary representation.
 
     Args:
       url: Image URL path
-      name: Actual (sanitized) file name to use
-      user_id: User ID
-      folder_id: Folder ID
-      save_as_blobs: Save images with sha256 names (not original names)
+      image_extension: Putative image extension
 
     Returns:
-      (the image sha256 hexdigest, the retrieved image bytes length, perceptual_hash)
+      (image_bytes, image_sha256_hexdigest, perceptual_hash, width, height, is_animated)
 
     Raises:
       Error: for invalid URLs or empty images
     """
     # get the full image binary
     logging.info('Fetching full-res image: %s', url)
-    img = _FapBinRead(url)
-    if not img:
+    img_data = _FapBinRead(url)
+    if not img_data:
       raise Error('Empty full-res URL: %s' % url)
-    sz = len(img)
-    # get the hash and figure out the final destination for the image
-    sha = hashlib.sha256(img).hexdigest()
-    full_path = os.path.join(self._blobs_dir if save_as_blobs else self._db_dir, name)
-    # save image, if needed
-    if os.path.exists(full_path):
-      logging.info('Image already exists at %r', full_path)
-    else:
-      with open(full_path, 'wb') as f:
-        f.write(img)
-      logging.info('Saved %s for image %r', base.HumanizedBytes(sz), full_path)
-    # now that it is on disk, get the perceptual hash for the saved image and return
-    percept = self._perceptual_hasher.encode_image(image_file=full_path)
-    return (sha, sz, percept)
+    # do perceptual hashing
+    with tempfile.NamedTemporaryFile(suffix='.' + image_extension) as temp_file:
+      temp_file.write(img_data)
+      temp_file.flush()
+      with PilImage.open(temp_file.name) as img:
+        # if getattr(img, "is_animated", False):
+        #   pdb.set_trace()
+        width, height, is_animated = img.width, img.height, getattr(img, "is_animated", False)
+      percept = self._duplicates.Encode(temp_file.name)
+    return (img_data, hashlib.sha256(img_data).hexdigest(), percept, width, height, is_animated)
 
   @property
   def _perceptual_hashes_map(self) -> dict[str, str]:
      """A dictionary containing mapping of filenames and corresponding perceptual hashes."""
      return {sha: obj['percept'] for sha, obj in self._blobs.items()}  # type: ignore
 
-  def FindDuplicates(self) -> dict[str, list[str]]:
+  def FindDuplicates(self) -> None:
     """Find (perceptual) duplicates.
 
     Returns:
-      dict of {sha: list_of_other_sha_duplicates}
+      dict of {sha: set_of_other_sha_duplicates}
     """
+    self._duplicates.FindDuplicates(self._perceptual_hashes_map)
+
+
+class _Duplicates():
+  """Stores and manipulates duplicates data."""
+
+  def __init__(self, duplicates_index: _DUPLICATES_TYPE):
+    """Construct.
+
+    Args:
+      duplicates_index: The self._duplicates_index from FapDatabase.
+    """
+    self._index = duplicates_index
+    self._perceptual_hasher = image_methods.PHash()
+
+  @property
+  def hashes(self) -> set[str]:
+    """All sha256 keys that are currently affected by duplicates."""
+    # pdb.set_trace()
+    all_sha: set[str] = set()
+    for sha_tuple in self._index.keys():
+      all_sha.update(sha_tuple)
+    return all_sha
+
+  def _GetSetKey(self, sha: str) -> Optional[tuple[str, ...]]:
+    """Find and return the key containing `sha`, or None if not found."""
+    for k in self._index.keys():
+      if sha in k:
+        # pdb.set_trace()
+        return k
+    return None
+
+  def Encode(self, image_path: str) -> str:
+    """Get perceptual hash for one specific image in image_path."""
+    return self._perceptual_hasher.encode_image(image_file=image_path)
+
+  def AddDuplicateSet(self, sha_set: set[str]) -> int:
+    """Add a new duplicate set to the collection.
+
+    Args:
+      sha_set: The set of sha256 to add
+
+    Returns:
+      Number of *NEW* sha256 added (the ones marked as 'new' in the database)
+    """
+    # pdb.set_trace()
+    # first we try to find our keys in the existing index
+    for sha in sha_set:
+      key = self._GetSetKey(sha)
+      if key is not None:
+        # this is the key to use, for the whole sha_set!
+        new_sha_set = sha_set.union(key)
+        diff_sha_set = new_sha_set.difference(key)
+        if not diff_sha_set:
+          return 0  # there is no new sha entry in sha_set
+        # we have new entries, so first we create a new dict entry and delete the previous one
+        new_sha_key = tuple(sorted(new_sha_set))
+        self._index[new_sha_key] = self._index[key]
+        del self._index[key]
+        # now we add the new duplicates to the old entries
+        for k in diff_sha_set:
+          self._index[new_sha_key][k] = 'new'
+        return len(diff_sha_set)
+    # there is no entry that matches any duplicate, so this is all new to us
+    self._index[tuple(sorted(sha_set))] = {sha: 'new' for sha in sha_set}
+    return len(sha_set)
+
+  def FindDuplicates(self, perceptual_hashes_map: dict[str, str]) -> None:
+    """Find (perceptual) duplicates.
+
+    Returns:
+      dict of {sha: set_of_other_sha_duplicates}
+    """
+    # pdb.set_trace()
+    logging.info('Searching for perceptual duplicates in database...')
     duplicates: dict[str, list[str]] = self._perceptual_hasher.find_duplicates(
-        encoding_map=self._perceptual_hashes_map)
-    filtered_duplicates = {k: d for k, d in duplicates.items() if d}
-    return filtered_duplicates
+        encoding_map=perceptual_hashes_map)
+    filtered_duplicates = {k: set(d) for k, d in duplicates.items() if d}
+    new_duplicates = 0
+    for sha, sha_set in filtered_duplicates.items():
+      new_duplicates += self.AddDuplicateSet(sha_set.union({sha}))
+    # pdb.set_trace()
+    logging.info('Found %d new perceptual duplicates, database has %d images marked as duplicates',
+                 new_duplicates, len(self.hashes))
 
 
 def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> bytes:
@@ -848,14 +995,14 @@ def _ExtractFavoriteIDs(page_num: int, user_id: int, folder_id: int) -> list[int
   return ids
 
 
-def _ExtractFullImageURL(img_id: int) -> tuple[str, str]:
+def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   """Get URL path of the full resolution image by image ID.
 
   Args:
     img_id: The image numerical ID
 
   Returns:
-    (image URL path, image name path)
+    (image_URL_path, sanitized_image_name, sanitized_extension)
 
   Raises:
     Error: for invalid URLs or full-res URL not found
@@ -875,4 +1022,25 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str]:
   new_name = sanitize_filename.sanitize(html.unescape(img_name[0]))
   if new_name != img_name[0]:
     logging.warning('Filename sanitization necessary %r ==> %r', img_name[0], new_name)
-  return (full_res_urls[0], new_name)
+  # figure out the file name, sanitize extension
+  main_name, extension = new_name.rsplit('.', 1) if '.' in new_name else (new_name, 'jpg')
+  sanitized_extension = _NormalizeExtension(extension)
+  sanitized_image_name = '%s.%s' % (main_name, sanitized_extension)
+  return (full_res_urls[0], sanitized_image_name, sanitized_extension)
+
+
+def _SaveImage(full_path: str, bin_data: bytes) -> int:
+  """Save bin_data, the image data, to full_path.
+
+  Args:
+    full_path: File path
+    bin_data: Image binary data
+
+  Returns:
+    number of bytes actually saved
+  """
+  sz = len(bin_data)
+  with open(full_path, 'wb') as f:
+    f.write(bin_data)
+  logging.info('Saved %s for image %r', base.HumanizedBytes(sz), full_path)
+  return sz

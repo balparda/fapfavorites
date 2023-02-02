@@ -46,7 +46,7 @@ def _GetOperation(database: fapdata.FapDatabase,
   print('Executing GET command')
   database.AddFolderPics(user_id, folder_id, force_download)
   database.DownloadFavorites(
-      user_id, folder_id, fapdata.CHECKPOINT_LENGTH if make_db else 0, False, force_download)
+      user_id, folder_id, fapdata.CHECKPOINT_LENGTH if make_db else 0, force_download)
 
 
 def _ReadOperation(database: fapdata.FapDatabase,
@@ -66,7 +66,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
   found_folder_ids: set[int] = {folder_id} if folder_id else database.AddAllUserFolders(user_id)
   for f_id in sorted(found_folder_ids):
     database.AddFolderPics(user_id, f_id, force_download)
-    database.DownloadFavorites(user_id, f_id, fapdata.CHECKPOINT_LENGTH, True, force_download)
+    database.ReadFavoritesIntoBlobs(user_id, f_id, fapdata.CHECKPOINT_LENGTH, force_download)
   # find perceptual duplicates
   database.FindDuplicates()
 

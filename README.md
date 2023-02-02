@@ -30,7 +30,7 @@ See below:
 $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/imagefap-favorites.git
 $ sudo apt-get install python3-pip pylint3
-$ sudo pip3 install -U click sanitize_filename coverage imagededup Django
+$ sudo pip3 install -U click sanitize_filename coverage Pillow imagededup Django
 ```
 
 ## Usage of `favorites.py`
@@ -83,8 +83,6 @@ leave all of them to be saved to the same output directory (either
 default or some explicit other one), then exact duplicate images
 (again by `sha256`) will ___not___ be saved twice, and the file
 name will be the one give for the first time it was saved.
-
-For now, don't mix `get` and `read` or images might disappear.
 
 ### `favorites.py READ` command - _Feed the Database!_
 
@@ -229,6 +227,9 @@ from a structure like:
       'sz': int_size_bytes,
       'ext': string_file_extension,  # the saved file extension ('jpg', 'gif', ...)
       'percept': perceptual_hash,    # 16 character hexadecimal string perceptual hash for the image
+      'width': int,      # image width
+      'height': int,     # image height
+      'animated': bool,  # True if image is animated (gif), False otherwise
     }
   }
 
@@ -238,7 +239,16 @@ from a structure like:
   }
 
   'duplicates_index': {
-    # TODO
+    tuple(sorted({sha1, sha2, ...})): {  # the key is the set of duplicates
+      sha1: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha1
+      sha2: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha2
+          # 'new': this is a new entry to this set, so it needs a new revision
+          # 'false': this is a false positive
+          #      (if the set has only 2 hashes, then either both are 'false' or neither is!)
+          # 'keep': this is "ignore", meaning image will not be affected, will be kept
+          # 'skip': this image will be skipped, meaning disappear/delete
+      ...
+    }
   }
 
 }
