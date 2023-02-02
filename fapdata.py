@@ -24,6 +24,7 @@ import os.path
 # import pdb
 import random
 import re
+import socket
 import statistics
 import tempfile
 import time
@@ -46,7 +47,9 @@ __version__ = (1, 0)
 DEFAULT_DB_DIRECTORY = '~/Downloads/imagefap/'
 _DEFAULT_DB_NAME = 'imagefap.database'
 _DEFAULT_BLOB_DIR_NAME = 'blobs/'
-CHECKPOINT_LENGTH = 10
+_MAX_RETRY = 10         # int number of retries for URL get
+_URL_TIMEOUT = 15.0     # URL timeout, in seconds
+CHECKPOINT_LENGTH = 10  # int number of images to download between database checkpoints
 _PAGE_BACKTRACKING_THRESHOLD = 5
 FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 
@@ -929,16 +932,28 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
   Raises:
     Error: on error
   """
+  # get a random wait
   if min_wait <= 0.0 or max_wait <= 0.0 or max_wait < min_wait:
     raise AttributeError('Invalid min/max wait times')
   tm = random.uniform(min_wait, max_wait)  # nosec
-  try:
-    url_data = urllib.request.urlopen(url).read()  # nosec
-    logging.debug('Sleep %0.2fs...', tm)
-    time.sleep(tm)
-    return url_data
-  except urllib.error.URLError as e:
-    raise Error('Invalid URL: %s (%s)' % (url, e)) from e
+  n_retry = 0
+  while n_retry <= _MAX_RETRY:
+    try:
+      # get the URL
+      url_data = urllib.request.urlopen(url, timeout=_URL_TIMEOUT).read()  # nosec
+      logging.debug('Sleep %0.2fs...', tm)
+      # sleep if succeeded
+      time.sleep(tm)
+      return url_data
+    except urllib.error.URLError as e:
+      if not isinstance(e.reason, socket.timeout):
+        raise Error('Invalid URL: %s (%s)' % (url, e)) from e
+      # this was a timeout, so we can try again
+      n_retry += 1
+      logging.error('Timeout on %r, RETRY # %d', url, n_retry)
+      continue
+  # only way to reach here is exceeding retries
+  raise Error('Max retries reached on URL %r' % url)
 
 
 def _FapHTMLRead(url: str) -> str:
