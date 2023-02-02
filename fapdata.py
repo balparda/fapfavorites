@@ -206,8 +206,7 @@ class FapDatabase():
 
   def _GetBlob(self, sha: str) -> bytes:
     """Get the blob binary data for `sha` entry."""
-    # pdb.set_trace()
-    with open('rb', self._BlobPath(sha)) as f:
+    with open(self._BlobPath(sha), 'rb') as f:
       return f.read()
 
   def _GetTag(self, tag_id: int) -> list[tuple[int, str]]:  # noqa: C901
@@ -280,24 +279,25 @@ class FapDatabase():
         '%s total (unique) images size (%s min, %s max, '
         '%s mean with %s standard deviation, %d are animated)' % (
             base.HumanizedBytes(all_files_size),
-            base.HumanizedBytes(min(file_sizes)),
-            base.HumanizedBytes(max(file_sizes)),
-            base.HumanizedBytes(int(statistics.mean(file_sizes))),
-            base.HumanizedBytes(int(statistics.stdev(file_sizes))),
+            base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
+            base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
+            base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
+            base.HumanizedBytes(int(statistics.stdev(file_sizes))) if file_sizes else '-',
             sum(int(s['animated']) for s in self._blobs.values())))  # type: ignore
-    wh_sizes: list[tuple[int, int]] = [
-        (s['width'], s['height']) for s in self._blobs.values()]  # type: ignore
-    pixel_sizes: list[int] = [
-        s['width'] * s['height'] for s in self._blobs.values()]  # type: ignore
-    print(
-        'Pixel size (width, height): %spixels min %r, %spixels max %r, '  # cspell:disable-line
-        '%s mean with %s standard deviation' % (
-            base.HumanizedDecimal(min(pixel_sizes)),
-            wh_sizes[pixel_sizes.index(min(pixel_sizes))],
-            base.HumanizedDecimal(max(pixel_sizes)),
-            wh_sizes[pixel_sizes.index(max(pixel_sizes))],
-            base.HumanizedDecimal(int(statistics.mean(pixel_sizes))),
-            base.HumanizedDecimal(int(statistics.stdev(pixel_sizes)))))
+    if file_sizes:
+      wh_sizes: list[tuple[int, int]] = [
+          (s['width'], s['height']) for s in self._blobs.values()]  # type: ignore
+      pixel_sizes: list[int] = [
+          s['width'] * s['height'] for s in self._blobs.values()]  # type: ignore
+      print(
+          'Pixel size (width, height): %spixels min %r, %spixels max %r, '  # cspell:disable-line
+          '%s mean with %s standard deviation' % (
+              base.HumanizedDecimal(min(pixel_sizes)),
+              wh_sizes[pixel_sizes.index(min(pixel_sizes))],
+              base.HumanizedDecimal(max(pixel_sizes)),
+              wh_sizes[pixel_sizes.index(max(pixel_sizes))],
+              base.HumanizedDecimal(int(statistics.mean(pixel_sizes))),
+              base.HumanizedDecimal(int(statistics.stdev(pixel_sizes)))))
     print()
     print('%d users' % len(self._users))
     all_dates = [max(f['date_straight'], f['date_blobs'])
@@ -311,6 +311,8 @@ class FapDatabase():
         len(self._blobs),
         sum(len(b['loc']) for _, b in self._blobs.items()),       # type: ignore
         sum(len(b['loc']) - 1 for _, b in self._blobs.items())))  # type: ignore
+    print('%d perceptual duplicates in %d groups' % (
+        len(self._duplicates.hashes), len(self._duplicates.index)))
 
   def PrintUsersAndFavorites(self) -> None:
     """Print database users."""
@@ -327,11 +329,11 @@ class FapDatabase():
           for f in u.values()
           for i in f['images'] if i in self._image_ids_index]   # type: ignore # noqa: E131
       print('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
-          base.HumanizedBytes(sum(file_sizes)),
-          base.HumanizedBytes(min(file_sizes)),
-          base.HumanizedBytes(max(file_sizes)),
-          base.HumanizedBytes(int(statistics.mean(file_sizes))),
-          base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
+          base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
+          base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
+          base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
+          base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
+          base.HumanizedBytes(int(statistics.stdev(file_sizes))) if file_sizes else '-'))
       for fid in sorted(self._favorites.get(uid, {}).keys()):
         obj = self._favorites[uid][fid]
         file_sizes: list[int] = [
@@ -651,7 +653,6 @@ class FapDatabase():
       if sha in self._blobs:
         # in this case we haven't seen this img_id, but the actual binary (sha) was seen in
         # some other album, so we do some checks and add to the 'loc' entry
-        # pdb.set_trace()
         if (self._blobs[sha]['sz'] != sz or self._blobs[sha]['percept'] != perceptual_hash or
             self._blobs[sha]['width'] != width or self._blobs[sha]['height'] != height or
             self._blobs[sha]['animated'] != is_animated):
@@ -677,7 +678,6 @@ class FapDatabase():
         return (None, sha, url, nm, self._blobs[sha]['ext'])  # type: ignore
     # in this last case we know the img_id but it seems to be duplicated in another album,
     # so we have to get the img_id metadata (url, name) at least, and add to the database
-    # pdb.set_trace()
     url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
     self._blobs[sha]['loc'].add(  # type: ignore
         (img_id, url_path, sanitized_image_name, user_id, folder_id))
@@ -834,8 +834,6 @@ class FapDatabase():
       temp_file.write(img_data)
       temp_file.flush()
       with PilImage.open(temp_file.name) as img:
-        # if getattr(img, "is_animated", False):
-        #   pdb.set_trace()
         width, height, is_animated = img.width, img.height, getattr(img, "is_animated", False)
       percept = self._duplicates.Encode(temp_file.name)
     return (img_data, hashlib.sha256(img_data).hexdigest(), percept, width, height, is_animated)

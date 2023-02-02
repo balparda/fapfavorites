@@ -36,20 +36,20 @@ class Duplicates():
     Args:
       duplicates_index: The self._duplicates_index from FapDatabase.
     """
-    self._index = duplicates_index
+    self.index = duplicates_index
     self._perceptual_hasher = image_methods.PHash()
 
   @property
   def hashes(self) -> set[str]:
     """All sha256 keys that are currently affected by duplicates."""
     all_sha: set[str] = set()
-    for sha_tuple in self._index.keys():
+    for sha_tuple in self.index.keys():
       all_sha.update(sha_tuple)
     return all_sha
 
   def _GetSetKey(self, sha: str) -> Optional[tuple[str, ...]]:
     """Find and return the key containing `sha`, or None if not found."""
-    for k in self._index.keys():
+    for k in self.index.keys():
       if sha in k:
         return k
     return None
@@ -78,14 +78,14 @@ class Duplicates():
           return 0  # there is no new sha entry in sha_set
         # we have new entries, so first we create a new dict entry and delete the previous one
         new_sha_key = tuple(sorted(new_sha_set))
-        self._index[new_sha_key] = self._index[key]
-        del self._index[key]
+        self.index[new_sha_key] = self.index[key]
+        del self.index[key]
         # now we add the new duplicates to the old entries
         for k in diff_sha_set:
-          self._index[new_sha_key][k] = 'new'
+          self.index[new_sha_key][k] = 'new'
         return len(diff_sha_set)
     # there is no entry that matches any duplicate, so this is all new to us
-    self._index[tuple(sorted(sha_set))] = {sha: 'new' for sha in sha_set}
+    self.index[tuple(sorted(sha_set))] = {sha: 'new' for sha in sha_set}
     return len(sha_set)
 
   def FindDuplicates(self, perceptual_hashes_map: dict[str, str]) -> None:
@@ -101,5 +101,7 @@ class Duplicates():
     new_duplicates = 0
     for sha, sha_set in filtered_duplicates.items():
       new_duplicates += self.AddDuplicateSet(sha_set.union({sha}))
-    logging.info('Found %d new perceptual duplicates, database has %d images marked as duplicates',
-                 new_duplicates, len(self.hashes))
+    logging.info(
+        'Found %d new perceptual duplicates in %d groups, '
+        'database has %d images marked as duplicates',
+        new_duplicates, len(self.index), len(self.hashes))

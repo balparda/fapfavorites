@@ -34,7 +34,7 @@ class TestDuplicates(unittest.TestCase):
     dup.FindDuplicates({'foo': 'bar'})
     self.assertListEqual(
         mock_find_duplicates.call_args_list, [mock.call(encoding_map={'foo': 'bar'})])
-    self.assertDictEqual(dup._index, _DUPLICATES_DICT_AFTER)
+    self.assertDictEqual(dup.index, _DUPLICATES_DICT_AFTER)
     self.assertSetEqual(
         dup.hashes, {'aaa', 'bbb', 'ccc', 'ddd', 'eee', 'fff', 'ggg', 'xxx', 'yyy', 'zzz'})
 
