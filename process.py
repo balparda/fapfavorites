@@ -16,9 +16,14 @@
 #
 """Imagefap.com image database operations."""
 
+import logging
+import os
 # import pdb
 
 import click
+import django
+from django.core.management import execute_from_command_line as django_execute
+# from django.core.management import call_command as django_call
 
 from baselib import base
 import fapdata
@@ -82,8 +87,21 @@ def _PrintOperation(database: fapdata.FapDatabase, print_blobs: bool) -> None:
   print()
 
 
+def _RunDjangoServerAndBlock(database: fapdata.FapDatabase) -> None:
+  """Run the main Django server and block on call until server comes down.
+
+  Args:
+    database: Active fapdata.FapDatabase
+  """
+  logging.info('Starting Django local server')
+  # os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fapper.settings')  # cspell:disable-line
+  # django.setup()
+  django_execute(['foo', 'runserver'])
+  # django_call('runserver')
+
+
 @click.command()  # see `click` module usage in http://click.pocoo.org/
-@click.argument('operation', type=click.Choice(['stats', 'print']))
+@click.argument('operation', type=click.Choice(['stats', 'print', 'run']))
 @click.option(
     '--dir', '-d', 'db_dir', type=click.STRING, default=fapdata.DEFAULT_DB_DIRECTORY,
     help='The local machine database directory path to use, '
@@ -131,6 +149,8 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
       _StatsOperation(database)
     elif operation.lower() == 'print':
       _PrintOperation(database, print_blobs)
+    elif operation.lower() == 'run':
+      _RunDjangoServerAndBlock(database)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # for now, no operation needs to save DB
@@ -144,4 +164,6 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
 
 
 if __name__ == '__main__':
+  os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fapper.settings')  # cspell:disable-line
+  django.setup()
   main()  # pylint: disable=no-value-for-parameter
