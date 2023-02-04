@@ -15,7 +15,7 @@ urlpatterns = [
 
     # the users
     urls.path('users/', views.ServeUsers, name='users'),
-    urls.path('user/<int:user_id>/', views.ServeUser, name='user'),
+    # urls.path('user/<int:user_id>/', views.ServeUser, name='user'),  # superfluous for now...
 
     # the favorites
     urls.path('favorites/<int:user_id>/', views.ServeFavorites, name='favorites'),

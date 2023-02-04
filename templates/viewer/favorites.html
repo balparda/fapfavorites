@@ -6,9 +6,21 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Favorites for User {{ user_id }}</h1>
+    <h1>Favorites for User &quot;{{ user_name|escape }}&quot; (ID {{ user_id }})</h1>
 
-    <p>TODO: fill in data...</p>
+    <table border='2'>
+      <tr><th>ID</th><th>Name</th><th>Image Count (Pages)</th><th>Last Fetch</th></tr>
+      {% for id, obj in favorites.items %}
+        <tr>
+          <td><a href='{% url "favorite" user_id id %}'>{{ id }}</a></td>
+          <td>{{ obj.name|escape }}</td>
+          <td>{{ obj.count }} ({{ obj.pages }})</td>
+          <td>{{ obj.date }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan='4'>No favorites for this user in database</td></tr>
+      {% endfor %}
+    </table>
 
   </body>
 </html>

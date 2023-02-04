@@ -6,9 +6,22 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Favorite: User {{ user_id }} / Folder {{ folder_id }}</h1>
+    <h1>Favorite album &quot;{{ name|escape }}&quot; (ID {{ folder_id }}, User &quot;{{ user_name|escape }}&quot;)</h1>
 
-    <p>TODO: fill in data...</p>
+    <p>Total {{ count }} images (in {{ pages }} pages). Last fetched on {{ date }}.</p>
+
+    <table border='2'>
+      {% for sha in sorted_blobs %}
+        <tr>
+          <td><a href='{% url "favorite" user_id id %}'>{{ id }}</a></td>
+          <td>{{ obj.name|escape }}</td>
+          <td>{{ obj.count }} ({{ obj.pages }})</td>
+          <td>{{ obj.date }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan='4'>No images in this favorite album</td></tr>
+      {% endfor %}
+    </table>
 
   </body>
 </html>

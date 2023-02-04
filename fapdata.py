@@ -207,11 +207,11 @@ class FapDatabase:
     except KeyError:
       raise Error('Blob %r not found' % sha)
 
-  def _HasBlob(self, sha: str) -> bool:
+  def HasBlob(self, sha: str) -> bool:
     """Check if blob `sha` is available in blobs/ directory."""
     return os.path.exists(self._BlobPath(sha))
 
-  def _GetBlob(self, sha: str) -> bytes:
+  def GetBlob(self, sha: str) -> bytes:
     """Get the blob binary data for `sha` entry."""
     with open(self._BlobPath(sha), 'rb') as f:
       return f.read()
@@ -253,7 +253,7 @@ class FapDatabase:
     hierarchy.reverse()
     return hierarchy
 
-  def _TagsWalk(
+  def TagsWalk(
       self, start_tag: Optional[_TAG_TYPE] = None, depth: int = 0) -> Iterator[
           tuple[int, str, int, _TAG_TYPE]]:
     """Walk all tags recursively, depth first.
@@ -270,7 +270,7 @@ class FapDatabase:
     for tag_id in sorted(start_tag.keys()):
       yield (tag_id, start_tag[tag_id]['name'], depth, start_tag[tag_id]['tags'])  # type: ignore
       if start_tag[tag_id]['tags']:
-        for o in self._TagsWalk(
+        for o in self.TagsWalk(
             start_tag=start_tag[tag_id]['tags'], depth=(depth + 1)):  # type: ignore
           yield o
 
@@ -365,7 +365,7 @@ class FapDatabase:
       return
     print('TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)')
     print()
-    for tag_id, tag_name, depth, _ in self._TagsWalk():
+    for tag_id, tag_name, depth, _ in self.TagsWalk():
       count, sz = 0, 0
       for b in self.blobs.values():
         if tag_id in b['tags']:  # type: ignore
@@ -801,8 +801,8 @@ class FapDatabase:
         exists_count += 1
         continue
       # if we still don't have the image data, check if we have the data in the DB
-      if image_bytes is None and self._HasBlob(sha):
-        image_bytes = self._GetBlob(sha)
+      if image_bytes is None and self.HasBlob(sha):
+        image_bytes = self.GetBlob(sha)
       # save image and get data if we couldn't find it in DB yet
       total_sz += _SaveImage(full_path, self._GetBinary(
           url_path, extension)[0] if image_bytes is None else image_bytes)

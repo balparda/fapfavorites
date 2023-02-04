@@ -89,13 +89,13 @@ class TestFapDatabase(unittest.TestCase):
     db = fapdata.FapDatabase('/xxx/')
     db._db['tags'] = _TEST_TAGS_2
     self.assertListEqual(
-        list((i, n, d) for i, n, d, _ in db._TagsWalk()),
+        list((i, n, d) for i, n, d, _ in db.TagsWalk()),
         [(0, 'plain', 0),
          (1, 'one', 0), (11, 'one-one', 1),
          (2, 'two', 0), (22, 'two-two', 1), (24, 'two-four', 1), (246, 'deep', 2),
          (3, 'three', 0), (33, 'three-three', 1)])
     self.assertListEqual(
-        list((i, n, d) for i, n, d, _ in db._TagsWalk(start_tag=_TEST_TAGS_2[2]['tags'])),
+        list((i, n, d) for i, n, d, _ in db.TagsWalk(start_tag=_TEST_TAGS_2[2]['tags'])),
         [(22, 'two-two', 0), (24, 'two-four', 0), (246, 'deep', 1)])
     db.PrintTags()
 
@@ -350,7 +350,7 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.duplicates.index, _DUPLICATES)
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       ##############################################################################################
-      db._GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+      db.GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
       db.PrintStats()
       db.PrintUsersAndFavorites()
       db.PrintTags()

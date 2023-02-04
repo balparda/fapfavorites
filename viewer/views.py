@@ -2,12 +2,22 @@
 
 import functools
 import logging
-# import pdb
+import pdb
 
 from django import http
 from django import shortcuts
 
+from baselib import base
 import fapdata
+
+
+_IMAGE_TYPES = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'png': 'image/png',
+    'tiff': 'image/tiff',
+}
 
 
 class SHA256HexDigest:
@@ -51,7 +61,10 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `index` page."""
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
   context = {
-      # TODO: fill context with actual data
+      'users': len(db.users),
+      'tags': len(tuple(db.TagsWalk())),
+      'duplicates': len(db.duplicates.index),
+      'n_images': len(db.blobs),
   }
   return shortcuts.render(request, 'viewer/index.html', context)
 
@@ -65,22 +78,21 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   return shortcuts.render(request, 'viewer/users.html', context)
 
 
-def ServeUser(request: http.HttpRequest, user_id: int) -> http.HttpResponse:
-  """Serve the `user` page."""
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
-  context = {
-      'user_id': user_id,
-      # TODO: fill context with actual data
-  }
-  return shortcuts.render(request, 'viewer/user.html', context)
-
-
 def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse:
   """Serve the `favorites` page of one `user_id`."""
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  if user_id not in db.users or user_id not in db.favorites:
+    raise http.Http404('Unknown user %d' % user_id)
+  user_favorites = db.favorites[user_id]
+  names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
+  favorites = {fid: {'name': name, 'pages': user_favorites[fid]['pages'],
+                     'date': base.STD_TIME_STRING(user_favorites[fid]['date_blobs']),
+                     'count': len(user_favorites[fid]['images'])}  # type: ignore
+               for fid, name in names}
   context = {
       'user_id': user_id,
-      # TODO: fill context with actual data
+      'user_name': db.users[user_id],
+      'favorites': favorites,
   }
   return shortcuts.render(request, 'viewer/favorites.html', context)
 
@@ -88,10 +100,24 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
 def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  if user_id not in db.users or user_id not in db.favorites:
+    raise http.Http404('Unknown user %d' % user_id)
+  if folder_id not in db.favorites[user_id]:
+    raise http.Http404('Unknown folder %d (in known user %d)' % (folder_id, user_id))
+  favorite = db.favorites[user_id][folder_id]
+  images: list[int] = favorite['images']  # type: ignore
+  sorted_blobs = [db.image_ids_index[i] for i in images]
+  blobs = {s: db.blobs[s] for s in sorted_blobs}
   context = {
       'user_id': user_id,
+      'user_name': db.users[user_id],
       'folder_id': folder_id,
-      # TODO: fill context with actual data
+      'name': favorite['name'],
+      'pages': favorite['pages'],  # TODO: pages count has got to have some bug! it is too low!!
+      'date': base.STD_TIME_STRING(favorite['date_blobs']),
+      'count': len(images),
+      'sorted_blobs': sorted_blobs,
+      'blobs': blobs,
   }
   return shortcuts.render(request, 'viewer/favorite.html', context)
 
@@ -118,7 +144,17 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
 def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `blob` page, one image, given one SHA256 `digest`."""
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
-  raise http.Http404('not implemented yet!')
+  if not digest or digest not in db.blobs:
+    raise http.Http404('Unknown blob %r' % digest)
+  if not db.HasBlob(digest):
+    raise http.Http404('Known blob %r could not be found on disk' % digest)
+  blob = db.blobs[digest]
+  ext = blob['ext'].lower()  # type: ignore
+  if ext not in _IMAGE_TYPES:
+    raise http.Http404('Blob %r image type (file extension) %r not one of %r' % (
+        digest, ext, sorted(_IMAGE_TYPES.keys())))
+  return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
+  # TODO: investigate why this seems to be executing TWICE when called
 
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
