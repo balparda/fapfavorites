@@ -3,8 +3,7 @@
 # import pdb
 
 from django import http
-from django.template import loader
-# from django.shortcuts import render
+from django import shortcuts
 
 
 class SHA256HexDigest:
@@ -23,70 +22,63 @@ class SHA256HexDigest:
 
 def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `index` page."""
-  template = loader.get_template('viewer/index.html')
   context = {
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/index.html', context)
 
 
 def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `users` page."""
-  template = loader.get_template('viewer/users.html')
   context = {
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/users.html', context)
 
 
 def ServeUser(request: http.HttpRequest, user_id: int) -> http.HttpResponse:
   """Serve the `user` page."""
-  template = loader.get_template('viewer/user.html')
   context = {
       'user_id': user_id,
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/user.html', context)
 
 
 def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse:
   """Serve the `favorites` page of one `user_id`."""
-  template = loader.get_template('viewer/favorites.html')
   context = {
       'user_id': user_id,
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/favorites.html', context)
 
 
 def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
-  template = loader.get_template('viewer/favorite.html')
   context = {
       'user_id': user_id,
       'folder_id': folder_id,
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/favorite.html', context)
 
 
 def ServeTags(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `tags` page."""
-  template = loader.get_template('viewer/tags.html')
   context = {
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/tags.html', context)
 
 
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
-  template = loader.get_template('viewer/tag.html')
   context = {
       'tag_id': tag_id,
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/tag.html', context)
 
 
 def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
@@ -96,18 +88,16 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
-  template = loader.get_template('viewer/duplicates.html')
   context = {
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/duplicates.html', context)
 
 
 def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
-  template = loader.get_template('viewer/duplicate.html')
   context = {
       'digest': digest,
       # TODO: fill context with actual data
   }
-  return http.HttpResponse(template.render(context, request))
+  return shortcuts.render(request, 'viewer/duplicate.html', context)
