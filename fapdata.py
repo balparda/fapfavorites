@@ -98,7 +98,7 @@ class Error(base.Error):
   """Base fap exception."""
 
 
-class FapDatabase():
+class FapDatabase:
   """Imagefap.com database."""
 
   def __init__(self, dir_path: str, create_if_needed: bool = True):

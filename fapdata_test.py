@@ -354,7 +354,7 @@ class TestFapDatabase(unittest.TestCase):
       db.PrintBlobs()
 
 
-class _MockRegex():
+class _MockRegex:
 
   def __init__(self, return_values: dict[str, list[Union[str, tuple[str, ...]]]]):
     self._return_values = return_values

@@ -27,7 +27,7 @@ from imagededup import methods as image_methods
 DUPLICATES_TYPE = dict[tuple[str, ...], dict[str, Literal['new', 'false', 'keep', 'skip']]]
 
 
-class Duplicates():
+class Duplicates:
   """Stores and manipulates duplicates data."""
 
   def __init__(self, duplicates_index: DUPLICATES_TYPE):
