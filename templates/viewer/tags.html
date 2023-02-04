@@ -8,7 +8,17 @@
 
     <h1>Tags</h1>
 
-    <p>TODO: fill in data...</p>
+    <table border='2'>
+      <tr><th>ID</th><th>Tag Name (with parents)</th></tr>
+      {% for id, name in tags %}
+        <tr>
+          <td><a href='{% url "tag" id %}'>{{ id }}</a></td>
+          <td>{{ name|escape }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan='2'>No tags in database</td></tr>
+      {% endfor %}
+    </table>
 
   </body>
 </html>

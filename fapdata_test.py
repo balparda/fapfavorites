@@ -72,15 +72,18 @@ class TestFapDatabase(unittest.TestCase):
     mock_is_dir.return_value = True
     db = fapdata.FapDatabase('/xxx/')
     db._db['tags'] = _TEST_TAGS_1
-    self.assertListEqual(db._GetTag(0), [(0, 'plain')])
-    self.assertListEqual(db._GetTag(2), [(2, 'two')])
-    self.assertListEqual(db._GetTag(22), [(2, 'two'), (22, 'two-two')])
-    self.assertListEqual(db._GetTag(24), [(2, 'two'), (24, 'two-four')])
-    self.assertListEqual(db._GetTag(246), [(2, 'two'), (24, 'two-four'), (246, 'deep')])
+    self.assertListEqual(db.GetTag(0), [(0, 'plain')])
+    self.assertListEqual(db.GetTag(2), [(2, 'two')])
+    self.assertEqual(db.PrintableTag(2), 'two')
+    self.assertListEqual(db.GetTag(22), [(2, 'two'), (22, 'two-two')])
+    self.assertListEqual(db.GetTag(24), [(2, 'two'), (24, 'two-four')])
+    self.assertEqual(db.PrintableTag(24), 'two/two-four')
+    self.assertListEqual(db.GetTag(246), [(2, 'two'), (24, 'two-four'), (246, 'deep')])
+    self.assertEqual(db.PrintableTag(246), 'two/two-four/deep')
     with self.assertRaisesRegex(fapdata.Error, r'tag 11 is empty'):
-      db._GetTag(11)
+      db.GetTag(11)
     with self.assertRaisesRegex(fapdata.Error, r'tag 3 \(of 33\) is empty'):
-      db._GetTag(33)
+      db.GetTag(33)
 
   @mock.patch('fapdata.os.path.isdir')
   def test_TagsWalk(self, mock_is_dir):

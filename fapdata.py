@@ -216,7 +216,7 @@ class FapDatabase:
     with open(self._BlobPath(sha), 'rb') as f:
       return f.read()
 
-  def _GetTag(self, tag_id: int) -> list[tuple[int, str]]:  # noqa: C901
+  def GetTag(self, tag_id: int) -> list[tuple[int, str]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
 
     Args:
@@ -252,6 +252,10 @@ class FapDatabase:
       raise Error('Tag ID %d was not found' % tag_id)
     hierarchy.reverse()
     return hierarchy
+
+  def PrintableTag(self, tag_id: int) -> str:
+    """Print tag name together with parents, like "parent_name/tag_name"."""
+    return '/'.join(n for _, n in self.GetTag(tag_id))
 
   def TagsWalk(
       self, start_tag: Optional[_TAG_TYPE] = None, depth: int = 0) -> Iterator[

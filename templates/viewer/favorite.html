@@ -11,12 +11,19 @@
     <p>Total {{ count }} images (in {{ pages }} pages). Last fetched on {{ date }}.</p>
 
     <table border='2'>
-      {% for sha in sorted_blobs %}
+      {% for sha_group in stacked_blobs %}
         <tr>
-          <td><a href='{% url "favorite" user_id id %}'>{{ id }}</a></td>
-          <td>{{ obj.name|escape }}</td>
-          <td>{{ obj.count }} ({{ obj.pages }})</td>
-          <td>{{ obj.date }}</td>
+          {% for sha in sha_group %}
+            {% if sha %}
+              {% with blob=blobs_data|lookup:sha %}
+                <td title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'>
+                  <a href='{% url "blob" sha %}'>X</a>
+                </td>
+              {% endwith %}
+            {% else %}
+              <td></td>
+            {% endif %}
+          {% endfor %}
         </tr>
       {% empty %}
         <tr><td colspan='4'>No images in this favorite album</td></tr>
