@@ -141,9 +141,9 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
     # load database
     database = fapdata.FapDatabase(db_dir, create_if_needed=False)
     if not database.Load():
-      raise base.Error('Database does not exist in given path: %r' % db_dir)
+      raise fapdata.Error('Database does not exist in given path: %r' % db_dir)
     if not database.blobs_dir_exists:
-      raise base.Error('Database blobs directory does not inside %r' % db_dir)
+      raise fapdata.Error('Database blobs directory does not inside %r' % db_dir)
     # we should now have both IDs that we need
     if operation.lower() == 'stats':
       _StatsOperation(database)

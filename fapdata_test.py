@@ -40,13 +40,13 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(db._db_path, '/home/some-user/Downloads/some-dir/imagefap.database')
     self.assertEqual(db._blobs_dir, '/home/some-user/Downloads/some-dir/blobs/')
     self.assertDictEqual(db._db, {k: {} for k in fapdata._DB_MAIN_KEYS})
-    self.assertDictEqual(db._duplicates.index, {})
-    db._users[1] = 'Luke'
-    db._favorites[1] = {2: {}}
-    db._tags[3] = {'name': 'three'}
-    db._blobs['sha1'] = {'tags': {4}}
-    db._image_ids_index[5] = 'sha2'
-    db._duplicates_index[('a', 'b')] = {'a': 'new'}
+    self.assertDictEqual(db.duplicates.index, {})
+    db.users[1] = 'Luke'
+    db.favorites[1] = {2: {}}
+    db.tags[3] = {'name': 'three'}
+    db.blobs['sha1'] = {'tags': {4}}
+    db.image_ids_index[5] = 'sha2'
+    db.duplicates_index[('a', 'b')] = {'a': 'new'}
     self.assertDictEqual(db._db, {
         'users': {1: 'Luke'},
         'favorites': {1: {2: {}}},
@@ -55,13 +55,13 @@ class TestFapDatabase(unittest.TestCase):
         'image_ids_index': {5: 'sha2'},
         'duplicates_index': {('a', 'b'): {'a': 'new'}},
     })
-    self.assertDictEqual(db._duplicates.index, {('a', 'b'): {'a': 'new'}})
+    self.assertDictEqual(db.duplicates.index, {('a', 'b'): {'a': 'new'}})
 
   @mock.patch('fapdata.os.path.isdir')
   def test_Constructor_Fail(self, mock_is_dir):
     """Test."""
     mock_is_dir.return_value = False
-    with self.assertRaises(fapdata.base.Error):
+    with self.assertRaises(fapdata.Error):
       fapdata.FapDatabase('/yyy/', create_if_needed=False)
     with self.assertRaises(AttributeError):
       fapdata.FapDatabase('')
@@ -77,9 +77,9 @@ class TestFapDatabase(unittest.TestCase):
     self.assertListEqual(db._GetTag(22), [(2, 'two'), (22, 'two-two')])
     self.assertListEqual(db._GetTag(24), [(2, 'two'), (24, 'two-four')])
     self.assertListEqual(db._GetTag(246), [(2, 'two'), (24, 'two-four'), (246, 'deep')])
-    with self.assertRaisesRegex(fapdata.base.Error, r'tag 11 is empty'):
+    with self.assertRaisesRegex(fapdata.Error, r'tag 11 is empty'):
       db._GetTag(11)
-    with self.assertRaisesRegex(fapdata.base.Error, r'tag 3 \(of 33\) is empty'):
+    with self.assertRaisesRegex(fapdata.Error, r'tag 3 \(of 33\) is empty'):
       db._GetTag(33)
 
   @mock.patch('fapdata.os.path.isdir')
@@ -107,11 +107,11 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_NAME_IN_FAVORITES = _MockRegex({'user_html': ['foo &amp; user'], 'invalid': []})
     db = fapdata.FapDatabase('/xxx/')
     mock_read.return_value = 'invalid'
-    with self.assertRaisesRegex(fapdata.base.Error, r'for 11'):
+    with self.assertRaisesRegex(fapdata.Error, r'for 11'):
       db.AddUserByID(11)
     mock_read.return_value = 'user_html'
     self.assertEqual(db.AddUserByID(10), 'foo & user')
-    self.assertDictEqual(db._users, {10: 'foo & user'})
+    self.assertDictEqual(db.users, {10: 'foo & user'})
     fapdata._FIND_NAME_IN_FAVORITES = None  # make sure is not used again in next call
     self.assertEqual(db.AddUserByID(10), 'foo & user')
     self.assertListEqual(
@@ -128,14 +128,14 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ACTUAL_NAME = _MockRegex({'user_html': ['foo &amp; user'], 'invalid': []})
     db = fapdata.FapDatabase('/xxx/')
     mock_read.return_value = 'invalid'
-    with self.assertRaisesRegex(fapdata.base.Error, r'ID for user \'no-user\''):
+    with self.assertRaisesRegex(fapdata.Error, r'ID for user \'no-user\''):
       db.AddUserByName('no-user')
     fapdata._FIND_USER_ID_RE = _MockRegex({'user_html': ['10'], 'invalid': ['12']})
-    with self.assertRaisesRegex(fapdata.base.Error, r'display name for user \'no-user\''):
+    with self.assertRaisesRegex(fapdata.Error, r'display name for user \'no-user\''):
       db.AddUserByName('no-user')
     mock_read.return_value = 'user_html'
     self.assertTupleEqual(db.AddUserByName('foo-user'), (10, 'foo & user'))
-    self.assertDictEqual(db._users, {10: 'foo & user'})
+    self.assertDictEqual(db.users, {10: 'foo & user'})
     fapdata._FIND_USER_ID_RE = None  # make sure is not used again in next call
     fapdata._FIND_ACTUAL_NAME = None
     self.assertTupleEqual(db.AddUserByName('foo & user'), (10, 'foo & user'))
@@ -155,12 +155,12 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html': []})
     db = fapdata.FapDatabase('/xxx/')
     mock_read.return_value = 'invalid'
-    with self.assertRaisesRegex(fapdata.base.Error, r'for 11/22'):
+    with self.assertRaisesRegex(fapdata.Error, r'for 11/22'):
       db.AddFolderByID(11, 22)
     mock_read.return_value = 'folder_html'
     self.assertEqual(db.AddFolderByID(10, 20), 'foo & folder')
     self.assertDictEqual(
-        db._favorites,
+        db.favorites,
         {10: {20: {'date_blobs': 0, 'date_straight': 0, 'images': [],
                    'name': 'foo & folder', 'pages': 0}}})
     fapdata._FIND_NAME_IN_FOLDER = None  # make sure is not used again in next call
@@ -185,12 +185,12 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html_test': []})
     db = fapdata.FapDatabase('/xxx/')
     mock_read.return_value = 'invalid'
-    with self.assertRaisesRegex(fapdata.base.Error, r'folder \'no-folder\' for user 11'):
+    with self.assertRaisesRegex(fapdata.Error, r'folder \'no-folder\' for user 11'):
       db.AddFolderByName(11, 'no-folder')
     mock_read.side_effect = ['folder_html_1', 'folder_html_2', 'folder_html_3', 'folder_html_test']
     self.assertTupleEqual(db.AddFolderByName(10, 'foo & folder'), (400, 'foo & folder'))
     self.assertDictEqual(
-        db._favorites,
+        db.favorites,
         {10: {400: {'date_blobs': 0, 'date_straight': 0, 'images': [],
                     'name': 'foo & folder', 'pages': 0}}})
     fapdata._FIND_NAME_IN_FOLDER = None  # make sure is not used again in next call
@@ -213,12 +213,15 @@ class TestFapDatabase(unittest.TestCase):
     fapdata.base.INT_TIME = lambda: 1675368670  # 02/feb/2023 20:11
     with tempfile.TemporaryDirectory() as db_path:
       # do the dance that does not depend on any mocking at all
+      with self.assertRaises(fapdata.Error):
+        fapdata.GetDatabaseTimestamp(db_path)
       db = fapdata.FapDatabase(db_path)
       db._db['users'] = {1: 'Luke', 2: 'Ben'}
       db._db['favorites'] = {1: {11: {
           'name': 'known-folder-1', 'pages': 8,
           'date_straight': 0, 'date_blobs': 1675360670, 'images': [103, 104]}}}
       db.Save()
+      self.assertTrue(fapdata.GetDatabaseTimestamp(db_path) > 1600000000)
       del db
       db = fapdata.FapDatabase(db_path)
       db.Load()
@@ -252,7 +255,7 @@ class TestFapDatabase(unittest.TestCase):
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=0&folderid=14'),
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=2')])
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
-      self.assertDictEqual(db._favorites, {1: {
+      self.assertDictEqual(db.favorites, {1: {
           10: {'name': 'new-f-0', 'date_blobs': 0, 'date_straight': 0, 'images': [], 'pages': 0},
           11: {'name': 'known-folder-1', 'date_blobs': 1675360670, 'date_straight': 0,
                'images': [103, 104], 'pages': 8},
@@ -261,8 +264,8 @@ class TestFapDatabase(unittest.TestCase):
       fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
       fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = None
       # AddFolderPics ##############################################################################
-      db._favorites[1][10]['pages'] = 9  # this will help test the backtracking
-      db._favorites[1][10]['images'] = [100]
+      db.favorites[1][10]['pages'] = 9  # this will help test the backtracking
+      db.favorites[1][10]['images'] = [100]
       read_html.side_effect = [
           'img-page-10-8', 'img-page-10-7',                   # backtrack on favorites 10
           'img-page-10-7', 'img-page-10-8', 'img-page-10-9',  # then forward
@@ -284,7 +287,7 @@ class TestFapDatabase(unittest.TestCase):
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=1&folderid=13'),
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=2&folderid=13')])
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
-      self.assertDictEqual(db._favorites, {1: {
+      self.assertDictEqual(db.favorites, {1: {
           10: {'name': 'new-f-0', 'date_blobs': 0, 'date_straight': 0,
                'images': [100, 101, 102], 'pages': 9},
           11: {'name': 'known-folder-1', 'date_blobs': 1675360670, 'date_straight': 0,
@@ -342,9 +345,9 @@ class TestFapDatabase(unittest.TestCase):
           [mock.call('url-100'), mock.call('url-102'), mock.call('url-105'), mock.call('url-106'),
            mock.call('url-107'), mock.call('url-108')])
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
-      self.assertDictEqual(db._blobs, _BLOBS)
-      self.assertDictEqual(db._image_ids_index, _INDEX)
-      self.assertDictEqual(db._duplicates.index, _DUPLICATES)
+      self.assertDictEqual(db.blobs, _BLOBS)
+      self.assertDictEqual(db.image_ids_index, _INDEX)
+      self.assertDictEqual(db.duplicates.index, _DUPLICATES)
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       ##############################################################################################
       db._GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
