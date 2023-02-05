@@ -34,5 +34,11 @@
       {% endfor %}
     </table>
 
+    <p><a href='{% url "favorites" user_id %}'>(User &quot;{{ user_name|escape }}&quot; Page)</a></p>
+
+    <p><a href='{% url "users" %}'>(Users Page)</a></p>
+
+    <p><a href='{% url "index" %}'>(Home Page)</a></p>
+
   </body>
 </html>
