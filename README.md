@@ -23,14 +23,14 @@ along with this program. If not, see http://www.gnu.org/licenses/gpl-3.0.txt.
 
 ## Setup
 
-Just the basics, plus a few Python 3 packages, and Balparda's base library.
-See below:
+To install execute these commands inside the same directory:
 
 ```
-$ git clone https://github.com/balparda/baselib.git
-$ git clone https://github.com/balparda/imagefap-favorites.git
 $ sudo apt-get install python3-pip pylint3
 $ sudo pip3 install -U click sanitize_filename coverage Pillow imagededup Django
+
+$ git clone https://github.com/balparda/baselib.git
+$ git clone https://github.com/balparda/imagefap-favorites.git
 ```
 
 ## Usage of `favorites.py`
@@ -245,7 +245,8 @@ from a structure like:
         ... this is a set of every occurrence of the blob in the downloaded favorites ...
       },
       'tags': {tag_id-1, tag_id-2, ...},
-      'sz': int_size_bytes,
+      'sz': int_size_bytes,          # size of blob file
+      'sz_thumb': int_size_bytes,    # size of saved thumbnail image, if any, else 0
       'ext': string_file_extension,  # the saved file extension ('jpg', 'gif', ...)
       'percept': perceptual_hash,    # 16 character hexadecimal string perceptual hash for the image
       'width': int,      # image width

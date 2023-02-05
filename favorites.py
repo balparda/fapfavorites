@@ -15,7 +15,6 @@
 # along with this program. If not, see http://www.gnu.org/licenses/gpl-3.0.txt.
 #
 """Imagefap.com image favorites (picture folder) downloader."""
-# TODO: rename module to favorites.py
 
 # import pdb
 

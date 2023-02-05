@@ -34,7 +34,7 @@ from typing import Iterator, Literal, Optional, Union
 import urllib.error
 import urllib.request
 
-from PIL import Image as PilImage
+from PIL import Image, ImageSequence
 import sanitize_filename
 
 from baselib import base
@@ -157,7 +157,7 @@ class FapDatabase:
     return self._db['tags']
 
   @property
-  def blobs(self) -> dict[str, dict[Literal['loc', 'tags', 'sz', 'ext', 'percept',
+  def blobs(self) -> dict[str, dict[Literal['loc', 'tags', 'sz', 'sz_thumb', 'ext', 'percept',
                                             'width', 'height', 'animated'],
                                     Union[int, str, bool,
                                           set[Union[int, tuple[int, str, str, int, int]]]]]]:
@@ -296,12 +296,13 @@ class FapDatabase:
 
   def PrintStats(self) -> None:
     """Print database stats."""
-    file_sizes: list[int] = [s['sz'] for s in self.blobs.values()]  # type: ignore
-    all_files_size = sum(file_sizes)
+    file_sizes: list[int] = [s['sz'] for s in self.blobs.values()]         # type: ignore
+    thumb_sizes: list[int] = [s['sz_thumb'] for s in self.blobs.values()]  # type: ignore
+    all_files_size, all_thumb_size = sum(file_sizes), sum(thumb_sizes)
     db_size = os.path.getsize(self._db_path)
     print('Database is located in %r, and is %s (%0.5f%% of total images size)' % (
         self._db_path, base.HumanizedBytes(db_size),
-        100.0 * db_size / (all_files_size if all_files_size else 1)))
+        (100.0 * db_size) / (all_files_size if all_files_size else 1)))
     print(
         '%s total (unique) images size (%s min, %s max, '
         '%s mean with %s standard deviation, %d are animated)' % (
@@ -311,6 +312,16 @@ class FapDatabase:
             base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
             base.HumanizedBytes(int(statistics.stdev(file_sizes))) if file_sizes else '-',
             sum(int(s['animated']) for s in self.blobs.values())))  # type: ignore
+    if all_files_size and all_thumb_size:
+      print(
+          '%s total thumbnail size (%s min, %s max, %s mean with %s standard deviation), '
+          '%0.1f%% of total images size' % (
+              base.HumanizedBytes(all_thumb_size),
+              base.HumanizedBytes(min(thumb_sizes)) if thumb_sizes else '-',
+              base.HumanizedBytes(max(thumb_sizes)) if thumb_sizes else '-',
+              base.HumanizedBytes(int(statistics.mean(thumb_sizes))) if thumb_sizes else '-',
+              base.HumanizedBytes(int(statistics.stdev(thumb_sizes))) if thumb_sizes else '-',
+              (100.0 * all_thumb_size) / all_files_size))
     if file_sizes:
       wh_sizes: list[tuple[int, int]] = [
           (s['width'], s['height']) for s in self.blobs.values()]  # type: ignore
@@ -694,7 +705,7 @@ class FapDatabase:
         # in this case this is a truly new image: never seen img_id or sha
         self.blobs[sha] = {
             'loc': {(img_id, url_path, sanitized_image_name, user_id, folder_id)},
-            'tags': set(), 'sz': sz, 'ext': extension, 'percept': perceptual_hash,
+            'tags': set(), 'sz': sz, 'sz_thumb': 0, 'ext': extension, 'percept': perceptual_hash,
             'width': width, 'height': height, 'animated': is_animated}
       return (image_bytes, sha, url_path, sanitized_image_name, extension)
     # we have seen this img_id before, and can skip a lot of computation
@@ -807,7 +818,7 @@ class FapDatabase:
     except KeyError:
       raise Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
     # download all full resolution images we don't yet have
-    total_sz, saved_count, known_count, exists_count = 0, 0, 0, 0
+    total_sz, thumb_sz, saved_count, known_count, exists_count = 0, 0, 0, 0, 0
     for img_id in self.favorites[user_id][folder_id]['images']:  # type: ignore
       # add image to database
       image_bytes, sha, url_path, sanitized_image_name, extension = (
@@ -829,16 +840,17 @@ class FapDatabase:
       saved_count += 1
       # if we saved a blob, we should also generate a thumbnail
       if date_key == 'date_blobs':
-        self._MakeThumbnailForBlob(sha)
+        thumb_sz += self._MakeThumbnailForBlob(sha)
       # checkpoint database, if needed
       if checkpoint_size and not saved_count % checkpoint_size:
         self.Save()
     # all images were downloaded, the end
     self.favorites[user_id][folder_id][date_key] = base.INT_TIME()  # marks album as done
     print(
-        'Saved %d images to disk (%s); also %d images were already in DB and '
+        'Saved %d images to disk (%s) and %s in thumbnails; also %d images were already in DB and '
         '%d images were already saved to destination' % (
-            saved_count, base.HumanizedBytes(total_sz), known_count, exists_count))
+            saved_count, base.HumanizedBytes(total_sz), base.HumanizedBytes(thumb_sz),
+            known_count, exists_count))
     return total_sz
 
   def _GetBinary(self, url: str, image_extension: str) -> tuple[bytes, str, str, int, int, bool]:
@@ -863,34 +875,66 @@ class FapDatabase:
     with tempfile.NamedTemporaryFile(suffix='.' + image_extension) as temp_file:
       temp_file.write(img_data)
       temp_file.flush()
-      with PilImage.open(temp_file.name) as img:
+      with Image.open(temp_file.name) as img:
         width, height, is_animated = img.width, img.height, getattr(img, "is_animated", False)
       percept = self.duplicates.Encode(temp_file.name)
     return (img_data, hashlib.sha256(img_data).hexdigest(), percept, width, height, is_animated)
 
-  def _MakeThumbnailForBlob(self, sha: str) -> None:
-    """Make equivalent thumbnail for `sha` entry."""
-    # TODO: does not work for animated gif
+  def _MakeThumbnailForBlob(self, sha: str) -> int:
+    """Make equivalent thumbnail for `sha` entry. Will overwrite destination.
+
+    Args:
+      sha: the SHA256 key
+
+    Returns:
+      int size of saved file
+    """
     # create thumbnails directory, if needed
     if not self.thumbs_dir_exists:
       logging.info('Creating thumbnails directory %r', self._thumbs_dir)
       os.mkdir(self._thumbs_dir)
     # open image and generate a thumbnail
-    with PilImage.open(self._BlobPath(sha)) as img:
+    with Image.open(self._BlobPath(sha)) as img:
+      output_path = self.ThumbnailPath(sha)
+      # figure out the new size that will be used
       width, height = img.width, img.height
       if max((width, height)) <= _THUMBNAIL_MAX_DIMENSION:
-        shutil.copyfile(self._BlobPath(sha), self.ThumbnailPath(sha))
+        # the image is already smaller than the putative thumbnail, so we just copy it as thumbnail
+        shutil.copyfile(self._BlobPath(sha), output_path)
+        sz_thumb = os.path.getsize(output_path)
+        self.blobs[sha]['sz_thumb'] = sz_thumb
         logging.info('Copied image as thumbnail for %r', sha)
-        return
+        return sz_thumb
       if width > height:
         new_width, factor = _THUMBNAIL_MAX_DIMENSION, width / _THUMBNAIL_MAX_DIMENSION
         new_height = math.floor(height / factor)
       else:
         new_height, factor = _THUMBNAIL_MAX_DIMENSION, height / _THUMBNAIL_MAX_DIMENSION
         new_width = math.floor(width / factor)
-      img.thumbnail((new_width, new_height), resample=PilImage.BICUBIC)
-      img.save(self.ThumbnailPath(sha))
-    logging.info('Saved thumbnail for %r', sha)
+      if self.blobs[sha]['animated'] and self.blobs[sha]['ext'].lower() == 'gif':  # type: ignore
+        # special process for animated images, specifically an animated `gif`
+        frames = ImageSequence.Iterator(img)
+
+        def _thumbnails(frames):
+          for frame in frames:
+            thumbnail = frame.copy()
+            thumbnail.thumbnail((new_width, new_height), Image.LANCZOS)
+            yield thumbnail
+
+        frames = _thumbnails(frames)
+        first_frame = next(frames)   # handle first frame separately: will be used to save
+        first_frame.info = img.info  # copy sequence info into first frame
+        first_frame.save(output_path, save_all=True, append_images=list(frames))
+        logging.info('Saved animated thumbnail for %r', sha)
+      else:
+        # simpler process for regular (non-animated) images
+        img.thumbnail((new_width, new_height), resample=Image.LANCZOS)
+        img.save(output_path)
+        logging.info('Saved thumbnail for %r', sha)
+    # we get the size of the created file
+    sz_thumb = os.path.getsize(output_path)
+    self.blobs[sha]['sz_thumb'] = sz_thumb
+    return sz_thumb
 
   @property
   def _perceptual_hashes_map(self) -> dict[str, str]:

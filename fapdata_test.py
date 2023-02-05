@@ -2,6 +2,10 @@
 #
 # Copyright 2023 Daniel Balparda (balparda@gmail.com)
 #
+# cspell:disable-next-line
+# Image testdata/109.gif authored by Charly Whisky, creative commons attribution.
+# (Found in https://en.wikipedia.org/wiki/File:Dopplerfrequenz.gif)
+#
 """fapdata.py unittest."""
 
 import hashlib
@@ -275,10 +279,11 @@ class TestFapDatabase(unittest.TestCase):
           'img-page-13-0', 'img-page-13-1', 'img-page-13-2']
       fapdata._FAVORITE_IMAGE = _MockRegex({
           'img-page-10-7': ['100', '101'], 'img-page-10-8': ['102'], 'img-page-10-9': [],
-          'img-page-13-0': ['105', '106'], 'img-page-13-1': ['107', '108'], 'img-page-13-2': []})
+          'img-page-13-0': ['105', '106'], 'img-page-13-1': ['107', '108', '109'],
+          'img-page-13-2': []})
       self.assertListEqual(db.AddFolderPics(1, 10, False), [100, 101, 102])
       self.assertListEqual(db.AddFolderPics(1, 11, False), [103, 104])
-      self.assertListEqual(db.AddFolderPics(1, 13, False), [105, 106, 107, 108])
+      self.assertListEqual(db.AddFolderPics(1, 13, False), [105, 106, 107, 108, 109])
       self.assertListEqual(
           read_html.call_args_list,
           [mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=8&folderid=10'),
@@ -296,27 +301,28 @@ class TestFapDatabase(unittest.TestCase):
           11: {'name': 'known-folder-1', 'date_blobs': 1675360670, 'date_straight': 0,
                'images': [103, 104], 'pages': 8},
           13: {'name': 'new&f-3', 'date_blobs': 0, 'date_straight': 0,
-               'images': [105, 106, 107, 108], 'pages': 2}}})
+               'images': [105, 106, 107, 108, 109], 'pages': 2}}})
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       # ReadFavoritesIntoBlobs #####################################################################
       db._db['blobs'] = {
           '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
               'loc': {(801, 'url-1', 'some-name.jpg', 2, 20),
                       (101, 'url-2', 'name-to-use.jpg', 1, 10)},
-              'tags': {}, 'sz': 101, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
+              'tags': {}, 'sz': 101, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'width': 160, 'height': 200, 'animated': False},
           'sha-107': {
               'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
-              'tags': {}, 'sz': 107, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
+              'tags': {}, 'sz': 107, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'width': 107, 'height': 1070, 'animated': False},
       }
       db._db['image_ids_index'] = {
           101: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
           801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf', 107: 'sha-107'}
-      read_html.side_effect = ['img-100', 'img-102', 'img-105', 'img-106', 'img-107', 'img-108']
+      read_html.side_effect = ['img-100', 'img-102', 'img-105', 'img-106',
+                               'img-107', 'img-108', 'img-109']
       test_images = {}
       for n in ('100.jpg', '101.jpg', '102.jpg', '103.jpg', '104.jpg',
-                '105.jpg', '106.jpg', '107.png', '108.png'):
+                '105.jpg', '106.jpg', '107.png', '108.png', '109.gif'):
         with open(os.path.join(_TESTDATA_PATH, n), 'rb') as f:
           test_images[n] = f.read()
       os.mkdir(os.path.join(db_path, 'blobs/'))
@@ -324,16 +330,19 @@ class TestFapDatabase(unittest.TestCase):
         f.write(test_images['101.jpg'])
       read_bin.side_effect = [
           test_images['100.jpg'], test_images['102.jpg'], test_images['105.jpg'],
-          test_images['106.jpg'], test_images['107.png'], test_images['108.png']]
+          test_images['106.jpg'], test_images['107.png'], test_images['108.png'],
+          test_images['109.gif']]
       fapdata._FULL_IMAGE = _MockRegex({
           'img-100': ['url-100'], 'img-102': ['url-102'], 'img-105': ['url-105'],
-          'img-106': ['url-106'], 'img-107': ['url-107'], 'img-108': ['url-108']})
+          'img-106': ['url-106'], 'img-107': ['url-107'], 'img-108': ['url-108'],
+          'img-109': ['url-109']})
       fapdata._IMAGE_NAME = _MockRegex({
           'img-100': ['name-100.jpg'], 'img-102': ['name-102.jpg'], 'img-105': ['name-105.jpeg'],
-          'img-106': ['name-106.jpeg'], 'img-107': ['name-107.png'], 'img-108': ['name-108.png']})
+          'img-106': ['name-106.jpeg'], 'img-107': ['name-107.png'], 'img-108': ['name-108.png'],
+          'img-109': ['name-109.gif']})
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 10, 2, False), 111226)
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 11, 2, False), 0)
-      self.assertEqual(db.ReadFavoritesIntoBlobs(1, 13, 2, False), 207102)
+      self.assertEqual(db.ReadFavoritesIntoBlobs(1, 13, 2, False), 652075)
       db.FindDuplicates()
       self.assertListEqual(
           read_html.call_args_list,
@@ -342,11 +351,12 @@ class TestFapDatabase(unittest.TestCase):
            mock.call('https://www.imagefap.com/photo/105/'),
            mock.call('https://www.imagefap.com/photo/106/'),
            mock.call('https://www.imagefap.com/photo/107/'),
-           mock.call('https://www.imagefap.com/photo/108/')])
+           mock.call('https://www.imagefap.com/photo/108/'),
+           mock.call('https://www.imagefap.com/photo/109/')])
       self.assertListEqual(
           read_bin.call_args_list,
           [mock.call('url-100'), mock.call('url-102'), mock.call('url-105'), mock.call('url-106'),
-           mock.call('url-107'), mock.call('url-108')])
+           mock.call('url-107'), mock.call('url-108'), mock.call('url-109')])
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
       self.assertDictEqual(db.blobs, _BLOBS)
       self.assertDictEqual(db.image_ids_index, _INDEX)
@@ -378,32 +388,36 @@ _BLOBS = {
     '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
-        'percept': 'cd4fc618316732e7', 'sz': 54643, 'tags': set(), 'width': 168,
+        'percept': 'cd4fc618316732e7', 'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168,
     },
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
         'animated': False, 'ext': 'png', 'height': 173,
         'loc': {(108, 'url-108', 'name-108.png', 1, 13)},
-        'percept': 'd99ee32e586716c8', 'sz': 45309, 'tags': set(), 'width': 130,
+        'percept': 'd99ee32e586716c8', 'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130,
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'sz': 101, 'tags': {}, 'width': 160,
+        'percept': 'd99ee32e586716c8', 'sz': 101, 'sz_thumb': 0, 'tags': {}, 'width': 160,
     },
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
         'animated': False, 'ext': 'jpg', 'height': 222,
         'loc': {(106, 'url-106', 'name-106.jpg', 1, 13)},
-        'percept': '89991f6f62a63479', 'sz': 89216, 'tags': set(), 'width': 300,
+        'percept': '89991f6f62a63479', 'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300,
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
         'loc': {(100, 'url-100', 'name-100.jpg', 1, 10), (105, 'url-105', 'name-105.jpg', 1, 13)},
-        'percept': 'cc8fc37638703ee1', 'sz': 56583, 'tags': set(), 'width': 200,
+        'percept': 'cc8fc37638703ee1', 'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200,
     },
+    'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
+        'animated': True, 'ext': 'gif', 'height': 100, 'tags': set(),
+        'loc': {(109, 'url-109', 'name-109.gif', 1, 13)},
+        'percept': 'e699669966739866', 'sz': 444973, 'sz_thumb': 302143, 'width': 500},
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20), (107, 'url-107', 'name-107.png', 1, 13)},
-        'percept': 'd99ee32e586716c8', 'sz': 107, 'tags': {}, 'width': 107,
+        'percept': 'd99ee32e586716c8', 'sz': 107, 'sz_thumb': 72577, 'tags': {}, 'width': 107,
     },
 }
 
@@ -415,6 +429,7 @@ _INDEX = {
     106: 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180',
     107: 'sha-107',
     108: '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+    109: 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e',
     801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'
 }
 
