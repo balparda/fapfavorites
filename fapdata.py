@@ -49,7 +49,7 @@ __version__ = (1, 0)
 DEFAULT_DB_DIRECTORY = '~/Downloads/imagefap/'
 _DEFAULT_DB_NAME = 'imagefap.database'
 _DEFAULT_BLOB_DIR_NAME = 'blobs/'
-_DEFAULT_THUMBS_DIR_NAME = 'thumbs/'
+DEFAULT_THUMBS_DIR_NAME = 'thumbs/'
 _THUMBNAIL_MAX_DIMENSION = 280
 _MAX_RETRY = 10         # int number of retries for URL get
 _URL_TIMEOUT = 15.0     # URL timeout, in seconds
@@ -123,11 +123,11 @@ class FapDatabase:
       raise AttributeError('Output directory path cannot be empty')
     logging.info('Initializing database. Output directory will be: %r', dir_path)
     # start with a clean DB; see README.md for format
-    self._original_dir = dir_path                                         # what the user gave us
-    self._db_dir = os.path.expanduser(self._original_dir)                 # where to put DB
-    self._db_path = os.path.join(self._db_dir, _DEFAULT_DB_NAME)          # actual DB path
-    self._blobs_dir = os.path.join(self._db_dir, _DEFAULT_BLOB_DIR_NAME)  # where to put blobs
-    self._thumbs_dir = os.path.join(self._db_dir, _DEFAULT_THUMBS_DIR_NAME)  # thumbnails dir
+    self._original_dir = dir_path                                            # what the user gave us
+    self._db_dir = os.path.expanduser(self._original_dir)                    # where to put DB
+    self._db_path = os.path.join(self._db_dir, _DEFAULT_DB_NAME)             # actual DB path
+    self._blobs_dir = os.path.join(self._db_dir, _DEFAULT_BLOB_DIR_NAME)     # where to put blobs
+    self._thumbs_dir = os.path.join(self._db_dir, DEFAULT_THUMBS_DIR_NAME)   # thumbnails dir
     self._db: dict[_DB_KEY_TYPE, dict] = {}
     for k in _DB_MAIN_KEYS:  # creates the main expected key entries
       self._db[k] = {}  # type: ignore
@@ -138,6 +138,8 @@ class FapDatabase:
         raise Error('Output directory %r does not exist' % self._original_dir)
       logging.info('Creating output directory %r', self._original_dir)
       os.mkdir(self._db_dir)
+    # save to environment
+    os.environ['IMAGEFAP_FAVORITES_DB_PATH'] = self._original_dir
 
   @property
   def users(self) -> dict[int, str]:

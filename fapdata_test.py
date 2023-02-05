@@ -35,11 +35,13 @@ class TestFapDatabase(unittest.TestCase):
   def test_Constructor(self, mock_expanduser, mock_mkdir, mock_is_dir):
     """Test."""
     mock_is_dir.return_value = False
+    del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
     mock_expanduser.return_value = '/home/some-user/Downloads/some-dir/'
     db = fapdata.FapDatabase('~/Downloads/some-dir/')
     self.assertListEqual(
         mock_mkdir.call_args_list, [mock.call('/home/some-user/Downloads/some-dir/')])
     self.assertEqual(db._original_dir, '~/Downloads/some-dir/')
+    self.assertEqual(os.environ['IMAGEFAP_FAVORITES_DB_PATH'], '~/Downloads/some-dir/')
     self.assertEqual(db._db_dir, '/home/some-user/Downloads/some-dir/')
     self.assertEqual(db._db_path, '/home/some-user/Downloads/some-dir/imagefap.database')
     self.assertEqual(db._blobs_dir, '/home/some-user/Downloads/some-dir/blobs/')
@@ -60,6 +62,7 @@ class TestFapDatabase(unittest.TestCase):
         'duplicates_index': {('a', 'b'): {'a': 'new'}},
     })
     self.assertDictEqual(db.duplicates.index, {('a', 'b'): {'a': 'new'}})
+    del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
 
   @mock.patch('fapdata.os.path.isdir')
   def test_Constructor_Fail(self, mock_is_dir):

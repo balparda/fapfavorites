@@ -138,14 +138,17 @@ the default directory (`~/Downloads/imagefap/`):
 ./process.py print
 ```
 
-### `process.py PRINT` command - _See All The Things!_
+### `process.py RUN` command - _Run Local Web App: Inspect and Change Data_
 
 The `run` command will start a strictly local web app with the database
 data that will allow you to navigate and view the data and do some tasks.
 The web app will be in http://127.0.0.1:8000/viewer/ and is built for
 function and not for looks.
 
-For now, only works with the database in the default directory (`~/Downloads/imagefap/`).
+Do ___NOT___ simultaneously run the web app and other concurrent calls
+to `favorites.py` or `process.py` pointing to _differently located databases_.
+The reason is that the web app needs stable OS environment variables
+and calls to databases located elsewhere can seriously undermine that.
 
 ```
 ./process.py run

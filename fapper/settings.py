@@ -10,13 +10,23 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
+import os
 import os.path
+# import pdb
 
 from pathlib import Path
+
+import fapdata
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # BASE_DIR = Path(__file__).resolve().parent.parent  # original
 BASE_DIR = Path(__file__).resolve().parent
+
+
+# Imagefap-Favorites Settings
+IMAGEFAP_FAVORITES_DB_PATH = os.environ.get(
+    'IMAGEFAP_FAVORITES_DB_PATH', fapdata.DEFAULT_DB_DIRECTORY)
 
 
 # Quick-start development settings - unsuitable for production
@@ -121,7 +131,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
-    os.path.expanduser('~/Downloads/imagefap/thumbs/'),
+    os.path.join(os.path.expanduser(IMAGEFAP_FAVORITES_DB_PATH), fapdata.DEFAULT_THUMBS_DIR_NAME),
     # TODO: another path that should be loaded from main() options
 ]
 

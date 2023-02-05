@@ -85,7 +85,7 @@ def _PrintOperation(database: fapdata.FapDatabase, print_blobs: bool) -> None:
   print()
 
 
-def _RunDjangoServerAndBlock(database: fapdata.FapDatabase, development_mode: bool) -> None:
+def _RunDjangoServerAndBlock(development_mode: bool) -> None:
   """Run the main Django server and block on call until server comes down.
 
   Args:
@@ -162,14 +162,14 @@ def main(operation: str,
     if not database.Load():
       raise fapdata.Error('Database does not exist in given path: %r' % db_dir)
     if not database.blobs_dir_exists:
-      raise fapdata.Error('Database blobs directory does not inside %r' % db_dir)
+      raise fapdata.Error('Database blobs directory is not inside %r' % db_dir)
     # we should now have both IDs that we need
     if operation.lower() == 'stats':
       _StatsOperation(database)
     elif operation.lower() == 'print':
       _PrintOperation(database, print_blobs)
     elif operation.lower() == 'run':
-      _RunDjangoServerAndBlock(database, development_mode)
+      _RunDjangoServerAndBlock(development_mode)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # for now, no operation needs to save DB
@@ -183,5 +183,5 @@ def main(operation: str,
 
 
 if __name__ == '__main__':
-  os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fapper.settings')  # cspell:disable-line
+  os.environ['DJANGO_SETTINGS_MODULE'] = 'fapper.settings'  # cspell:disable-line
   main()  # pylint: disable=no-value-for-parameter

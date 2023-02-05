@@ -7,6 +7,7 @@ from typing import Any
 
 from django import http
 from django import shortcuts
+from django import conf
 from django.template import defaulttags
 
 from baselib import base
@@ -48,6 +49,10 @@ class SHA256HexDigest:
 def _GetLoadedDatabase(db_path: str, db_file_timestamp: int) -> fapdata.FapDatabase:
   """Load database, cached. Called with database timestamp so it reloads if a Save() happened.
 
+  Must cache on this specific combination of variables:
+    -> db_path ensures we are looking at the same DB
+    -> db_file_timestamp ensures a reload (cache invalidation) if for some reason it has changed
+
   Args:
     db_path: Database directory path
     db_file_timestamp: Int timestamp for last database modification
@@ -59,17 +64,22 @@ def _GetLoadedDatabase(db_path: str, db_file_timestamp: int) -> fapdata.FapDatab
   Raises:
     fapdata.Error: if database file does not exist or fails to load correctly
   """
-  # TODO: Find a way to communicate database path from main() module to here, so we can use
-  #     paths other than the default DEFAULT_DB_DIRECTORY!!
   logging.info('Loading database in %r from timestamp %d', db_path, db_file_timestamp)
   db = fapdata.FapDatabase(db_path, create_if_needed=False)
   db.Load()
   return db
 
 
+def _DBFactory() -> fapdata.FapDatabase:
+  """Get a loaded database (convenience method)."""
+  return _GetLoadedDatabase(
+      conf.settings.IMAGEFAP_FAVORITES_DB_PATH,
+      fapdata.GetDatabaseTimestamp(conf.settings.IMAGEFAP_FAVORITES_DB_PATH))
+
+
 def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `index` page."""
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   context = {
       'users': len(db.users),
       'tags': len(tuple(db.TagsWalk())),
@@ -81,7 +91,7 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
 
 def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `users` page."""
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   context = {
       'users': db.users,
   }
@@ -91,7 +101,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
 def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse:
   """Serve the `favorites` page of one `user_id`."""
   # check for errors in parameters
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   if user_id not in db.users or user_id not in db.favorites:
     raise http.Http404('Unknown user %d' % user_id)
   user_favorites = db.favorites[user_id]
@@ -114,7 +124,7 @@ def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> ht
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
   # TODO: add filters for aspect ratio, removing duplicates, etc
   # check for errors in parameters
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   if user_id not in db.users or user_id not in db.favorites:
     raise http.Http404('Unknown user %d' % user_id)
   if folder_id not in db.favorites[user_id]:
@@ -164,7 +174,7 @@ def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> ht
 
 def ServeTags(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `tags` page."""
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   # walk the tags and take them in
   tags = [(tid, db.PrintableTag(tid)) for tid, _, _, _ in db.TagsWalk()]
   context = {
@@ -176,7 +186,7 @@ def ServeTags(request: http.HttpRequest) -> http.HttpResponse:
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
   # check for errors in parameters
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   if tag_id not in db.tags:
     raise http.Http404('Unknown tag %d' % tag_id)
   # send to page
@@ -190,7 +200,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
 def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `blob` page, one image, given one SHA256 `digest`."""
   # check for errors in parameters
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   if not digest or digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
   if not db.HasBlob(digest):
@@ -208,7 +218,7 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   context = {
       'duplicates': {
           k: {
@@ -225,7 +235,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
   # TODO: paginate (prev / next)
   # check for errors in parameters
-  db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  db = _DBFactory()
   if digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
   for dup_keys in db.duplicates.index.keys():
