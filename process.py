@@ -21,9 +21,7 @@ import os
 # import pdb
 
 import click
-import django
-from django.core.management import execute_from_command_line as django_execute
-# from django.core.management import call_command as django_call
+from django.core import management
 
 from baselib import base
 import fapdata
@@ -87,20 +85,20 @@ def _PrintOperation(database: fapdata.FapDatabase, print_blobs: bool) -> None:
   print()
 
 
-def _RunDjangoServerAndBlock(database: fapdata.FapDatabase) -> None:
+def _RunDjangoServerAndBlock(database: fapdata.FapDatabase, development_mode: bool) -> None:
   """Run the main Django server and block on call until server comes down.
 
   Args:
     database: Active fapdata.FapDatabase
   """
-  # for sha in database.blobs.keys():
-  #   database._MakeThumbnailForBlob(sha)
-  # return
-  logging.info('Starting Django local server')
-  # os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fapper.settings')  # cspell:disable-line
-  # django.setup()
-  django_execute(['foo', 'runserver'])
-  # django_call('runserver')
+  logging.info('Starting Django local server in %s mode',
+               'DEVELOPMENT' if development_mode else 'USER')
+  argv = ['./process.py', 'runserver']
+  if not development_mode:
+    # this will disable the Django auto-reload BUT will make everything in process.py load TWICE
+    argv.append('--noreload')  # cspell:disable-line
+  print('Executing RUN command, server in: http://127.0.0.1:8000/viewer/')
+  management.execute_from_command_line(argv)
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -112,8 +110,18 @@ def _RunDjangoServerAndBlock(database: fapdata.FapDatabase) -> None:
 @click.option(
     '--blobs/--no-blobs', 'print_blobs', default=False,
     help='Print all blobs in `print` command? Default is False ("no")')
+@click.option(
+    '--development/--no-development', 'development_mode', default=False,
+    help='Open web app `run` command in development mode? Default is False ("no"); '
+         'usually you\'ll want to keep this off, which is the default, but if you are '
+         'developing it is useful as Django will reload automatically when you change some '
+         'resource, but the drawback (and the reason for the default) is that the app will '
+         'initially load twice, taking more time to start')
 @base.Timed('Total Imagefap process.py execution time')
-def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
+def main(operation: str,
+         db_dir: str,
+         print_blobs: bool,
+         development_mode: bool) -> None:  # noqa: D301
   """imagefap.com database operations utility.
 
   This is intended to be used on a database that has been constructed
@@ -125,6 +133,10 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
   The `print` command will do a "pretty" print of useful database metadata
   for a closer inspection. Can print a lot for a big database!
 
+  The `run` command will start a strictly local web app with the database
+  data that will allow you to navigate and view the data and do some tasks.
+  Web app will be in http://127.0.0.1:8000/viewer/
+
   Typical examples:
 
   \b
@@ -134,6 +146,10 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
   \b
   ./process.py print
   (pretty-print useful data from the default database location)
+
+  \b
+  ./process.py run
+  (run local web app in http://127.0.0.1:8000/viewer/)
   """
   print('***********************************************')
   print('**    IMAGEFAP DATABASE PROCESSING UTILS     **')
@@ -153,7 +169,7 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
     elif operation.lower() == 'print':
       _PrintOperation(database, print_blobs)
     elif operation.lower() == 'run':
-      _RunDjangoServerAndBlock(database)
+      _RunDjangoServerAndBlock(database, development_mode)
     else:
       raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
     # for now, no operation needs to save DB
@@ -168,5 +184,4 @@ def main(operation: str, db_dir: str, print_blobs: bool) -> None:  # noqa: D301
 
 if __name__ == '__main__':
   os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fapper.settings')  # cspell:disable-line
-  django.setup()
   main()  # pylint: disable=no-value-for-parameter

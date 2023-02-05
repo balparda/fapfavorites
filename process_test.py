@@ -67,6 +67,25 @@ class TestProcess(unittest.TestCase):
     print_stats.assert_called_with()
     save.assert_not_called()
 
+  @mock.patch('process.fapdata.os.path.isdir')
+  @mock.patch('process.fapdata.FapDatabase.Load')
+  @mock.patch('process.fapdata.FapDatabase.Save')
+  @mock.patch('django.core.management.execute_from_command_line')
+  def test_RunOperation(self, mock_django, save, load, mock_is_dir):
+    """Test."""
+    mock_is_dir.return_value = True
+    try:
+      process.main(['run', '--dir', '/path/'])
+    except SystemExit as e:
+      if e.code:
+        raise
+    self.assertListEqual(
+        mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
+    mock_django.assert_called_with(
+        ['./process.py', 'runserver', '--noreload'])  # cspell:disable-line
+    load.assert_called_with()
+    save.assert_not_called()
+
 
 SUITE = unittest.TestLoader().loadTestsFromTestCase(TestProcess)
 

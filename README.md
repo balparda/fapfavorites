@@ -108,6 +108,10 @@ image galleries in the user's favorite:
 ./favorites.py read --user dirty999
 ```
 
+The `read` command will also generate thumbnails for the images,
+that will be used to display them in the web app (see `run` command of
+`process.py`).
+
 ## Usage of `process.py`
 
 Run `./process.py --help` for an options and flag summary.
@@ -133,6 +137,27 @@ the default directory (`~/Downloads/imagefap/`):
 ```
 ./process.py print
 ```
+
+### `process.py PRINT` command - _See All The Things!_
+
+The `run` command will start a strictly local web app with the database
+data that will allow you to navigate and view the data and do some tasks.
+The web app will be in http://127.0.0.1:8000/viewer/ and is built for
+function and not for looks.
+
+For now, only works with the database in the default directory (`~/Downloads/imagefap/`).
+
+```
+./process.py run
+```
+
+The app will list the users, the favorites that were downloaded for the
+user, the tags you created, the duplicates.
+
+If you are developing this software, run it with the `--development` flag
+so that the server (Django) will automatically reload the app when you
+save your files, but be aware the startup will run twice. Definitively
+ignore this if you are just using the app.
 
 ## Storage
 
@@ -167,6 +192,10 @@ facilitating image tagging and re-organizing:
 ~/Downloads/imagefap/blobs/3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.gif  ==> blob
 [... etc ... each blob is:]
 ~/Downloads/imagefap/blobs/[file_sha_256_hex_digest].[jpg|gif|... original type]
+~/Downloads/imagefap/thumbs/             ==> thumbnails storage directory
+~/Downloads/imagefap/blobs/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.jpg  ==> thumbnail
+~/Downloads/imagefap/blobs/3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.gif  ==> thumbnail
+[... etc ... each thumbnail uses the same name as the blob it refers to]
 ```
 
 ### Database Schema

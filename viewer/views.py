@@ -112,6 +112,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
 
 def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
+  # TODO: add filters for aspect ratio, removing duplicates, etc
   # check for errors in parameters
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
   if user_id not in db.users or user_id not in db.favorites:
@@ -222,6 +223,7 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
 
 def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
+  # TODO: paginate (prev / next)
   # check for errors in parameters
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
   if digest not in db.blobs:
