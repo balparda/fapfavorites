@@ -2,7 +2,7 @@
 
 import functools
 import logging
-import pdb
+# import pdb
 from typing import Any
 
 from django import http
@@ -143,6 +143,8 @@ def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> ht
         'sz': base.HumanizedBytes(blob['sz']),  # type: ignore
         'dimensions': '%dx%d (WxH)' % (blob['width'], blob['height']),
         'tags': ', '.join(sorted(db.PrintableTag(t) for t in blob['tags'])),  # type: ignore
+        'thumb': '%s.%s' % (sha, blob['ext']),  # this is just the file name, to be served as
+                                                # a static resource: see settings.py
     }
   # send to page
   context = {
@@ -207,7 +209,13 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
   context = {
-      # TODO: fill context with actual data
+      'duplicates': {
+          k: {
+              'size': len(k),
+              'action': any(st == 'new' for _, st in db.duplicates.index[k].items()),
+          }
+          for k in sorted(db.duplicates.index.keys())
+      },
   }
   return shortcuts.render(request, 'viewer/duplicates.html', context)
 
@@ -216,9 +224,39 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
   # check for errors in parameters
   db = _GetLoadedDatabase(fapdata.DEFAULT_DB_DIRECTORY, fapdata.GetDatabaseTimestamp())
+  if digest not in db.blobs:
+    raise http.Http404('Unknown blob %r' % digest)
+  for dup_keys in db.duplicates.index.keys():
+    if digest in dup_keys:
+      break
+  else:
+    raise http.Http404('Blob %r does not correspond to a duplicate set' % digest)
   # send to page
+  dup_obj = db.duplicates.index[dup_keys]
   context = {
       'digest': digest,
-      # TODO: fill context with actual data
+      'dup_keys': dup_keys,
+      'duplicates': {
+          sha: {
+              'action': dup_obj[sha],
+              'loc': {
+                  i: {
+                      'file_name': nm,
+                      'user_id': uid,
+                      'user_name': db.users[uid],
+                      'folder_id': fid,
+                      'folder_name': db.favorites[uid][fid]['name'],
+                  }
+                  for i, _, nm, uid, fid in db.blobs[sha]['loc']  # type: ignore
+              },
+              'sz': base.HumanizedBytes(db.blobs[sha]['sz']),  # type: ignore
+              'dimensions': '%dx%d (WxH)' % (db.blobs[sha]['width'], db.blobs[sha]['height']),
+              'tags': ', '.join(sorted(
+                  db.PrintableTag(t) for t in db.blobs[sha]['tags'])),  # type: ignore
+              'thumb': '%s.%s' % (sha, db.blobs[sha]['ext']),  # this is just the file name, served
+                                                               # as a static resource (settings.py)
+          }
+          for sha in dup_keys
+      },
   }
   return shortcuts.render(request, 'viewer/duplicate.html', context)

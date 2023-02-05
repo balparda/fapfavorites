@@ -93,6 +93,9 @@ def _RunDjangoServerAndBlock(database: fapdata.FapDatabase) -> None:
   Args:
     database: Active fapdata.FapDatabase
   """
+  # for sha in database.blobs.keys():
+  #   database._MakeThumbnailForBlob(sha)
+  # return
   logging.info('Starting Django local server')
   # os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fapper.settings')  # cspell:disable-line
   # django.setup()

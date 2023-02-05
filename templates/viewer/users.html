@@ -12,7 +12,7 @@
       <tr><th>ID</th><th>Name</th></tr>
       {% for id, name in users.items %}
         <tr>
-          <td><a href='{% url "favorites" id %}'>{{ id }}</a></td>
+          <td align='center'><a href='{% url "favorites" id %}'>{{ id }}</a></td>
           <td>{{ name|escape }}</td>
         </tr>
       {% empty %}

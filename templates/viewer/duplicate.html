@@ -6,9 +6,43 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Duplicate "{{ digest }}"</h1>
+    <h1>Duplicate Set</h1>
 
-    <p>TODO: fill in data...</p>
+    {% load static %}
+
+    <table border='2'>
+      <tr>
+        <th>Image</th>
+        <th>Size&nbsp;Info<br/>FapID&nbsp;/&nbsp;User&nbsp;/&nbsp;Album</th>
+        <th>Action</th>
+      </tr>
+      {% for sha, obj in duplicates.items %}
+        <tr>
+          <td align='center' valign='center'>
+            <a href='{% url "blob" sha %}'><img src='{% static obj.thumb %}'/></a>
+          </td>
+          <td>
+            <table border='1'>
+              <tr><td colspan='3'>{{ obj.dimensions }}</td></tr>
+              <tr><td colspan='3'>{{ obj.sz }}</td></tr>
+              {% if obj.tags %}
+                <tr><td colspan='3'>{{ obj.tags }}</td></tr>
+              {% endif %}
+              {% for fap_id, location in obj.loc.items %}
+                <tr>
+                  <td>{{ fap_id }}</td>
+                  <td><a href='{% url "favorites" location.user_id %}'>{{ location.user_name }}</a></td>
+                  <td><a href='{% url "favorite" location.user_id location.folder_id %}'>{{ location.folder_name }}</a></td>
+                </tr>
+              {% endfor %}
+            </table>
+          </td>
+          <td>{{ obj.action }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan='4'>Duplicate set is empty: SHOULD NEVER HAPPEN!</td></tr>
+      {% endfor %}
+    </table>
 
   </body>
 </html>

@@ -9,10 +9,15 @@
     <h1>Favorites for User &quot;{{ user_name|escape }}&quot; (ID {{ user_id }})</h1>
 
     <table border='2'>
-      <tr><th>ID</th><th>Name</th><th>Image Count (Pages)</th><th>Last Fetch</th></tr>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Image&nbsp;Count&nbsp;(Pages)</th>
+        <th>Last&nbsp;Fetch</th>
+      </tr>
       {% for id, obj in favorites.items %}
         <tr>
-          <td><a href='{% url "favorite" user_id id %}'>{{ id }}</a></td>
+          <td align='center'><a href='{% url "favorite" user_id id %}'>{{ id }}</a></td>
           <td>{{ obj.name|escape }}</td>
           <td>{{ obj.count }} ({{ obj.pages }})</td>
           <td>{{ obj.date }}</td>

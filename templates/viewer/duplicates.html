@@ -8,7 +8,26 @@
 
     <h1>Duplicates</h1>
 
-    <p>TODO: fill in data...</p>
+    <table border='2'>
+      <tr><th>Size</th><th>Duplicate&nbsp;Set</th><th>Needs&nbsp;Action?</th></tr>
+      {% for key, obj in duplicates.items %}
+        <tr>
+          <td align='center'>{{ obj.size }}</td>
+          <td style='font-family:monospace'>
+            {% if obj.action %}
+              <b><a href='{% url "duplicate" key.0 %}'>{{ key.0 }}</a></b>
+            {% else %}
+              <a href='{% url "duplicate" key.0 %}'>{{ key.0 }}</a>
+            {% endif %}
+          </td>
+          <td align='center'>
+            {% if obj.action %}<a href='{% url "duplicate" key.0 %}'><b>yes</b></a>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan='3'>No duplicate sets in database</td></tr>
+      {% endfor %}
+    </table>
 
   </body>
 </html>

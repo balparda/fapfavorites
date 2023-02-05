@@ -25,6 +25,7 @@ import os.path
 # import pdb
 import random
 import re
+import shutil
 import socket
 import statistics
 import tempfile
@@ -48,6 +49,8 @@ __version__ = (1, 0)
 DEFAULT_DB_DIRECTORY = '~/Downloads/imagefap/'
 _DEFAULT_DB_NAME = 'imagefap.database'
 _DEFAULT_BLOB_DIR_NAME = 'blobs/'
+_DEFAULT_THUMBS_DIR_NAME = 'thumbs/'
+_THUMBNAIL_MAX_DIMENSION = 280
 _MAX_RETRY = 10         # int number of retries for URL get
 _URL_TIMEOUT = 15.0     # URL timeout, in seconds
 CHECKPOINT_LENGTH = 10  # int number of images to download between database checkpoints
@@ -124,6 +127,7 @@ class FapDatabase:
     self._db_dir = os.path.expanduser(self._original_dir)                 # where to put DB
     self._db_path = os.path.join(self._db_dir, _DEFAULT_DB_NAME)          # actual DB path
     self._blobs_dir = os.path.join(self._db_dir, _DEFAULT_BLOB_DIR_NAME)  # where to put blobs
+    self._thumbs_dir = os.path.join(self._db_dir, _DEFAULT_THUMBS_DIR_NAME)  # thumbnails dir
     self._db: dict[_DB_KEY_TYPE, dict] = {}
     for k in _DB_MAIN_KEYS:  # creates the main expected key entries
       self._db[k] = {}  # type: ignore
@@ -175,6 +179,11 @@ class FapDatabase:
     """True if blobs directory path is in existence."""
     return os.path.isdir(self._blobs_dir)
 
+  @property
+  def thumbs_dir_exists(self) -> bool:
+    """True if thumbnails directory path is in existence."""
+    return os.path.isdir(self._thumbs_dir)
+
   def Load(self) -> bool:
     """Load DB from file. If no DB file does not do anything.
 
@@ -204,6 +213,13 @@ class FapDatabase:
     """Get full file path for a blob hash (`sha`)."""
     try:
       return os.path.join(self._blobs_dir, '%s.%s' % (sha, self.blobs[sha]['ext']))
+    except KeyError:
+      raise Error('Blob %r not found' % sha)
+
+  def ThumbnailPath(self, sha: str) -> str:
+    """Get full file path for a thumbnail, based on its blob hash (`sha`)."""
+    try:
+      return os.path.join(self._thumbs_dir, '%s.%s' % (sha, self.blobs[sha]['ext']))
     except KeyError:
       raise Error('Blob %r not found' % sha)
 
@@ -646,8 +662,8 @@ class FapDatabase:
       img_id: Imagefap int image ID
 
     Returns:
-      (image_bytes, sha256_hexdigest,
-       imagefap_full_res_url, file_name_sanitized, file_extension_sanitized)
+      (image_bytes, sha256_hexdigest, imagefap_full_res_url,
+       file_name_sanitized, file_extension_sanitized)
       image_bytes can be None if the image's hash is known!
     """
     # figure out if we have it in the index
@@ -811,6 +827,9 @@ class FapDatabase:
       total_sz += _SaveImage(full_path, self._GetBinary(
           url_path, extension)[0] if image_bytes is None else image_bytes)
       saved_count += 1
+      # if we saved a blob, we should also generate a thumbnail
+      if date_key == 'date_blobs':
+        self._MakeThumbnailForBlob(sha)
       # checkpoint database, if needed
       if checkpoint_size and not saved_count % checkpoint_size:
         self.Save()
@@ -848,6 +867,29 @@ class FapDatabase:
         width, height, is_animated = img.width, img.height, getattr(img, "is_animated", False)
       percept = self.duplicates.Encode(temp_file.name)
     return (img_data, hashlib.sha256(img_data).hexdigest(), percept, width, height, is_animated)
+
+  def _MakeThumbnailForBlob(self, sha: str) -> None:
+    """Make equivalent thumbnail for `sha` entry."""
+    # create thumbnails directory, if needed
+    if not self.thumbs_dir_exists:
+      logging.info('Creating thumbnails directory %r', self._thumbs_dir)
+      os.mkdir(self._thumbs_dir)
+    # open image and generate a thumbnail
+    with PilImage.open(self._BlobPath(sha)) as img:
+      width, height = img.width, img.height
+      if max((width, height)) <= _THUMBNAIL_MAX_DIMENSION:
+        shutil.copyfile(self._BlobPath(sha), self.ThumbnailPath(sha))
+        logging.info('Copied image as thumbnail for %r', sha)
+        return
+      if width > height:
+        new_width, factor = _THUMBNAIL_MAX_DIMENSION, width / _THUMBNAIL_MAX_DIMENSION
+        new_height = math.floor(height / factor)
+      else:
+        new_height, factor = _THUMBNAIL_MAX_DIMENSION, height / _THUMBNAIL_MAX_DIMENSION
+        new_width = math.floor(width / factor)
+      img.thumbnail((new_width, new_height), resample=PilImage.BICUBIC)
+      img.save(self.ThumbnailPath(sha))
+    logging.info('Saved thumbnail for %r', sha)
 
   @property
   def _perceptual_hashes_map(self) -> dict[str, str]:

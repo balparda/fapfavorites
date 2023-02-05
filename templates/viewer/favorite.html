@@ -10,14 +10,18 @@
 
     <p>Total {{ count }} images (in {{ pages }} pages). Last fetched on {{ date }}.</p>
 
+    {% load static %}
+
     <table border='2'>
       {% for sha_group in stacked_blobs %}
         <tr>
           {% for sha in sha_group %}
             {% if sha %}
               {% with blob=blobs_data|lookup:sha %}
-                <td title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'>
-                  <a href='{% url "blob" sha %}'>X</a>
+                <td align='center' valign='center'>
+                  <a href='{% url "blob" sha %}'>
+                    <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/>
+                  </a>
                 </td>
               {% endwith %}
             {% else %}

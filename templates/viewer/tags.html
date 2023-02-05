@@ -9,10 +9,10 @@
     <h1>Tags</h1>
 
     <table border='2'>
-      <tr><th>ID</th><th>Tag Name (with parents)</th></tr>
+      <tr><th>ID</th><th>Tag&nbsp;Name&nbsp;(with&nbsp;parents)</th></tr>
       {% for id, name in tags %}
         <tr>
-          <td><a href='{% url "tag" id %}'>{{ id }}</a></td>
+          <td align='center'><a href='{% url "tag" id %}'>{{ id }}</a></td>
           <td>{{ name|escape }}</td>
         </tr>
       {% empty %}
