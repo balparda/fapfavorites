@@ -351,9 +351,14 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.blobs, _BLOBS)
       self.assertDictEqual(db.image_ids_index, _INDEX)
       self.assertDictEqual(db.duplicates.index, _DUPLICATES)
+      self.assertTrue(os.path.exists(db._BlobPath(
+          '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
+      self.assertTrue(os.path.exists(db.ThumbnailPath(
+          '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       ##############################################################################################
       db.GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+      db.GetBlob('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')
       db.PrintStats()
       db.PrintUsersAndFavorites()
       db.PrintTags()

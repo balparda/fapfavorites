@@ -870,7 +870,6 @@ class FapDatabase:
 
   def _MakeThumbnailForBlob(self, sha: str) -> None:
     """Make equivalent thumbnail for `sha` entry."""
-    # TODO: TEST!
     # TODO: does not work for animated gif
     # create thumbnails directory, if needed
     if not self.thumbs_dir_exists:
