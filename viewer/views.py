@@ -219,13 +219,14 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
   db = _DBFactory()
+  sorted_keys = sorted(db.duplicates.index.keys(), key=lambda x: x[0])
   context = {
       'duplicates': {
           k: {
               'size': len(k),
               'action': any(st == 'new' for _, st in db.duplicates.index[k].items()),
           }
-          for k in sorted(db.duplicates.index.keys())
+          for k in sorted_keys
       },
   }
   return shortcuts.render(request, 'viewer/duplicates.html', context)
@@ -233,12 +234,12 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
 
 def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
-  # TODO: paginate (prev / next)
   # check for errors in parameters
   db = _DBFactory()
   if digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
-  for dup_keys in db.duplicates.index.keys():
+  sorted_keys = sorted(db.duplicates.index.keys(), key=lambda x: x[0])
+  for current_index, dup_keys in enumerate(sorted_keys):
     if digest in dup_keys:
       break
   else:
@@ -247,6 +248,10 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   dup_obj = db.duplicates.index[dup_keys]
   context = {
       'digest': digest,
+      'current_index': current_index,
+      'previous_key': sorted_keys[current_index - 1] if current_index else None,
+      'next_key': (sorted_keys[current_index + 1]
+                   if current_index < (len(sorted_keys) - 1) else None),
       'dup_keys': dup_keys,
       'duplicates': {
           sha: {
