@@ -23,11 +23,15 @@ along with this program. If not, see http://www.gnu.org/licenses/gpl-3.0.txt.
 
 ## Setup
 
-To install execute these commands inside the same directory:
+This software was developed and tested in a linux-like environment,
+but hopefully it can be run and used in other python-compatible
+environments with little to no changes.
+To install execute these commands inside the directory where you
+want the GIT packages to be installed:
 
 ```
-$ sudo apt-get install python3-pip pylint3
-$ sudo pip3 install -U click sanitize_filename coverage Pillow imagededup Django
+$ sudo apt-get install python3 python3-pip
+$ sudo pip3 install -U click sanitize_filename Pillow imagededup Django
 
 $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/imagefap-favorites.git
