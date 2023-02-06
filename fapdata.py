@@ -328,16 +328,6 @@ class FapDatabase:
             base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
             base.HumanizedBytes(int(statistics.stdev(file_sizes))) if file_sizes else '-',
             sum(int(s['animated']) for s in self.blobs.values())))  # type: ignore
-    if all_files_size and all_thumb_size:
-      PrintLine(
-          '%s total thumbnail size (%s min, %s max, %s mean with %s standard deviation), '
-          '%0.1f%% of total images size' % (
-              base.HumanizedBytes(all_thumb_size),
-              base.HumanizedBytes(min(thumb_sizes)) if thumb_sizes else '-',
-              base.HumanizedBytes(max(thumb_sizes)) if thumb_sizes else '-',
-              base.HumanizedBytes(int(statistics.mean(thumb_sizes))) if thumb_sizes else '-',
-              base.HumanizedBytes(int(statistics.stdev(thumb_sizes))) if thumb_sizes else '-',
-              (100.0 * all_thumb_size) / all_files_size))
     if file_sizes:
       wh_sizes: list[tuple[int, int]] = [
           (s['width'], s['height']) for s in self.blobs.values()]  # type: ignore
@@ -352,6 +342,16 @@ class FapDatabase:
               wh_sizes[pixel_sizes.index(max(pixel_sizes))],
               base.HumanizedDecimal(int(statistics.mean(pixel_sizes))),
               base.HumanizedDecimal(int(statistics.stdev(pixel_sizes)))))
+    if all_files_size and all_thumb_size:
+      PrintLine(
+          '%s total thumbnail size (%s min, %s max, %s mean with %s standard deviation), '
+          '%0.1f%% of total images size' % (
+              base.HumanizedBytes(all_thumb_size),
+              base.HumanizedBytes(min(thumb_sizes)) if thumb_sizes else '-',
+              base.HumanizedBytes(max(thumb_sizes)) if thumb_sizes else '-',
+              base.HumanizedBytes(int(statistics.mean(thumb_sizes))) if thumb_sizes else '-',
+              base.HumanizedBytes(int(statistics.stdev(thumb_sizes))) if thumb_sizes else '-',
+              (100.0 * all_thumb_size) / all_files_size))
     PrintLine('')
     PrintLine('%d users' % len(self.users))
     all_dates = [max(f['date_straight'], f['date_blobs'])
