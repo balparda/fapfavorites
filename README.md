@@ -72,18 +72,7 @@ the `--folder` flag. Example:
 
 Read as many users and folders as you want. They will be in the
 database, thumbnails will be automatically generated, duplicates will
-be found, etc. At any time you can find out about your data by
-doing:
-
-```
-./process.py stats
-./process.py print
-```
-
-This will print lots of useful information about the database,
-`stats` is shorter, `print` is longer and includes the data in `stats`.
-If your database is not in the default location (`~/Downloads/imagefap/`)
-you should provide the `--dir` flag to the `./process.py` command.
+be found, etc.
 
 Now you want to see the data and admire the downloaded albums and
 images, so you do:
@@ -94,8 +83,9 @@ images, so you do:
 
 This will start the web app ___in you local computer only___, and
 to see it you just leave `./process.py` running and
-visit http://127.0.0.1:8000/viewer/ in your browser. Again,
-use the `--dir` flag to point it to a non-default location database.
+visit http://127.0.0.1:8000/viewer/ in your browser. If your
+database is not in the default location (`~/Downloads/imagefap/`)
+you should provide the `--dir` flag to the `./process.py` command.
 The web app is not beautiful, for sure, but it is simple, fast, gets
 the job done, does not waste your time, and 100% offline.
 You can see all users, all favorite albums, images, duplicates,

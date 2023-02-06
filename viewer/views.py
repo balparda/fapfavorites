@@ -85,6 +85,7 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
       'tags': len(tuple(db.TagsWalk())),
       'duplicates': len(db.duplicates.index),
       'n_images': len(db.blobs),
+      'database_stats': db.PrintStats(actually_print=False)
   }
   return shortcuts.render(request, 'viewer/index.html', context)
 

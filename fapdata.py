@@ -296,16 +296,30 @@ class FapDatabase:
             start_tag=start_tag[tag_id]['tags'], depth=(depth + 1)):  # type: ignore
           yield o
 
-  def PrintStats(self) -> None:
-    """Print database stats."""
+  def PrintStats(self, actually_print=True) -> list[str]:
+    """Print database stats.
+
+    Args:
+      actually_print: (default True) If true will print() the lines; else won't
+
+    Returns:
+      list of strings to print as status
+    """
     file_sizes: list[int] = [s['sz'] for s in self.blobs.values()]         # type: ignore
     thumb_sizes: list[int] = [s['sz_thumb'] for s in self.blobs.values()]  # type: ignore
     all_files_size, all_thumb_size = sum(file_sizes), sum(thumb_sizes)
     db_size = os.path.getsize(self._db_path)
-    print('Database is located in %r, and is %s (%0.5f%% of total images size)' % (
+    all_lines = []
+
+    def PrintLine(line: str):
+      all_lines.append(line)
+      if actually_print:
+        print(line)
+
+    PrintLine('Database is located in %r, and is %s (%0.5f%% of total images size)' % (
         self._db_path, base.HumanizedBytes(db_size),
         (100.0 * db_size) / (all_files_size if all_files_size else 1)))
-    print(
+    PrintLine(
         '%s total (unique) images size (%s min, %s max, '
         '%s mean with %s standard deviation, %d are animated)' % (
             base.HumanizedBytes(all_files_size),
@@ -315,7 +329,7 @@ class FapDatabase:
             base.HumanizedBytes(int(statistics.stdev(file_sizes))) if file_sizes else '-',
             sum(int(s['animated']) for s in self.blobs.values())))  # type: ignore
     if all_files_size and all_thumb_size:
-      print(
+      PrintLine(
           '%s total thumbnail size (%s min, %s max, %s mean with %s standard deviation), '
           '%0.1f%% of total images size' % (
               base.HumanizedBytes(all_thumb_size),
@@ -329,7 +343,7 @@ class FapDatabase:
           (s['width'], s['height']) for s in self.blobs.values()]  # type: ignore
       pixel_sizes: list[int] = [
           s['width'] * s['height'] for s in self.blobs.values()]  # type: ignore
-      print(
+      PrintLine(
           'Pixel size (width, height): %spixels min %r, %spixels max %r, '  # cspell:disable-line
           '%s mean with %s standard deviation' % (
               base.HumanizedDecimal(min(pixel_sizes)),
@@ -338,21 +352,22 @@ class FapDatabase:
               wh_sizes[pixel_sizes.index(max(pixel_sizes))],
               base.HumanizedDecimal(int(statistics.mean(pixel_sizes))),
               base.HumanizedDecimal(int(statistics.stdev(pixel_sizes)))))
-    print()
-    print('%d users' % len(self.users))
+    PrintLine('')
+    PrintLine('%d users' % len(self.users))
     all_dates = [max(f['date_straight'], f['date_blobs'])
                  for u in self.favorites.values() for f in u.values()]
     min_date, max_date = min(all_dates), max(all_dates)
-    print('%d favorite galleries (oldest: %s / newer: %s)' % (
+    PrintLine('%d favorite galleries (oldest: %s / newer: %s)' % (
         sum(len(f) for _, f in self.favorites.items()),
         base.STD_TIME_STRING(min_date) if min_date else 'pending',
         base.STD_TIME_STRING(max_date) if max_date else 'pending'))
-    print('%d unique images (%d total, %d exact duplicates)' % (
+    PrintLine('%d unique images (%d total, %d exact duplicates)' % (
         len(self.blobs),
         sum(len(b['loc']) for _, b in self.blobs.items()),       # type: ignore
         sum(len(b['loc']) - 1 for _, b in self.blobs.items())))  # type: ignore
-    print('%d perceptual duplicates in %d groups' % (
+    PrintLine('%d perceptual duplicates in %d groups' % (
         len(self.duplicates.hashes), len(self.duplicates.index)))
+    return all_lines
 
   def PrintUsersAndFavorites(self) -> None:
     """Print database users."""
