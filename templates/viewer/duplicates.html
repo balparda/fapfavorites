@@ -11,10 +11,14 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Duplicates</h1>
+    <h1>Perceptual Duplicates</h1>
 
     <table border='2'>
-      <tr><th>Duplicate&nbsp;Set (first hash)</th><th>Size</th><th>Needs&nbsp;Action?</th></tr>
+      <tr>
+        <th>Perceptual&nbsp;Duplicate&nbsp;Set (first hash)</th>
+        <th>Size</th>
+        <th>Needs&nbsp;Action?</th>
+      </tr>
       {% for key, obj in duplicates.items %}
         <tr>
           <td style='font-family:monospace'>
