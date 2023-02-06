@@ -120,30 +120,53 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   return shortcuts.render(request, 'viewer/favorites.html', context)
 
 
-def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
+def ServeFavorite(  # noqa: C901
+    request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
-  # TODO: add filters for aspect ratio, removing duplicates, etc
   # check for errors in parameters
   db = _DBFactory()
   if user_id not in db.users or user_id not in db.favorites:
     raise http.Http404('Unknown user %d' % user_id)
   if folder_id not in db.favorites[user_id]:
     raise http.Http404('Unknown folder %d (in known user %d)' % (folder_id, user_id))
+  # retrieve the `GET` data
+  show_duplicates = bool(int(request.GET.get('dup', '0')))        # default: False
+  show_portraits = bool(int(request.GET.get('portrait', '1')))    # default: True
+  show_landscapes = bool(int(request.GET.get('landscape', '1')))  # default: True
   # get images in album
   favorite = db.favorites[user_id][folder_id]
   images: list[int] = favorite['images']  # type: ignore
-  sorted_blobs = [db.image_ids_index[i] for i in images]  # "sorted" here means original order!
+  sorted_blobs = [(i, db.image_ids_index[i]) for i in images]  # "sorted" here means original order!
+  # find images that have duplicates
+  # TODO: also look at perceptual duplicates!
+  duplicates: dict[str, list[int]] = {}
+  for img, sha in sorted_blobs:
+    hits: list[int] = [i for i, _, _, uid, fid in db.blobs[sha]['loc']  # type: ignore
+                       if uid == user_id and fid == folder_id]
+    if len(hits) > 1:
+      # this image has >=2 instances in this same album
+      duplicates[sha] = hits
+  # apply filters
+  if not show_duplicates:
+    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
+                    if not (sha in duplicates and duplicates[sha][0] != i)]  # type: ignore
+  if not show_portraits:
+    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
+                    if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]  # type: ignore
+  if not show_landscapes:
+    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
+                    if not (db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1)]  # type: ignore
   # stack the hashes in rows of _IMG_COLUMNS columns
   stacked_blobs = [sorted_blobs[i:(i + _IMG_COLUMNS)]
                    for i in range(0, len(sorted_blobs), _IMG_COLUMNS)]
-  stacked_blobs[-1] += ['' for i in range(_IMG_COLUMNS - len(stacked_blobs[-1]))]
+  stacked_blobs[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_blobs[-1]))]
   # format blob data to be included as auxiliary data
   blobs_data = {}
-  for sha in sorted_blobs:
+  for img, sha in sorted_blobs:
     blob = db.blobs[sha]
     # find the correct 'loc' entry (to get the name)
-    for _, _, name, uid, fid in blob['loc']:  # type: ignore
-      if uid == user_id and fid == folder_id:
+    for i, _, name, uid, fid in blob['loc']:  # type: ignore
+      if i == img and uid == user_id and fid == folder_id:
         break
     else:
       raise fapdata.Error(
@@ -156,6 +179,7 @@ def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> ht
         'tags': ', '.join(sorted(db.PrintableTag(t) for t in blob['tags'])),  # type: ignore
         'thumb': '%s.%s' % (sha, blob['ext']),  # this is just the file name, to be served as
                                                 # a static resource: see settings.py
+        'is_duplicate': sha in duplicates,
     }
   # send to page
   context = {
@@ -163,9 +187,15 @@ def ServeFavorite(request: http.HttpRequest, user_id: int, folder_id: int) -> ht
       'user_name': db.users[user_id],
       'folder_id': folder_id,
       'name': favorite['name'],
+      'show_duplicates': show_duplicates,
+      'dup_url': 'dup=%d' % int(show_duplicates),
+      'show_portraits': show_portraits,
+      'portrait_url': 'portrait=%d' % int(show_portraits),
+      'show_landscapes': show_landscapes,
+      'landscape_url': 'landscape=%d' % int(show_landscapes),
       'pages': favorite['pages'],  # TODO: pages count has got to have some bug! it is too low!!
       'date': base.STD_TIME_STRING(favorite['date_blobs']),
-      'count': len(images),
+      'count': len(sorted_blobs),
       'stacked_blobs': stacked_blobs,
       'blobs_data': blobs_data,
   }

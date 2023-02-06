@@ -3,6 +3,26 @@
   <head>
     <meta charset='utf-8'/>
     <title>Imagefap-Favorites: Favorite</title>
+    <style>
+
+      a.filter_on {color: green;}
+      a.filter_on:visited {color: green;}
+      a.filter_on:hover {color: green;}
+      a.filter_on:active {color: green;}
+
+      a.filter_off {color: red;}
+      a.filter_off:visited {color: red;}
+      a.filter_off:hover {color: red;}
+      a.filter_off:active {color: red;}
+
+      th, td {padding: 5px;}
+
+      td.duplicate {
+        border-color: red;
+        background-color: red;
+      }
+
+    </style>
   </head>
   <body bgcolor='black' text='lightgray'>
 
@@ -10,15 +30,62 @@
 
     <p>Total {{ count }} images (in {{ pages }} pages). Last fetched on {{ date }}.</p>
 
+    <table>
+      <tr>
+        <td>
+          {% if show_duplicates %}
+            <a href='{% url "favorite" user_id folder_id %}?dup=0&{{ portrait_url }}&{{ landscape_url }}' class='filter_on'>
+              Duplicates: ON
+            </a><br/>
+          {% else %}
+            <a href='{% url "favorite" user_id folder_id %}?dup=1&{{ portrait_url }}&{{ landscape_url }}' class='filter_off'>
+              Duplicates: OFF
+            </a>
+          {% endif %}
+        </td>
+        <td>&nbsp;&nbsp;(images marked in <span style='color: red;'>RED</span> have exact duplicates in this album)</td>
+      </tr>
+      <tr>
+        <td>
+          {% if show_portraits %}
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=0&{{ landscape_url }}' class='filter_on'>
+              Portrait-Aspect Images: ON
+            </a>
+          {% else %}
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=1&{{ landscape_url }}' class='filter_off'>
+              Portrait-Aspect Images: OFF
+            </a>
+          {% endif %}
+        </td>
+        <td>&nbsp;&nbsp;(images with <b>height</b> more than 10% larger than <b>width</b>)</td>
+      </tr>
+      <tr>
+        <td>
+          {% if show_landscapes %}
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=0' class='filter_on'>
+              Landscape-Aspect Images: ON
+            </a>
+          {% else %}
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=1' class='filter_off'>
+              Landscape-Aspect Images: OFF
+            </a>
+          {% endif %}
+        </td>
+        <td>&nbsp;&nbsp;(images with <b>width</b> more than 10% larger than <b>height</b>)</td>
+      </tr>
+    </table>
+
     {% load static %}
+
+    <p>&nbsp;</p>
 
     <table border='2'>
       {% for sha_group in stacked_blobs %}
         <tr>
-          {% for sha in sha_group %}
+          {% for img, sha in sha_group %}
             {% if sha %}
               {% with blob=blobs_data|lookup:sha %}
-                <td align='center' valign='center'>
+                <td align='center' valign='center' {% if blob.is_duplicate %}class='duplicate'{% endif %}>
                   <a href='{% url "blob" sha %}'>
                     <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/>
                   </a>
