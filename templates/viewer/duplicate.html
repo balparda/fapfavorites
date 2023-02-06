@@ -2,7 +2,12 @@
 <html lang='en-US'>
   <head>
     <meta charset='utf-8'/>
-    <title>Imagefap-Favorites: Duplicate</title>
+    <title>Imagefap-Favorites: Duplicate Set</title>
+  <style>
+
+    th, td {padding: 5px;}
+
+  </style>
   </head>
   <body bgcolor='black' text='lightgray'>
 
@@ -18,6 +23,11 @@
       </tr>
       {% for sha, obj in duplicates.items %}
         <tr>
+          <td colspan='3' style='font-family:monospace'>
+            {{ sha }}<br/>&nbsp;#{{ obj.percept }}
+          </td>
+        </tr>
+        <tr>
           <td align='center' valign='center'>
             <a href='{% url "blob" sha %}'><img src='{% static obj.thumb %}'/></a>
           </td>
@@ -31,8 +41,8 @@
               {% for fap_id, location in obj.loc.items %}
                 <tr>
                   <td>{{ fap_id }}</td>
-                  <td><a href='{% url "favorites" location.user_id %}'>{{ location.user_name }}</a></td>
-                  <td><a href='{% url "favorite" location.user_id location.folder_id %}'>{{ location.folder_name }}</a></td>
+                  <td><a href='{% url "favorites" location.user_id %}'>{{ location.user_name|escape }}</a></td>
+                  <td><a href='{% url "favorite" location.user_id location.folder_id %}'>{{ location.folder_name|escape }}</a></td>
                 </tr>
               {% endfor %}
             </table>
@@ -40,7 +50,7 @@
           <td>{{ obj.action }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan='4'>Duplicate set is empty: SHOULD NEVER HAPPEN!</td></tr>
+        <tr><td colspan='3'>Duplicate set is empty: SHOULD NEVER HAPPEN!</td></tr>
       {% endfor %}
     </table>
 

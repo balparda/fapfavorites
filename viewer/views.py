@@ -302,6 +302,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                   db.PrintableTag(t) for t in db.blobs[sha]['tags'])),  # type: ignore
               'thumb': '%s.%s' % (sha, db.blobs[sha]['ext']),  # this is just the file name, served
                                                                # as a static resource (settings.py)
+              'percept': db.blobs[sha]['percept'],
           }
           for sha in dup_keys
       },
