@@ -85,6 +85,8 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
       'users': len(db.users),
       'tags': len(tuple(db.TagsWalk())),
       'duplicates': len(db.duplicates.index),
+      'dup_action': sum(1 for d in db.duplicates.index.values()
+                        if any(st == 'new' for st in d.values())),
       'n_images': len(db.blobs),
       'database_stats': db.PrintStats(actually_print=False)
   }
@@ -140,18 +142,26 @@ def ServeFavorite(  # noqa: C901
   images: list[int] = favorite['images']  # type: ignore
   sorted_blobs = [(i, db.image_ids_index[i]) for i in images]  # "sorted" here means original order!
   # find images that have duplicates
-  # TODO: also look at perceptual duplicates!
   duplicates: dict[str, list[int]] = {}
+  percept_exclude: set[str] = set()
   for img, sha in sorted_blobs:
+    # look for identical (sha256) collisions in the same album
     hits: list[int] = [i for i, _, _, uid, fid in db.blobs[sha]['loc']  # type: ignore
                        if uid == user_id and fid == folder_id]
     if len(hits) > 1:
       # this image has >=2 instances in this same album
       duplicates[sha] = hits
+    # look in perceptual index if this image is marked as 'skip'
+    for k, st in db.duplicates.index.items():
+      if sha in k:
+        if st[sha] == 'skip':
+          percept_exclude.add(sha)
   # apply filters
   if not show_duplicates:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
                     if not (sha in duplicates and duplicates[sha][0] != i)]  # type: ignore
+    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
+                    if not (sha in percept_exclude)]  # type: ignore
   if not show_portraits:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
                     if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]  # type: ignore
@@ -182,6 +192,7 @@ def ServeFavorite(  # noqa: C901
         'thumb': '%s.%s' % (sha, blob['ext']),  # this is just the file name, to be served as
                                                 # a static resource: see settings.py
         'is_duplicate': sha in duplicates,
+        'is_percept': sha in percept_exclude,
     }
   # send to page
   context = {
@@ -256,10 +267,12 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
       'duplicates': {
           k: {
               'size': len(k),
-              'action': any(st == 'new' for _, st in db.duplicates.index[k].items()),
+              'action': any(st == 'new' for st in db.duplicates.index[k].values()),
           }
           for k in sorted_keys
       },
+      'dup_action': sum(1 for d in db.duplicates.index.values()
+                        if any(st == 'new' for st in d.values())),
   }
   return shortcuts.render(request, 'viewer/duplicates.html', context)
 

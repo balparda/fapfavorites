@@ -54,13 +54,13 @@
             <td>
               <fieldset>
                 <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_new' value='new' {% if obj.action == 'new' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_new'>new&nbsp;(no user choice yet)</label><br/>
+                <label for='action_{{ forloop.counter }}_new'>new&nbsp;&#10067;&nbsp;(no user choice yet)</label><br/>
                 <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_false' value='false' {% if obj.action == 'false' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_false'>false&nbsp;positive&nbsp;(images are not the same, I want to see them)</label><br/>
+                <label for='action_{{ forloop.counter }}_false'>false&nbsp;positive&nbsp;&#9989;&nbsp;(images are not the same, I want to see them)</label><br/>
                 <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_keep' value='keep' {% if obj.action == 'keep' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_keep'>keep&nbsp;image&nbsp;(I want to see this one, even if repeated)</label><br/>
+                <label for='action_{{ forloop.counter }}_keep'>keep&nbsp;image&nbsp;&#9989;&nbsp;(I want to see this one, even if repeated)</label><br/>
                 <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_skip' value='skip' {% if obj.action == 'skip' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_skip'>skip&nbsp;image&nbsp;(I don't want to see this one)</label>
+                <label for='action_{{ forloop.counter }}_skip'>skip&nbsp;image&nbsp;&#10060;&nbsp;(I don't want to see this one)</label>
               </fieldset>
             </td>
           </tr>

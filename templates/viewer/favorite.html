@@ -21,6 +21,10 @@
         border-color: red;
         background-color: red;
       }
+      td.percept {
+        border-color: fuchsia;
+        background-color: fuchsia;
+      }
 
     </style>
   </head>
@@ -43,7 +47,7 @@
             </a>
           {% endif %}
         </td>
-        <td>&nbsp;&nbsp;(images marked in <span style='color: red;'>RED</span> below have exact duplicates in this album)</td>
+        <td>&nbsp;&nbsp;(images marked in <span style='color: red;'>RED</span> below have exact duplicates in this album; images in <span style='color: fuchsia;'>FUCHSIA</span> have been marked &quot;skip&quot; in perceptual duplicates)</td>
       </tr>
       <tr>
         <td>
@@ -85,7 +89,7 @@
           {% for img, sha in sha_group %}
             {% if sha %}
               {% with blob=blobs_data|lookup:sha %}
-                <td align='center' valign='center' {% if blob.is_duplicate %}class='duplicate'{% endif %}>
+                <td align='center' valign='center' {% if blob.is_duplicate %}class='duplicate'{% endif %} {% if blob.is_percept %}class='percept'{% endif %}>
                   <a href='{% url "blob" sha %}'>
                     <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/>
                   </a>
