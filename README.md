@@ -33,6 +33,72 @@ $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/imagefap-favorites.git
 ```
 
+## User Journeys, A Simple Guide
+
+### _"I just want to download a specific favorite album."_
+
+For every album you want, do something like this:
+
+```
+./favorites.py get --user dirty999 --folder "my pics" --output "~/some-dir/"
+```
+
+That would read favorite album _"my pics"_ for user _"dirty999"_. If you
+don't specify an explicit output it will go into `~/Downloads/imagefap/`.
+
+### _"I want to read favorite albums from any number of users and browse them offline."_
+
+Generate a database by reading the favorite albums for each user, like this:
+
+```
+./favorites.py read --user username1
+./favorites.py read --user username2
+[... etc ...]
+```
+
+Since we didn't give any specific location (`--output` flag), the database
+will be placed in `~/Downloads/imagefap/`.
+Those examples would read all favorites for users _"username1"_ and _"username2"_.
+If you don't want all the albums for an user, just a specific one, add
+the `--folder` flag. Example:
+
+```
+./favorites.py get --user dirty999 --folder "my pics"
+```
+
+Read as many users and folders as you want. They will be in the
+database, thumbnails will be automatically generated, duplicates will
+be found, etc. At any time you can find out about your data by
+doing:
+
+```
+./process.py stats
+./process.py print
+```
+
+This will print lots of useful information about the database,
+`stats` is shorter, `print` is longer and includes the data in `stats`.
+If your database is not in the default location (`~/Downloads/imagefap/`)
+you should provide the `--dir` flag to the `./process.py` command.
+
+Now you want to see the data and admire the downloaded albums and
+images, so you do:
+
+```
+./process.py run
+```
+
+This will start the web app ___in you local computer only___, and
+to see it you just visit http://127.0.0.1:8000/viewer/. Again,
+use the `--dir` flag to point it to a non-default location database.
+The web app is not beautiful, for sure, but it is simple, fast, gets
+the job done, does not waste your time, and 100% offline.
+You can see all users, all favorite albums, images, duplicates,
+and in the image list you can apply some filters.
+
+The web app is not meant to be safe or to serve outside your
+local computer, so please don't do that.
+
 ## Usage of `favorites.py`
 
 Run `./favorites.py --help` for an options and flag summary.

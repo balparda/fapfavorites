@@ -5,15 +5,15 @@
     <title>Imagefap-Favorites: Favorite</title>
     <style>
 
-      a.filter_on {color: green;}
-      a.filter_on:visited {color: green;}
-      a.filter_on:hover {color: green;}
-      a.filter_on:active {color: green;}
+      a.filter_show {color: green;}
+      a.filter_show:visited {color: green;}
+      a.filter_show:hover {color: green;}
+      a.filter_show:active {color: green;}
 
-      a.filter_off {color: red;}
-      a.filter_off:visited {color: red;}
-      a.filter_off:hover {color: red;}
-      a.filter_off:active {color: red;}
+      a.filter_hide {color: red;}
+      a.filter_hide:visited {color: red;}
+      a.filter_hide:hover {color: red;}
+      a.filter_hide:active {color: red;}
 
       th, td {padding: 5px;}
 
@@ -34,25 +34,25 @@
       <tr>
         <td>
           {% if show_duplicates %}
-            <a href='{% url "favorite" user_id folder_id %}?dup=0&{{ portrait_url }}&{{ landscape_url }}' class='filter_on'>
+            <a href='{% url "favorite" user_id folder_id %}?dup=0&{{ portrait_url }}&{{ landscape_url }}' class='filter_show'>
               Duplicates: ON
             </a><br/>
           {% else %}
-            <a href='{% url "favorite" user_id folder_id %}?dup=1&{{ portrait_url }}&{{ landscape_url }}' class='filter_off'>
+            <a href='{% url "favorite" user_id folder_id %}?dup=1&{{ portrait_url }}&{{ landscape_url }}' class='filter_hide'>
               Duplicates: OFF
             </a>
           {% endif %}
         </td>
-        <td>&nbsp;&nbsp;(images marked in <span style='color: red;'>RED</span> have exact duplicates in this album)</td>
+        <td>&nbsp;&nbsp;(images marked in <span style='color: red;'>RED</span> below have exact duplicates in this album)</td>
       </tr>
       <tr>
         <td>
           {% if show_portraits %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=0&{{ landscape_url }}' class='filter_on'>
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=0&{{ landscape_url }}' class='filter_show'>
               Portrait-Aspect Images: ON
             </a>
           {% else %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=1&{{ landscape_url }}' class='filter_off'>
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=1&{{ landscape_url }}' class='filter_hide'>
               Portrait-Aspect Images: OFF
             </a>
           {% endif %}
@@ -62,11 +62,11 @@
       <tr>
         <td>
           {% if show_landscapes %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=0' class='filter_on'>
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=0' class='filter_show'>
               Landscape-Aspect Images: ON
             </a>
           {% else %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=1' class='filter_off'>
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=1' class='filter_hide'>
               Landscape-Aspect Images: OFF
             </a>
           {% endif %}
