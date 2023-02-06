@@ -340,5 +340,4 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
       },
       'error_message': error_message,
   }
-  # TODO: if saved, go to next
   return shortcuts.render(request, 'viewer/duplicate.html', context)
