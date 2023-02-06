@@ -3,7 +3,7 @@
 import functools
 import logging
 # import pdb
-from typing import Any
+from typing import Any, Literal, Optional
 
 from django import http
 from django import shortcuts
@@ -11,6 +11,7 @@ from django import conf
 from django.template import defaulttags
 
 from baselib import base
+import duplicates
 import fapdata
 
 
@@ -267,6 +268,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
   # check for errors in parameters
   db = _DBFactory()
+  error_message: Optional[str] = None
   if digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
   sorted_keys = sorted(db.duplicates.index.keys(), key=lambda x: x[0])
@@ -275,8 +277,24 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
       break
   else:
     raise http.Http404('Blob %r does not correspond to a duplicate set' % digest)
-  # send to page
   dup_obj = db.duplicates.index[dup_keys]
+  # get user selected choice, if any and update database
+  if request.POST:
+    for sha in dup_keys:
+      # check that the selection is valid
+      if sha not in request.POST:
+        error_message = 'Expected key %r in POST data, but didn\'t find it!' % sha
+        break
+      selected_option: Literal['new', 'false', 'keep', 'skip'] = request.POST[sha]  # type: ignore
+      if selected_option not in duplicates.DUPLICATE_OPTIONS:
+        error_message = 'Key %r in POST data has invalid option %r!' % (sha, selected_option)
+        break
+      # set data in DB structure
+      dup_obj[sha] = selected_option
+    else:
+      # everything went smoothly (no break action above), so save the data
+      db.Save()
+  # send to page
   context = {
       'digest': digest,
       'current_index': current_index,
@@ -307,5 +325,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
           }
           for sha in dup_keys
       },
+      'error_message': error_message,
   }
+  # TODO: if saved, go to next
   return shortcuts.render(request, 'viewer/duplicate.html', context)

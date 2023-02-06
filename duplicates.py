@@ -25,6 +25,7 @@ from imagededup import methods as image_methods
 
 # internal data utils
 DUPLICATES_TYPE = dict[tuple[str, ...], dict[str, Literal['new', 'false', 'keep', 'skip']]]
+DUPLICATE_OPTIONS = {'new', 'false', 'keep', 'skip'}
 
 
 class Duplicates:
