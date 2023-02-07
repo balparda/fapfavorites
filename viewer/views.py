@@ -206,7 +206,7 @@ def ServeFavorite(  # noqa: C901
       'portrait_url': 'portrait=%d' % int(show_portraits),
       'show_landscapes': show_landscapes,
       'landscape_url': 'landscape=%d' % int(show_landscapes),
-      'pages': favorite['pages'],  # TODO: pages count has got to have some bug! it is too low!!
+      'pages': favorite['pages'],
       'date': base.STD_TIME_STRING(favorite['date_blobs']),
       'count': len(sorted_blobs),
       'stacked_blobs': stacked_blobs,
@@ -275,6 +275,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
           if delete_tag in blob['tags']:     # type: ignore
             blob['tags'].remove(delete_tag)  # type: ignore
             count_tag_deletions += 1
+        # compose message and remember to save DB
         warning_message = 'Tag %d/%r deleted and association removed from %d blobs (images)' % (
             delete_tag, delete_obj[-1][1], count_tag_deletions)
         db.Save()

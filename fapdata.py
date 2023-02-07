@@ -659,14 +659,32 @@ class FapDatabase:
       while page_num >= 0:
         new_ids = _ExtractFavoriteIDs(page_num, user_id, folder_id)
         if set(new_ids).intersection(img_set):
-          # found last page that matters to us because it has images we've seen before
+          # found last page that matters to backtracking (because it has images we've seen before)
           break
         page_num -= 1
     # get the pages of links, until they end
     while True:
       new_ids = _ExtractFavoriteIDs(page_num, user_id, folder_id)
       if not new_ids:
-        break
+        # we should be able to stop (break) here, but the Imagefap site has this horrible bug
+        # where we might have empty pages in the middle of the album and then have images again,
+        # and because of this we should try a few more pages just to make sure, even if most times
+        # it will be a complete waste of our time...
+        new_ids = _ExtractFavoriteIDs(page_num + 1, user_id, folder_id)  # extra safety page 1
+        if not new_ids:
+          new_ids = _ExtractFavoriteIDs(page_num + 2, user_id, folder_id)  # extra safety page 1
+          if not new_ids:
+            break  # after 2 extra safety pages, we hope we can now safely give up...
+          else:
+            page_num += 2  # we found something (2nd extra page), remember to increment page counter
+            logging.warn(
+                'Album %r/%r (%d/%d) had 2 EMPTY PAGES in the middle of the page list!',
+                self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
+        else:
+          page_num += 1  # we found something (1st extra page), remember to increment page counter
+          logging.warn(
+              'Album %r/%r (%d/%d) had 1 EMPTY PAGES in the middle of the page list!',
+              self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
       # add the images to the end, preserve order, but skip the ones already there
       for i in new_ids:
         if i not in img_set:
