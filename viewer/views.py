@@ -2,7 +2,7 @@
 
 import functools
 import logging
-import pdb
+# import pdb
 from typing import Any, Literal, Optional
 
 from django import http
@@ -215,11 +215,11 @@ def ServeFavorite(  # noqa: C901
   return shortcuts.render(request, 'viewer/favorite.html', context)
 
 
-def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
+def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
   """Serve the `tag` page for one `tag_id`."""
-  # TODO: tag deletion
   # check for errors in parameters
   db = _DBFactory()
+  warning_message: Optional[str] = None
   error_message: Optional[str] = None
   all_tags = [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()]
   if tag_id:
@@ -231,9 +231,10 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   else:
     page_depth = 0
     tag_obj: fapdata.TAG_OBJ = {'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data)
-  logging.info('DEPTH: %d', page_depth)
-  # do we have a new tag to create?
+  # get POST data
   new_tag = request.POST.get('named_child', '').strip()
+  delete_tag = int(request.POST.get('delete_input', '0').strip())
+  # do we have a new tag to create?
   if new_tag:
     # check if name does not clash with any already existing tag
     for _, n, p in all_tags:
@@ -249,6 +250,34 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
         max_tag = max(i for i, _, _ in all_tags) if all_tags else 0
         tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}  # type: ignore
         db.Save()
+  # do we have a tag to delete?
+  elif delete_tag:
+    # check tag is known
+    if delete_tag not in {tid for tid, _, _ in all_tags}:
+      error_message = 'Requested deletion of unknown tag %d' % delete_tag
+    else:
+      delete_obj = db.GetTag(delete_tag)
+      # check tag does not have children
+      if delete_obj[-1][-1]['tags']:
+        error_message = ('Requested deletion of tag %d/%r that is not empty '
+                         '(delete children first)' % (delete_tag, delete_obj[-1][1]))
+      else:
+        # everything OK: do deletion
+        if len(delete_obj) < 2:
+          # in this case it is a child of root
+          del db.tags[delete_tag]
+        else:
+          # in this case we have a non-root parent
+          del delete_obj[-2][-1]['tags'][delete_tag]  # type: ignore
+        # we must remove the tags from any images that have it too!
+        count_tag_deletions = 0
+        for blob in db.blobs.values():
+          if delete_tag in blob['tags']:     # type: ignore
+            blob['tags'].remove(delete_tag)  # type: ignore
+            count_tag_deletions += 1
+        warning_message = 'Tag %d/%r deleted and association removed from %d blobs (images)' % (
+            delete_tag, delete_obj[-1][1], count_tag_deletions)
+        db.Save()
   # send to page
   context = {
       'tags': [(tid, name, db.PrintableTag(tid), page_depth + depth)
@@ -257,9 +286,9 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
       'page_depth': page_depth,
       'page_depth_up': (page_depth - 1) if page_depth else 0,
       'tag_name': db.PrintableTag(tag_id) if tag_id else None,
+      'warning_message': warning_message,
       'error_message': error_message,
   }
-  logging.info('%r', context)
   return shortcuts.render(request, 'viewer/tag.html', context)
 
 
