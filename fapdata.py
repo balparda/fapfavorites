@@ -1024,6 +1024,11 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
         n_retry += 1
         logging.error('Timeout on %r, RETRY # %d', url, n_retry)
         continue
+      if 'error eof occurred in violation of protocol' in str(e).lower():
+        # this error sometimes happens and can be a case for retry
+        n_retry += 1
+        logging.error('EOF error on %r, RETRY # %d', url, n_retry)
+        continue
       raise Error('Failed URL: %s (%s)' % (url, e)) from e
   # only way to reach here is exceeding retries
   raise Error('Max retries reached on URL %r' % url)

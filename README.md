@@ -93,7 +93,9 @@ and in the image list you can apply some filters.
 To stop the web app go to `./process.py` and use `CTRL-C` to stop it.
 
 The web app is not meant to be safe or to serve outside your
-local computer, so please don't do that.
+local computer, so please don't do that. ___Do NOT simultaneously
+run the web app and other concurrent calls
+to `favorites.py` or `process.py`! You might lose data!___
 
 ## Usage of `favorites.py`
 
@@ -207,10 +209,8 @@ data that will allow you to navigate and view the data and do some tasks.
 The web app will be in http://127.0.0.1:8000/viewer/ and is built for
 function and not for looks.
 
-Do ___NOT___ simultaneously run the web app and other concurrent calls
-to `favorites.py` or `process.py` pointing to _differently located databases_.
-The reason is that the web app needs stable OS environment variables
-and calls to databases located elsewhere can seriously undermine that.
+___Do NOT simultaneously run the web app and other concurrent calls
+to `favorites.py` or `process.py`! You might lose data!___
 
 ```
 ./process.py run
@@ -266,7 +266,7 @@ facilitating image tagging and re-organizing:
 ### Database Schema
 
 If allowed, will save a database of Imagefap files so we don't have to
-hit the servers multiple times. The data will be serialized (pickled)
+hit the servers multiple times. The data will be serialized (Python pickle)
 from a structure like:
 
 ```
