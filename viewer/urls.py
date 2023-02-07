@@ -22,7 +22,6 @@ urlpatterns = [
     urls.path('favorite/<int:user_id>/<int:folder_id>/', views.ServeFavorite, name='favorite'),
 
     # the tags
-    urls.path('tags/', views.ServeTags, name='tags'),
     urls.path('tag/<int:tag_id>/', views.ServeTag, name='tag'),
 
     # the blobs

@@ -215,73 +215,51 @@ def ServeFavorite(  # noqa: C901
   return shortcuts.render(request, 'viewer/favorite.html', context)
 
 
-def ServeTags(request: http.HttpRequest) -> http.HttpResponse:
-  """Serve the `tags` page."""
-  # TODO: tag deletion
-  # TODO: both tags/tag pages can be made into one!
-  # TODO: sub-tags not working yet
-  db = _DBFactory()
-  error_message: Optional[str] = None
-  tags = [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()]
-  # do we have a new tag to create?
-  new_tag = request.POST.get('named', '').strip()
-  if new_tag:
-    # check if name does not clash with any already existing tag
-    for _, n, p in tags:
-      if new_tag.lower() == n.lower():
-        error_message = 'Proposed tag name %r clashes with existing tag %r' % (new_tag, p)
-        break
-    else:
-      # check for invalid chars
-      if '/' in new_tag or '\\' in new_tag:
-        error_message = 'Don\'t use "/" or "\\" in tag name (%r)' % (new_tag)
-      else:
-        # everything OK: add tag
-        max_tag = max(i for i, _, _ in tags) if tags else 0
-        db.tags[max_tag + 1] = {'name': new_tag, 'tags': {}}
-        # db.Save()  # TODO: sub-tags not working yet, do not save while not working!
-  # send to page
-  context = {
-      'tags': [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()],
-      'error_message': error_message,
-  }
-  return shortcuts.render(request, 'viewer/tags.html', context)
-
-
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
+  # TODO: tag deletion
   # check for errors in parameters
   db = _DBFactory()
   error_message: Optional[str] = None
-  if tag_id not in db.tags:
-    raise http.Http404('Unknown tag %d' % tag_id)
-  tags = [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()]
-  tag_obj: fapdata.TAG_OBJ = db.GetTag(tag_id)[-1][-1]
+  all_tags = [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()]
+  if tag_id:
+    if tag_id not in {tid for tid, _, _ in all_tags}:
+      raise http.Http404('Unknown tag %d' % tag_id)
+    tag_hierarchy = db.GetTag(tag_id)
+    page_depth = len(tag_hierarchy)
+    tag_obj: fapdata.TAG_OBJ = db.GetTag(tag_id)[-1][-1]
+  else:
+    page_depth = 0
+    tag_obj: fapdata.TAG_OBJ = {'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data)
+  logging.info('DEPTH: %d', page_depth)
   # do we have a new tag to create?
   new_tag = request.POST.get('named_child', '').strip()
   if new_tag:
     # check if name does not clash with any already existing tag
-    for _, n, p in tags:
+    for _, n, p in all_tags:
       if new_tag.lower() == n.lower():
         error_message = 'Proposed tag name %r clashes with existing tag %r' % (new_tag, p)
         break
     else:
       # check for invalid chars
       if '/' in new_tag or '\\' in new_tag:
-        error_message = 'Don\'t use "/" or "\\" in tag name (%r)' % (new_tag)
+        error_message = 'Don\'t use "/" or "\\" in tag name (tried to create %r)' % (new_tag)
       else:
         # everything OK: add tag
-        max_tag = max(i for i, _, _ in tags)  # there *must* be at least one tag here!
+        max_tag = max(i for i, _, _ in all_tags) if all_tags else 0
         tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}  # type: ignore
-        # db.Save()  # TODO: sub-tags not working yet, do not save while not working!
+        db.Save()
   # send to page
   context = {
-      'tags': [(tid, name, db.PrintableTag(tid))
-               for tid, name, _, _ in db.TagsWalk(start_tag=tag_obj['tags'])],
+      'tags': [(tid, name, db.PrintableTag(tid), page_depth + depth)
+               for tid, name, depth, _ in db.TagsWalk(start_tag=tag_obj['tags'])],  # type: ignore
       'tag_id': tag_id,
-      'name': db.PrintableTag(tag_id),
+      'page_depth': page_depth,
+      'page_depth_up': (page_depth - 1) if page_depth else 0,
+      'tag_name': db.PrintableTag(tag_id) if tag_id else None,
       'error_message': error_message,
   }
+  logging.info('%r', context)
   return shortcuts.render(request, 'viewer/tag.html', context)
 
 

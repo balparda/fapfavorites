@@ -2,11 +2,24 @@
 <html lang='en-US'>
   <head>
     <meta charset='utf-8'/>
-    <title>Imagefap-Favorites: Tag {{ name|escape }}</title>
+    <title>
+      Imagefap-Favorites: {% if tag_id %}Tag {{ tag_name|escape }}{% else %}Root Tags{% endif %}
+    </title>
+    <style>
+
+      th, td {padding: 5px;}
+
+    </style>
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Tag <i>&quot;{{ name|escape }}&quot;</i></h1>
+    <h1>
+      {% if tag_id %}
+        Tag <i>&quot;{{ tag_name|escape }}&quot;</i>
+      {% else %}
+        Root Tags
+      {% endif %}
+    </h1>
 
     {% if error_message %}
       <p style='color: red;'><strong>{{ error_message }}</strong></p>
@@ -14,22 +27,38 @@
     {% endif %}
 
     <table border='2'>
-      <tr>
-        <th colspan='3'>Sub-Tags of <i>&quot;{{ name|escape }}&quot;</i></th>
-      </tr>
+      {% if tag_id %}
+        <tr>
+          <th colspan='3'>Sub-Tags of <i>&quot;{{ tag_name|escape }}&quot;</i></th>
+        </tr>
+      {% endif %}
       <tr>
         <th>ID</th>
         <th>Tag&nbsp;Name</th>
-        <th>Name&nbsp;(with&nbsp;children)</th>
+        <th>Children&nbsp;(Sub-Tags)</th>
       </tr>
-      {% for id, name, parents in tags %}
+      {% for id, name, parents, depth in tags %}
         <tr>
           <td align='center'><a href='{% url "tag" id %}'>{{ id }}</a></td>
-          <td>{{ name|escape }}</td>
-          <td>{{ parents|escape }}</td>
+          {% if depth == page_depth %}
+            <td>{{ name|escape }}</td>
+            <td>&nbsp;</td>
+          {% else %}
+            <td>&nbsp;</td>
+            <td>{{ parents|escape }}</td>
+          {% endif %}
         </tr>
       {% empty %}
-        <tr><td colspan='3'>No sub-tags to this one</td></tr>
+        <tr>
+          <td colspan='3'>
+            {% if tag_id %}
+              No sub-tags at this level:
+              create new below or <a href='{% url "tag" 0 %}'>go back to root</a>?
+            {% else %}
+              No tags in database: create new tags below?
+            {% endif %}
+          </td>
+        </tr>
       {% endfor %}
     </table>
 
@@ -37,13 +66,29 @@
       {% csrf_token %}
 
       <p>
-        Create a new nested tag under <i>&quot;{{ name|escape }}&quot;</i>
-        named:&nbsp;&nbsp;<input type='text' name='named_child'/>&nbsp;&nbsp;<input type='submit' value='Save'>
+        {% if tag_id %}
+          Create a new child tag under <i>&quot;{{ tag_name|escape }}&quot;</i>
+        {% else %}
+          Create a new top-level tag
+        {% endif %}
+        named:&nbsp;&nbsp;<input type='text' name='named_child'/>&nbsp;&nbsp;<input type='submit' value='Create'>
       </p>
 
     </form>
 
-    <p><a href='{% url "index" %}'>(Home Page)</a></p>
+    {% if tag_id %}
+
+      {% if page_depth %}
+
+        <p><a href='{% url "tag" page_depth_up %}'>(Go To: Up &#11014; One Level)</a></p>
+
+      {% endif %}
+
+      <p><a href='{% url "tag" 0 %}'>(Go To: Root Tags)</a></p>
+
+    {% endif %}
+
+    <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
 
   </body>
 </html>

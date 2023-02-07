@@ -105,11 +105,11 @@
       {% endfor %}
     </table>
 
-    <p><a href='{% url "favorites" user_id %}'>(User &quot;{{ user_name|escape }}&quot; Page)</a></p>
+    <p><a href='{% url "favorites" user_id %}'>(Go To: User <i>&quot;{{ user_name|escape }}&quot;</i> Page)</a></p>
 
-    <p><a href='{% url "users" %}'>(Users Page)</a></p>
+    <p><a href='{% url "users" %}'>(Go To: Users Page)</a></p>
 
-    <p><a href='{% url "index" %}'>(Home Page)</a></p>
+    <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
 
   </body>
 </html>

@@ -11,7 +11,7 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Favorites for User &quot;{{ user_name|escape }}&quot;</h1>
+    <h1>Favorites for User <i>&quot;{{ user_name|escape }}&quot;</i></h1>
 
     <table border='2'>
       <tr>
@@ -34,9 +34,9 @@
       {% endfor %}
     </table>
 
-    <p><a href='{% url "users" %}'>(Users Page)</a></p>
+    <p><a href='{% url "users" %}'>(Go To: Users Page)</a></p>
 
-    <p><a href='{% url "index" %}'>(Home Page)</a></p>
+    <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
 
   </body>
 </html>
