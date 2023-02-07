@@ -8,6 +8,7 @@ from typing import Any, Literal, Optional
 from django import http
 from django import shortcuts
 from django import conf
+from django.views.decorators import cache
 from django.template import defaulttags
 
 from baselib import base
@@ -293,6 +294,9 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
   return shortcuts.render(request, 'viewer/tag.html', context)
 
 
+# this page seems to be executing TWICE when called, and blobs' binary representations never ever
+# change, so it is perfectly acceptable to cache the hell out of this particular page
+@cache.cache_page(60 * 60)
 def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `blob` page, one image, given one SHA256 `digest`."""
   # check for errors in parameters
@@ -309,7 +313,6 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
         digest, ext, sorted(_IMAGE_TYPES.keys())))
   # send to page
   return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
-  # TODO: investigate why this seems to be executing TWICE when called
 
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
