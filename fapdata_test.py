@@ -79,13 +79,22 @@ class TestFapDatabase(unittest.TestCase):
     mock_is_dir.return_value = True
     db = fapdata.FapDatabase('/xxx/')
     db._db['tags'] = _TEST_TAGS_1
-    self.assertListEqual(db.GetTag(0), [(0, 'plain')])
-    self.assertListEqual(db.GetTag(2), [(2, 'two')])
+    self.assertListEqual(db.GetTag(0), [(0, 'plain', {'name': 'plain'})])
+    self.assertListEqual(db.GetTag(2), [(2, 'two', _TEST_TAGS_1[2])])
     self.assertEqual(db.PrintableTag(2), 'two')
-    self.assertListEqual(db.GetTag(22), [(2, 'two'), (22, 'two-two')])
-    self.assertListEqual(db.GetTag(24), [(2, 'two'), (24, 'two-four')])
+    self.assertListEqual(
+        db.GetTag(22),
+        [(2, 'two', _TEST_TAGS_1[2]), (22, 'two-two', {'name': 'two-two', 'tags': {}})])
+    self.assertListEqual(
+        db.GetTag(24),
+        [(2, 'two', _TEST_TAGS_1[2]),
+         (24, 'two-four', {'name': 'two-four', 'tags': {246: {'name': 'deep'}}})])
     self.assertEqual(db.PrintableTag(24), 'two/two-four')
-    self.assertListEqual(db.GetTag(246), [(2, 'two'), (24, 'two-four'), (246, 'deep')])
+    self.assertListEqual(
+        db.GetTag(246),
+        [(2, 'two', _TEST_TAGS_1[2]),
+         (24, 'two-four', {'name': 'two-four', 'tags': {246: {'name': 'deep'}}}),
+         (246, 'deep', {'name': 'deep'})])
     self.assertEqual(db.PrintableTag(246), 'two/two-four/deep')
     with self.assertRaisesRegex(fapdata.Error, r'tag 11 is empty'):
       db.GetTag(11)

@@ -67,7 +67,8 @@ _DB_MAIN_KEYS = {
     'duplicates_index',
 }
 _DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index', 'duplicates_index']
-_TAG_TYPE = dict[int, dict[Literal['name', 'tags'], Union[str, dict]]]
+TAG_OBJ = dict[Literal['name', 'tags'], Union[str, dict]]
+_TAG_TYPE = dict[int, TAG_OBJ]
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -234,25 +235,25 @@ class FapDatabase:
     with open(self._BlobPath(sha), 'rb') as f:
       return f.read()
 
-  def GetTag(self, tag_id: int) -> list[tuple[int, str]]:  # noqa: C901
+  def GetTag(self, tag_id: int) -> list[tuple[int, str, TAG_OBJ]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
 
     Args:
       tag_id: The wanted tag ID
 
     Returns:
-      list of (id, name), starting with the parents and ending with the wanted tag;
-      this means that GetTag(id)[-1] is always the wanted tag
+      list of (id, name, tag_obj), starting with the parents and ending with the wanted tag;
+      this means that GetTag(id)[-1] is always the wanted tag tuple
 
     Raises:
       Error: not found or invalid
     """
-    hierarchy = []
+    hierarchy: list[tuple[int, str, TAG_OBJ]] = []
 
     def _get_recursive(obj: _TAG_TYPE) -> bool:
       if tag_id in obj:
         try:
-          hierarchy.append((tag_id, obj[tag_id]['name']))  # found!
+          hierarchy.append((tag_id, obj[tag_id]['name'], obj[tag_id]))  # found! # type: ignore
         except KeyError:
           raise Error('Found tag %d is empty (has no \'name\')!' % tag_id)
         return True
@@ -260,7 +261,7 @@ class FapDatabase:
         if o.get('tags', {}):
           if _get_recursive(o['tags']):  # type: ignore
             try:
-              hierarchy.append((i, o['name']))  # this is a parent to a found tag
+              hierarchy.append((i, o['name'], o))  # parent to a found tag # type: ignore
             except KeyError:
               raise Error('Parent tag %d (of %d) is empty (has no \'name\')!' % (i, tag_id))
             return True
@@ -273,7 +274,7 @@ class FapDatabase:
 
   def PrintableTag(self, tag_id: int) -> str:
     """Print tag name together with parents, like "parent_name/tag_name"."""
-    return '/'.join(n for _, n in self.GetTag(tag_id))
+    return '/'.join(n for _, n, _ in self.GetTag(tag_id))
 
   def TagsWalk(
       self, start_tag: Optional[_TAG_TYPE] = None, depth: int = 0) -> Iterator[

@@ -2,7 +2,7 @@
 
 import functools
 import logging
-# import pdb
+import pdb
 from typing import Any, Literal, Optional
 
 from django import http
@@ -88,7 +88,7 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
       'dup_action': sum(1 for d in db.duplicates.index.values()
                         if any(st == 'new' for st in d.values())),
       'n_images': len(db.blobs),
-      'database_stats': db.PrintStats(actually_print=False)
+      'database_stats': db.PrintStats(actually_print=False),
   }
   return shortcuts.render(request, 'viewer/index.html', context)
 
@@ -217,11 +217,33 @@ def ServeFavorite(  # noqa: C901
 
 def ServeTags(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `tags` page."""
+  # TODO: tag deletion
+  # TODO: both tags/tag pages can be made into one!
+  # TODO: sub-tags not working yet
   db = _DBFactory()
-  # walk the tags and take them in
-  tags = [(tid, db.PrintableTag(tid)) for tid, _, _, _ in db.TagsWalk()]
+  error_message: Optional[str] = None
+  tags = [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()]
+  # do we have a new tag to create?
+  new_tag = request.POST.get('named', '').strip()
+  if new_tag:
+    # check if name does not clash with any already existing tag
+    for _, n, p in tags:
+      if new_tag.lower() == n.lower():
+        error_message = 'Proposed tag name %r clashes with existing tag %r' % (new_tag, p)
+        break
+    else:
+      # check for invalid chars
+      if '/' in new_tag or '\\' in new_tag:
+        error_message = 'Don\'t use "/" or "\\" in tag name (%r)' % (new_tag)
+      else:
+        # everything OK: add tag
+        max_tag = max(i for i, _, _ in tags) if tags else 0
+        db.tags[max_tag + 1] = {'name': new_tag, 'tags': {}}
+        # db.Save()  # TODO: sub-tags not working yet, do not save while not working!
+  # send to page
   context = {
-      'tags': tags
+      'tags': [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()],
+      'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/tags.html', context)
 
@@ -230,12 +252,35 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
   # check for errors in parameters
   db = _DBFactory()
+  error_message: Optional[str] = None
   if tag_id not in db.tags:
     raise http.Http404('Unknown tag %d' % tag_id)
+  tags = [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()]
+  tag_obj: fapdata.TAG_OBJ = db.GetTag(tag_id)[-1][-1]
+  # do we have a new tag to create?
+  new_tag = request.POST.get('named_child', '').strip()
+  if new_tag:
+    # check if name does not clash with any already existing tag
+    for _, n, p in tags:
+      if new_tag.lower() == n.lower():
+        error_message = 'Proposed tag name %r clashes with existing tag %r' % (new_tag, p)
+        break
+    else:
+      # check for invalid chars
+      if '/' in new_tag or '\\' in new_tag:
+        error_message = 'Don\'t use "/" or "\\" in tag name (%r)' % (new_tag)
+      else:
+        # everything OK: add tag
+        max_tag = max(i for i, _, _ in tags)  # there *must* be at least one tag here!
+        tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}  # type: ignore
+        # db.Save()  # TODO: sub-tags not working yet, do not save while not working!
   # send to page
   context = {
+      'tags': [(tid, name, db.PrintableTag(tid))
+               for tid, name, _, _ in db.TagsWalk(start_tag=tag_obj['tags'])],
       'tag_id': tag_id,
       'name': db.PrintableTag(tag_id),
+      'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/tag.html', context)
 

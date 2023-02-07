@@ -14,7 +14,10 @@
     <h1>Users</h1>
 
     <table border='2'>
-      <tr><th>ID</th><th>Name</th></tr>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+      </tr>
       {% for id, name in users.items %}
         <tr>
           <td align='center'><a href='{% url "favorites" id %}'>{{ id }}</a></td>

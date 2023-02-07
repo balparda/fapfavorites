@@ -13,17 +13,37 @@
 
     <h1>Tags</h1>
 
+    {% if error_message %}
+      <p style='color: red;'><strong>{{ error_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
+
     <table border='2'>
-      <tr><th>ID</th><th>Tag&nbsp;Name&nbsp;(with&nbsp;parents)</th></tr>
-      {% for id, name in tags %}
+      <tr>
+        <th>ID</th>
+        <th>Tag&nbsp;Name</th>
+        <th>Name&nbsp;(with&nbsp;children)</th>
+      </tr>
+      {% for id, name, parents in tags %}
         <tr>
           <td align='center'><a href='{% url "tag" id %}'>{{ id }}</a></td>
           <td>{{ name|escape }}</td>
+          <td>{{ parents|escape }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan='2'>No tags in database</td></tr>
+        <tr><td colspan='3'>No tags in database</td></tr>
       {% endfor %}
     </table>
+
+    <form action='{% url "tags" %}' method='post'>
+      {% csrf_token %}
+
+      <p>
+        Create a new high-level tag
+        named:&nbsp;&nbsp;<input type='text' name='named'/>&nbsp;&nbsp;<input type='submit' value='Save'>
+      </p>
+
+    </form>
 
     <p><a href='{% url "index" %}'>(Home Page)</a></p>
 

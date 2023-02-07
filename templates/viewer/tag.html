@@ -6,7 +6,42 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Tag {{ name|escape }}</h1>
+    <h1>Tag <i>&quot;{{ name|escape }}&quot;</i></h1>
+
+    {% if error_message %}
+      <p style='color: red;'><strong>{{ error_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
+
+    <table border='2'>
+      <tr>
+        <th colspan='3'>Sub-Tags of <i>&quot;{{ name|escape }}&quot;</i></th>
+      </tr>
+      <tr>
+        <th>ID</th>
+        <th>Tag&nbsp;Name</th>
+        <th>Name&nbsp;(with&nbsp;children)</th>
+      </tr>
+      {% for id, name, parents in tags %}
+        <tr>
+          <td align='center'><a href='{% url "tag" id %}'>{{ id }}</a></td>
+          <td>{{ name|escape }}</td>
+          <td>{{ parents|escape }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan='3'>No sub-tags to this one</td></tr>
+      {% endfor %}
+    </table>
+
+    <form action='{% url "tag" tag_id %}' method='post'>
+      {% csrf_token %}
+
+      <p>
+        Create a new nested tag under <i>&quot;{{ name|escape }}&quot;</i>
+        named:&nbsp;&nbsp;<input type='text' name='named_child'/>&nbsp;&nbsp;<input type='submit' value='Save'>
+      </p>
+
+    </form>
 
     <p><a href='{% url "index" %}'>(Home Page)</a></p>
 
