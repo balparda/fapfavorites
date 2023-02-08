@@ -13,7 +13,7 @@
 
     <h1>Perceptual Duplicates</h1>
 
-    <p><b>{{ dup_action }}</b> need user action</p>
+    <p><b>{{ dup_action }}</b> need user action, <b>{{ dup_count }}</b> total duplicate groups.</p>
 
     <table border='2'>
       <tr>
@@ -38,6 +38,13 @@
       {% empty %}
         <tr><td colspan='3'>No duplicate sets in database</td></tr>
       {% endfor %}
+      {% if duplicates %}
+        <tr>
+          <td align='right'><b>TOTAL:</b></td>
+          <td align='center'><b>{{ img_count }}</b></td>
+          <td align='center'><b>{{ dup_action }}</b></td>
+        </tr>
+      {% endif %}
     </table>
 
     <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>

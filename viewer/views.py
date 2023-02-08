@@ -3,6 +3,7 @@
 import functools
 import logging
 # import pdb
+import statistics
 from typing import Any, Literal, Optional
 
 from django import http
@@ -97,8 +98,51 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
 def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `users` page."""
   db = _DBFactory()
+  users, total_sz, total_img, total_animated, total_thumbs = {}, 0, 0, 0, 0
+  for uid, name in db.users.items():
+    file_sizes: list[int] = [
+        db.blobs[db.image_ids_index[i]]['sz']
+        for d, u in db.favorites.items() if d == uid
+        for f in u.values()
+        for i in f['images'] if i in db.image_ids_index]  # type: ignore
+    thumbs_sizes: list[int] = [
+        db.blobs[db.image_ids_index[i]]['sz_thumb']
+        for d, u in db.favorites.items() if d == uid
+        for f in u.values()
+        for i in f['images'] if i in db.image_ids_index]  # type: ignore
+    n_animated = sum(
+        bool(db.blobs[db.image_ids_index[i]]['animated'])
+        for d, u in db.favorites.items() if d == uid
+        for f in u.values()
+        for i in f['images'] if i in db.image_ids_index)  # type: ignore
+    n_img = len(file_sizes)
+    users[uid] = {
+        'name': name,
+        'n_img': n_img,
+        'n_animated': '%d (%0.1f%%)' % (
+            n_animated, (100.0 * n_animated / n_img) if n_img else 0.0),
+        'files_sz': base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
+        'thumbs_sz': base.HumanizedBytes(sum(thumbs_sizes) if thumbs_sizes else 0),
+        'min_sz': base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
+        'max_sz': base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
+        'mean_sz': base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
+        'dev_sz': base.HumanizedBytes(
+            int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-',
+    }
+    total_img += n_img
+    total_animated += n_animated
+    total_sz += sum(file_sizes) if file_sizes else 0
+    total_thumbs += sum(thumbs_sizes) if file_sizes else 0
   context = {
-      'users': db.users,
+      'users': users,
+      'user_count': len(users),
+      'total_img': total_img,
+      'total_animated': '%d (%0.1f%%)' % (
+          total_animated, (100.0 * total_animated / total_img) if total_img else 0.0),
+      'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
+      'total_thumbs': base.HumanizedBytes(total_thumbs) if total_thumbs else '-',
+      'total_file_storage': base.HumanizedBytes(
+          total_sz + total_thumbs) if (total_sz + total_thumbs) else '-',
   }
   return shortcuts.render(request, 'viewer/users.html', context)
 
@@ -112,15 +156,50 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   user_favorites = db.favorites[user_id]
   # sort albums alphabetically and format data
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
-  favorites = {fid: {'name': name, 'pages': user_favorites[fid]['pages'],
-                     'date': base.STD_TIME_STRING(user_favorites[fid]['date_blobs']),
-                     'count': len(user_favorites[fid]['images'])}  # type: ignore
-               for fid, name in names}
+  favorites, total_sz, total_thumbs_sz, total_animated = {}, 0, 0, 0
+  for fid, name in names:
+    obj = db.favorites[user_id][fid]
+    count_img = len(obj['images'])  # type: ignore
+    file_sizes: list[int] = [
+        db.blobs[db.image_ids_index[i]]['sz']
+        for i in obj['images'] if i in db.image_ids_index]  # type: ignore
+    thumbs_sizes: list[int] = [
+        db.blobs[db.image_ids_index[i]]['sz_thumb']
+        for i in obj['images'] if i in db.image_ids_index]  # type: ignore
+    n_animated = sum(
+        int(db.blobs[db.image_ids_index[i]]['animated'])    # type: ignore
+        for i in obj['images'] if i in db.image_ids_index)  # type: ignore
+    favorites[fid] = {
+        'name': name,
+        'pages': obj['pages'],
+        'date': base.STD_TIME_STRING(obj['date_blobs']),
+        'count': count_img,
+        'files_sz': base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
+        'min_sz': base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
+        'max_sz': base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
+        'mean_sz': base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
+        'dev_sz': base.HumanizedBytes(
+            int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-',
+        'thumbs_sz': base.HumanizedBytes(sum(thumbs_sizes) if thumbs_sizes else 0),
+        'n_animated': '%d (%0.1f%%)' % (
+            n_animated, (100.0 * n_animated / count_img) if count_img else 0.0),
+    }
+    total_sz += sum(file_sizes) if file_sizes else 0
+    total_thumbs_sz += sum(thumbs_sizes) if thumbs_sizes else 0
+    total_animated += n_animated
   # send to page
+  all_img_count = sum(f['count'] for f in favorites.values())
   context = {
       'user_id': user_id,
       'user_name': db.users[user_id],
       'favorites': favorites,
+      'album_count': len(names),
+      'img_count': all_img_count,
+      'page_count': sum(f['pages'] for f in favorites.values()),
+      'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
+      'total_thumbs_sz': base.HumanizedBytes(total_thumbs_sz) if total_thumbs_sz else '-',
+      'total_animated': '%d (%0.1f%%)' % (
+          total_animated, (100.0 * total_animated / all_img_count) if all_img_count else 0.0),
   }
   return shortcuts.render(request, 'viewer/favorites.html', context)
 
@@ -329,6 +408,8 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
       },
       'dup_action': sum(1 for d in db.duplicates.index.values()
                         if any(st == 'new' for st in d.values())),
+      'dup_count': len(sorted_keys),
+      'img_count': sum(len(k) for k in sorted_keys),
   }
   return shortcuts.render(request, 'viewer/duplicates.html', context)
 

@@ -327,7 +327,7 @@ class FapDatabase:
             base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
             base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
             base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
-            base.HumanizedBytes(int(statistics.stdev(file_sizes))) if file_sizes else '-',
+            base.HumanizedBytes(int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-',
             sum(int(s['animated']) for s in self.blobs.values())))  # type: ignore
     if file_sizes:
       wh_sizes: list[tuple[int, int]] = [
@@ -342,7 +342,8 @@ class FapDatabase:
               base.HumanizedDecimal(max(pixel_sizes)),
               wh_sizes[pixel_sizes.index(max(pixel_sizes))],
               base.HumanizedDecimal(int(statistics.mean(pixel_sizes))),
-              base.HumanizedDecimal(int(statistics.stdev(pixel_sizes)))))
+              base.HumanizedDecimal(
+                  int(statistics.stdev(pixel_sizes))) if len(pixel_sizes) > 2 else '-'))
     if all_files_size and all_thumb_size:
       PrintLine(
           '%s total thumbnail size (%s min, %s max, %s mean with %s standard deviation), '
@@ -351,7 +352,8 @@ class FapDatabase:
               base.HumanizedBytes(min(thumb_sizes)) if thumb_sizes else '-',
               base.HumanizedBytes(max(thumb_sizes)) if thumb_sizes else '-',
               base.HumanizedBytes(int(statistics.mean(thumb_sizes))) if thumb_sizes else '-',
-              base.HumanizedBytes(int(statistics.stdev(thumb_sizes))) if thumb_sizes else '-',
+              base.HumanizedBytes(
+                  int(statistics.stdev(thumb_sizes))) if len(thumb_sizes) > 2 else '-',
               (100.0 * all_thumb_size) / all_files_size))
     PrintLine('')
     PrintLine('%d users' % len(self.users))
@@ -389,7 +391,7 @@ class FapDatabase:
           base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
           base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
           base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
-          base.HumanizedBytes(int(statistics.stdev(file_sizes))) if file_sizes else '-'))
+          base.HumanizedBytes(int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'))
       for fid in sorted(self.favorites.get(uid, {}).keys()):
         obj = self.favorites[uid][fid]
         file_sizes: list[int] = [
@@ -405,7 +407,8 @@ class FapDatabase:
               base.HumanizedBytes(min(file_sizes)),
               base.HumanizedBytes(max(file_sizes)),
               base.HumanizedBytes(int(statistics.mean(file_sizes))),
-              base.HumanizedBytes(int(statistics.stdev(file_sizes)))))
+              base.HumanizedBytes(
+                  int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'))
 
   def PrintTags(self) -> None:
     """Print database tags."""
@@ -1019,15 +1022,17 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
       logging.error('Timeout on %r, RETRY # %d', url, n_retry)
       continue
     except (urllib.error.URLError, urllib.error.HTTPError) as e:
-      if 'timed out' in str(e).lower():
+      err_str = str(e).lower()
+      if 'timed out' in err_str:
         # also a timeout, so try again
         n_retry += 1
-        logging.error('Timeout on %r, RETRY # %d', url, n_retry)
+        logging.error('Timeout (%r) on %r, RETRY # %d', e, url, n_retry)
         continue
-      if 'error eof occurred in violation of protocol' in str(e).lower():
-        # this error sometimes happens and can be a case for retry
+      elif ('error eof occurred in violation of protocol' in err_str or
+            'remote end closed connection' in err_str):
+        # these errors sometimes happen and can be a case for retry
         n_retry += 1
-        logging.error('EOF error on %r, RETRY # %d', url, n_retry)
+        logging.error('%r error on %r, RETRY # %d', e, url, n_retry)
         continue
       raise Error('Failed URL: %s (%s)' % (url, e)) from e
   # only way to reach here is exceeding retries
