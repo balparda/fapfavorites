@@ -273,6 +273,7 @@ def ServeFavorite(  # noqa: C901
                                                 # a static resource: see settings.py
         'is_duplicate': sha in duplicates,
         'is_percept': sha in percept_exclude,
+        'imagefap': fapdata.IMG_URL(img),
     }
   # send to page
   context = {
@@ -462,6 +463,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                       'user_name': db.users[uid],
                       'folder_id': fid,
                       'folder_name': db.favorites[uid][fid]['name'],
+                      'imagefap': fapdata.IMG_URL(i),
                   }
                   for i, _, nm, uid, fid in db.blobs[sha]['loc']  # type: ignore
               },

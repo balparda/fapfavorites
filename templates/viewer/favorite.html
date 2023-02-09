@@ -15,6 +15,8 @@
       a.filter_hide:hover {color: red;}
       a.filter_hide:active {color: red;}
 
+      a.external {text-decoration: none;}
+
       th, td {padding: 5px;}
 
       td.duplicate {
@@ -90,9 +92,11 @@
             {% if sha %}
               {% with blob=blobs_data|lookup:sha %}
                 <td align='center' valign='center' {% if blob.is_duplicate %}class='duplicate'{% endif %} {% if blob.is_percept %}class='percept'{% endif %}>
-                  <a href='{% url "blob" sha %}'>
-                    <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/>
-                  </a>
+                  <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
+                    <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/></a>
+                  &nbsp;<small><small><small>
+                    <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
+                  </small></small></small>
                 </td>
               {% endwith %}
             {% else %}

@@ -75,7 +75,7 @@ _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
 _FAVORITES_URL = (
     lambda u, p: 'https://www.imagefap.com/showfavorites.php?userid=%d&page=%d' % (u, p))
 _FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVORITES_URL(u, p), f)  # cspell:disable-line
-_IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
+IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
 
 # the regular expressions we use to navigate the pages
 _FIND_ONLY_IN_PICTURE_FOLDER = re.compile(r'<\/a><\/td><\/tr>\s+<\/table>\s+<table')
@@ -1107,7 +1107,7 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
     Error: for invalid URLs or full-res URL not found
   """
   # get page with full image, to find (raw) image URL
-  url = _IMG_URL(img_id)
+  url = IMG_URL(img_id)
   logging.info('Fetching image page: %s', url)
   img_html = _FapHTMLRead(url)
   full_res_urls: list[str] = _FULL_IMAGE.findall(img_html)
