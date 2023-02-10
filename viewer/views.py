@@ -209,10 +209,37 @@ def ServeFavorite(  # noqa: C901
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
   # check for errors in parameters
   db = _DBFactory()
+  warning_message: Optional[str] = None
+  error_message: Optional[str] = None
   if user_id not in db.users or user_id not in db.favorites:
     raise http.Http404('Unknown user %d' % user_id)
   if folder_id not in db.favorites[user_id]:
     raise http.Http404('Unknown folder %d (in known user %d)' % (folder_id, user_id))
+  # do we have to save tags?
+  selected_tag = int(request.POST.get('tag_select', '0'))
+  selected_images = {
+      sha.strip().lower()
+      for sha in request.POST.get('selected_blobs', '').split(',') if sha.strip()}
+  if selected_tag and selected_images:
+    # we have tags to apply; check tag validity
+    try:
+      tag_name = db.GetTag(selected_tag)[-1][1]
+    except fapdata.Error:
+      error_message = 'Unknown tag %d requested' % selected_tag
+    else:
+      # tag is OK; add the tags
+      tag_count = 0
+      for sha in selected_images:
+        # check if image is valid
+        if sha not in db.blobs:
+          error_message = 'Unknown image %r requested<br/>' % sha
+          break
+        # add tag to image
+        db.blobs[sha]['tags'].add(selected_tag)  # type: ignore
+        tag_count += 1
+      else:
+        warning_message = '%d images tagged with %r' % (tag_count, tag_name)
+        db.Save()
   # retrieve the `GET` data
   show_duplicates = bool(int(request.GET.get('dup', '0')))        # default: False
   show_portraits = bool(int(request.GET.get('portrait', '1')))    # default: True
@@ -295,6 +322,9 @@ def ServeFavorite(  # noqa: C901
       'count': len(sorted_blobs),
       'stacked_blobs': stacked_blobs,
       'blobs_data': blobs_data,
+      'tags': [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()],
+      'warning_message': warning_message,
+      'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/favorite.html', context)
 

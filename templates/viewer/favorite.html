@@ -63,7 +63,7 @@
       };
 
       function get_selected() {
-        var sel = [];
+        sel = [];
         for (i in ALL_SHA) {
           sha = ALL_SHA[i];
           if (document.getElementById(sha).className == 'selected') {
@@ -71,6 +71,21 @@
           }
         }
         return sel;
+      }
+
+      function tag_form_submit() {
+        sel = get_selected();
+        if (parseInt(document.forms['selected_form']['tag_select'].value) > 0) {
+          if (sel.length > 0) {
+            document.forms['selected_form']['selected_blobs'].value = sel.join(',');
+            return true;  // we can submit the form
+          } else {
+            alert('No images selected!');
+          }
+        } else {
+          alert('No tag selected!');
+        }
+        return false;  // don't submit the form
       }
 
       var ALL_SHA = [
@@ -90,6 +105,15 @@
     <h1>Favorite album <i>&quot;{{ name|escape }}&quot;</i> (User <i>&quot;{{ user_name|escape }}&quot;</i>)</h1>
 
     <p>Total {{ count }} images (in {{ pages }} pages). Last fetched on {{ date }}.</p>
+
+    {% if error_message %}
+      <p style='color: red;'><strong>{{ error_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
+    {% if warning_message %}
+      <p style='color: yellow;'><strong>{{ warning_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
 
     <table>
       <tr>
@@ -160,8 +184,11 @@
         <td colspan='2'>
           {% if locked_for_tagging %}
             The image icon (<small><small>&#128444;</small></small>) will take you to the local image (blob) for inspection (this is always fine, only opens locally).<br/>
-            Click on the images to select or deselect them. Selected images will show in <span style='color: peru;'>PERU</span>.<br/>
+            Click on the images to select or deselect them. Selected images will show in <span style='color: peru;'>PERU</span> color.<br/>
             If you reload the page you will lose your selection! Go to the bottom of this page (<i>Ctrl+End</i>) to tag them.<br/>
+            {% if not tags %}
+              <b><i><span style='color: red;'>ATTENTION: You have NO tags, so selecting images will serve NO purpose!</span> <a href='{% url "tag" 0 %}'>Create tags first?</a></i></b><br/>
+            {% endif %}
           {% endif %}
           The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!
         </td>
@@ -172,7 +199,6 @@
             <b><i>
               <a onclick='javascript:select_all();' class='filter_show'>Select ALL</a>&nbsp;&nbsp;&nbsp;&#10037;&nbsp;&nbsp;&nbsp;
               <a onclick='javascript:select_none();' class='filter_show'>Select NONE</a>
-              &nbsp;&nbsp;&nbsp;<a onclick='javascript:get_selected();' class='filter_show'>GEEEEEEEET</a>
             </i></b>
           </td>
         </tr>
@@ -219,6 +245,33 @@
         <tr><td colspan='4'>No images in this favorite album</td></tr>
       {% endfor %}
     </table>
+
+    <p>&nbsp;</p>
+
+    <form id='selected_form' name='selected_form'
+        action='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'
+        method='post'>
+      {% csrf_token %}
+
+      <input id='selected_blobs' name='selected_blobs' type='hidden' value=''/>
+
+      {% if locked_for_tagging and tags %}
+
+        <p>
+          <label for='tag_select'>Tag selected images with:</label>
+          <select name='tag_select' id='tag_select'>
+            <option value=''>-- Please choose a tag --</option>
+            {% for id, _, parents in tags %}
+              <option value='{{ id }}'>{{ parents|escape }}</option>
+            {% endfor %}
+          </select>&nbsp;&nbsp;&nbsp;
+          <input type='submit' value='Save Tag' onClick="return tag_form_submit();">
+        </p>
+        <p>&nbsp;</p>
+
+      {% endif %}
+
+    </form>
 
     <p><a href='{% url "favorites" user_id %}'>(Go To: User <i>&quot;{{ user_name|escape }}&quot;</i> Page)</a></p>
 
