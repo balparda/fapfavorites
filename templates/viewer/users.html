@@ -7,13 +7,34 @@
 
       th, td {padding: 5px;}
 
+      a.delete {text-decoration: none;}
+
     </style>
+    <script type='text/javascript' language='javascript'>
+
+      function delete_user(id, name) {
+        if (confirm('Permanently delete user "' + name + '" and wipe all downloaded albums and images in the database?') == true) {
+          document.forms['delete_form']['delete_input'].value = id;
+          document.forms['delete_form'].submit();
+        }
+      };
+
+    </script>
   </head>
   <body bgcolor='black' text='lightgray'>
 
     <h1>Users</h1>
 
     <p><b>{{ user_count }}</b> users collected</p>
+
+    {% if error_message %}
+      <p style='color: red;'><strong>{{ error_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
+    {% if warning_message %}
+      <p style='color: yellow;'><strong>{{ warning_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
 
     <table border='2'>
       <tr>
@@ -27,6 +48,7 @@
         <th>Mean</th>
         <th>StdDev</th>
         <th>Thumbs<br/>Size</th>
+        <th>Del?</th>
       </tr>
       {% for id, obj in users.items %}
         <tr>
@@ -40,9 +62,14 @@
           <td align='center'>{{ obj.mean_sz }}</td>
           <td align='center'>{{ obj.dev_sz }}</td>
           <td align='center'>{{ obj.thumbs_sz }}</td>
+          <td align='center'>
+            <a href='javascript:{}' class='delete' onclick='javascript:delete_user({{ id }}, "{{ obj.name|escape }}");'>
+              &#10060;
+            </a>
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan='10'>No users in database</td></tr>
+        <tr><td colspan='11'>No users in database</td></tr>
       {% endfor %}
       {% if users %}
         <tr>
@@ -55,13 +82,20 @@
           <td>&nbsp;</td>
           <td>&nbsp;</td>
           <td align='center'><b>{{ total_thumbs }}</b></td>
+          <td>&nbsp;</td>
         </tr>
         <tr>
           <td colspan='4' align='right'><b><i>TOTAL&nbsp;STORAGE:</i></b></td>
           <td colspan='6' align='center'><b><i>{{ total_file_storage }}</i></b></td>
+          <td>&nbsp;</td>
         </tr>
       {% endif %}
     </table>
+
+    <form id='delete_form' name='delete_form' action='{% url "users" %}' method='post'>
+      {% csrf_token %}
+      <input id='delete_input' name='delete_input' type='hidden' value=''/>
+    </form>
 
     <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
 

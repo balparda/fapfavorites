@@ -22,7 +22,7 @@ import logging
 import math
 import os
 import os.path
-# import pdb
+import pdb
 import random
 import re
 import shutil
@@ -974,6 +974,118 @@ class FapDatabase:
     sz_thumb = os.path.getsize(output_path)
     self.blobs[sha]['sz_thumb'] = sz_thumb
     return sz_thumb
+
+  def DeleteUserAndAlbums(self, user_id: int) -> tuple[int, int]:
+    """Delete an user, together with favorites and orphaned blobs, thumbs, indexes and duplicates.
+
+    Args:
+      user_id: User ID
+
+    Returns:
+      (number of blobs deleted, number of duplicates deleted)
+
+    Raises:
+      Error: invalid user_id or folder_id
+    """
+    raise NotImplementedError()
+    pdb.set_trace()
+    # check input
+    if user_id not in self.users:
+      raise Error('Invalid user %d' % user_id)
+    # delete the favorite albums first
+    img_count, duplicate_count = 0, 0
+    for folder_id in self.favorites.get(user_id, {}).keys():
+      img, duplicate = self.DeleteAlbum(user_id, folder_id)
+      img_count += img
+      duplicate_count += duplicate
+    # finally delete the actual user entry and return the counts
+    pdb.set_trace()
+    del self.users[user_id]
+    return (img_count, duplicate_count)
+
+  def DeleteAlbum(self, user_id: int, folder_id: int) -> tuple[int, int]:  # noqa: C901
+    """Delete an user favorites album, together with orphaned blobs, thumbs, indexes and duplicates.
+
+    Args:
+      user_id: User ID
+      folder_id: Folder ID
+
+    Returns:
+      (number of blobs deleted, number of duplicates deleted)
+
+    Raises:
+      Error: invalid user_id or folder_id or image location entry not found
+    """
+    raise NotImplementedError()
+    pdb.set_trace()
+    # check input
+    if user_id not in self.users or user_id not in self.favorites:
+      raise Error('Invalid user %d' % user_id)
+    if folder_id not in self.favorites[user_id]:
+      raise Error('Invalid folder %d for user %d/%r' % (folder_id, user_id, self.users[user_id]))
+    # get the album and go through the images deleting as necessary
+    img_count, duplicate_count = 0, 0
+    images: list[int] = self.favorites[user_id][folder_id]['images']  # type: ignore
+    for img_id in images:
+      # get the blob
+      sha = self.image_ids_index[img_id]
+      # remove the location entry from the blob
+      for loc_key in self.blobs[sha]['loc']:  # type: ignore
+        if loc_key[0] == img_id and loc_key[3] == user_id and loc_key[4] == folder_id:
+          pdb.set_trace()
+          logging.info('Deleting image entry %d/%r/%s', img_id, loc_key[2], sha)
+          break  # found the entry, as expected
+      else:
+        raise Error(
+            'Invalid image %d in folder %d/%r for user %d/%r; inconsistency should not happen!' % (
+                img_id, folder_id, self.favorites[user_id][folder_id]['name'],
+                user_id, self.users[user_id]))
+      self.blobs[sha]['loc'].remove(loc_key)  # type: ignore
+      # now we either still have locations for this blob, or it is orphaned
+      if self.blobs[sha]['loc']:
+        # we still have locations using this blob: the blob stays and we might remove index
+        pdb.set_trace()
+        self._DeleteIndexIfOrphan(img_id)
+        continue
+      # this blob is orphaned and must be purged; start by deleting the files on disk, if they exist
+      try:
+        pdb.set_trace()
+        # os.remove(self._BlobPath(sha)) ################################################################
+        logging.info('Deleted blob %r from disk', sha)
+      except FileNotFoundError as e:
+        logging.warning('Blob %r not found: %s', sha, e)
+      try:
+        pdb.set_trace()
+        # os.remove(self.ThumbnailPath(sha))##########################################################
+        logging.info('Deleted thumbnail %r from disk', sha)
+      except FileNotFoundError as e:
+        logging.warning('Thumbnail %r not found: %s', sha, e)
+      # now delete the blob entry
+      del self.blobs[sha]
+      img_count += 1
+      # purge the duplicates and the indexes associated with this blob
+      duplicate_count += self.duplicates.TrimDeletedBlob(sha)
+      self._DeleteIndexesToBlob(sha)
+    # finally delete the actual album entry and return the counts
+    pdb.set_trace()
+    del self.favorites[user_id][folder_id]
+    return (img_count, duplicate_count)
+
+  def _DeleteIndexesToBlob(self, sha: str) -> None:
+    """Delete all index entries pointing to (recently deleted) blob `sha`."""
+    pdb.set_trace()
+    for i in {i for i, s in self.image_ids_index.items() if s == sha}:
+      del self.image_ids_index[i]
+
+  def _DeleteIndexIfOrphan(self, imagefap_image_id: int) -> None:
+    """Delete index entry for `imagefap_image_id` IFF no album uses the index."""
+    pdb.set_trace()
+    if not any(
+        imagefap_image_id in favorite_obj['images']  # type: ignore
+        for user_obj in self.favorites.values()
+        for favorite_obj in user_obj.values()):
+      pdb.set_trace()
+      del self.image_ids_index[imagefap_image_id]
 
   @property
   def _perceptual_hashes_map(self) -> dict[str, str]:

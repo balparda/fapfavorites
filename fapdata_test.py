@@ -288,11 +288,14 @@ class TestFapDatabase(unittest.TestCase):
       read_html.side_effect = [
           'img-page-10-8', 'img-page-10-7',                   # backtrack on favorites 10
           'img-page-10-7', 'img-page-10-8', 'img-page-10-9',  # then forward
-          'img-page-13-0', 'img-page-13-1', 'img-page-13-2']
+          'img-page-10-10', 'img-page-10-11',                 # and 2 extra for paging bug
+          'img-page-13-0', 'img-page-13-1', 'img-page-13-2',  # normal forward
+          'img-page-13-3', 'img-page-13-4']                   # and 2 extra for paging bug
       fapdata._FAVORITE_IMAGE = _MockRegex({
-          'img-page-10-7': ['100', '101'], 'img-page-10-8': ['102'], 'img-page-10-9': [],
+          'img-page-10-7': ['100', '101'], 'img-page-10-8': ['102'],
+          'img-page-10-9': [], 'img-page-10-10': [], 'img-page-10-11': [],
           'img-page-13-0': ['105', '106'], 'img-page-13-1': ['107', '108', '109'],
-          'img-page-13-2': []})
+          'img-page-13-2': [], 'img-page-13-3': [], 'img-page-13-4': []})
       self.assertListEqual(db.AddFolderPics(1, 10, False), [100, 101, 102])
       self.assertListEqual(db.AddFolderPics(1, 11, False), [103, 104])
       self.assertListEqual(db.AddFolderPics(1, 13, False), [105, 106, 107, 108, 109])
@@ -303,9 +306,13 @@ class TestFapDatabase(unittest.TestCase):
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=7&folderid=10'),
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=8&folderid=10'),
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=9&folderid=10'),
+           mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=10&folderid=10'),
+           mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=11&folderid=10'),
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=0&folderid=13'),
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=1&folderid=13'),
-           mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=2&folderid=13')])
+           mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=2&folderid=13'),
+           mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=3&folderid=13'),
+           mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=4&folderid=13')])
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
       self.assertDictEqual(db.favorites, {1: {
           10: {'name': 'new-f-0', 'date_blobs': 0, 'date_straight': 0,

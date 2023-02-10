@@ -17,7 +17,7 @@
 """Imagefap.com duplicates library."""
 
 import logging
-# import pdb
+import pdb
 from typing import Literal, Optional
 
 from imagededup import methods as image_methods
@@ -106,3 +106,45 @@ class Duplicates:
         'Found %d new perceptual duplicates in %d groups, '
         'database has %d images marked as duplicates',
         new_duplicates, len(self.index), len(self.hashes))
+
+  def TrimDeletedBlob(self, sha: str) -> int:
+    """Find duplicates depending a (newly deleted) blob and remove them from database.
+
+    Note that if a key was removed from a duplicate set but the group still remained based
+    on images that were not deleted, we have (for safety/consistency's sake) to reset that
+    duplicate group to all 'new'. The only exception is for false positives ('false') as
+    those can presumably be left alone. Any other action/assumption would risk horrible bugs.
+    In summary 'new'|'false'-> left alone ; 'keep'|'skip' -> reset to 'new'.
+
+    Args:
+      sha: The recently deleted sha256 to trim from duplicates database
+
+    Returns:
+      Number of duplicate groups that were entirely deleted; note that this does NOT include
+      duplicates that were trimmed of a key but still had >=2 images in set so were kept
+    """
+    raise NotImplementedError()
+    pdb.set_trace()
+    deleted_groups = 0
+    for sha_tuple in self.index.keys():
+      if sha in sha_tuple:
+        # hit! we have to figure something out
+        if len(sha_tuple) <= 2:
+          # easy deletion case: there is no duplicate with only 1 key, so purge
+          pdb.set_trace()
+          del self.index[sha_tuple]
+          deleted_groups += 1
+          logging.info('Deleted duplicate entry %r', sha_tuple)
+          continue
+        # this is a group with more than 2 keys, so care must be taken; first delete the sha entry
+        pdb.set_trace()
+        del self.index[sha_tuple][sha]
+        # now reset the status of the remaining keys that are not 'new' or 'false'
+        for k in {k for k, d in self.index[sha_tuple].items() if d in {'keep', 'skip'}}:
+          self.index[sha_tuple][k] = 'new'
+        # finally move the entry to a new clean key entry with only the remaining sha digests
+        new_sha_key = tuple(sorted(self.index[sha_tuple].keys()))
+        self.index[new_sha_key] = self.index[sha_tuple]
+        del self.index[sha_tuple]
+    # finished, return the count
+    return deleted_groups

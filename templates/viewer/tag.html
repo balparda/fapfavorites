@@ -52,7 +52,7 @@
         <th>ID</th>
         <th>Tag&nbsp;Name</th>
         <th>Children&nbsp;(Sub-Tags)</th>
-        <th>Delete?</th>
+        <th>Del?</th>
       </tr>
       {% for id, name, parents, depth in tags %}
         <tr>
@@ -101,9 +101,7 @@
 
     <form id='delete_form' name='delete_form' action='{% url "tag" tag_id %}' method='post'>
       {% csrf_token %}
-
       <input id='delete_input' name='delete_input' type='hidden' value=''/>
-
     </form>
 
     {% if tag_id %}

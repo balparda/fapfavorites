@@ -2,7 +2,7 @@
 
 import functools
 import logging
-# import pdb
+import pdb
 import statistics
 from typing import Any, Literal, Optional
 
@@ -98,6 +98,27 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
 def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `users` page."""
   db = _DBFactory()
+  warning_message: Optional[str] = None
+  error_message: Optional[str] = None
+  # get POST data
+  delete_user_id = int(request.POST.get('delete_input', '0').strip())
+  # do we have a favorites album to delete?
+  if delete_user_id:
+    raise NotImplementedError()
+    pdb.set_trace()
+    # check user is known
+    if delete_user_id not in db.users:
+      error_message = 'Requested deletion of unknown user %d' % delete_user_id
+    else:
+      delete_user_name = db.users[delete_user_id]
+      delete_count, duplicates_count = db.DeleteUserAndAlbums(delete_user_id)
+      # compose message and remember to save DB
+      warning_message = (
+          'User %d/%r deleted, and with them %d blobs (images) deleted, '
+          'together with their thumbnails, plus %d duplicates groups abandoned' % (
+              delete_user_id, delete_user_name, delete_count, duplicates_count))
+      # db.Save() #######################################################################################
+  # make user sums and data
   users, total_sz, total_img, total_animated, total_thumbs = {}, 0, 0, 0, 0
   for uid, name in db.users.items():
     file_sizes: list[int] = [
@@ -133,6 +154,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
     total_animated += n_animated
     total_sz += sum(file_sizes) if file_sizes else 0
     total_thumbs += sum(thumbs_sizes) if file_sizes else 0
+  # send to page
   context = {
       'users': users,
       'user_count': len(users),
@@ -143,6 +165,8 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
       'total_thumbs': base.HumanizedBytes(total_thumbs) if total_thumbs else '-',
       'total_file_storage': base.HumanizedBytes(
           total_sz + total_thumbs) if (total_sz + total_thumbs) else '-',
+      'warning_message': warning_message,
+      'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/users.html', context)
 
@@ -151,9 +175,29 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   """Serve the `favorites` page of one `user_id`."""
   # check for errors in parameters
   db = _DBFactory()
+  warning_message: Optional[str] = None
+  error_message: Optional[str] = None
   if user_id not in db.users or user_id not in db.favorites:
     raise http.Http404('Unknown user %d' % user_id)
   user_favorites = db.favorites[user_id]
+  # get POST data
+  delete_album_id = int(request.POST.get('delete_input', '0').strip())
+  # do we have a favorites album to delete?
+  if delete_album_id:
+    raise NotImplementedError()
+    pdb.set_trace()
+    # check album is known
+    if delete_album_id not in user_favorites:
+      error_message = 'Requested deletion of unknown favorites album %d' % delete_album_id
+    else:
+      delete_album_name = user_favorites[delete_album_id]['name']
+      delete_count, duplicates_count = db.DeleteAlbum(user_id, delete_album_id)
+      # compose message and remember to save DB
+      warning_message = (
+          'Favorites album %d/%r deleted, and with it %d blobs (images) deleted, '
+          'together with their thumbnails, plus %d duplicates groups abandoned' % (
+              delete_album_id, delete_album_name, delete_count, duplicates_count))
+      # db.Save() #######################################################################################
   # sort albums alphabetically and format data
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
   favorites, total_sz, total_thumbs_sz, total_animated = {}, 0, 0, 0
@@ -198,8 +242,12 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
       'page_count': sum(f['pages'] for f in favorites.values()),
       'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
       'total_thumbs_sz': base.HumanizedBytes(total_thumbs_sz) if total_thumbs_sz else '-',
+      'total_file_storage': base.HumanizedBytes(
+          total_sz + total_thumbs_sz) if (total_sz + total_thumbs_sz) else '-',
       'total_animated': '%d (%0.1f%%)' % (
           total_animated, (100.0 * total_animated / all_img_count) if all_img_count else 0.0),
+      'warning_message': warning_message,
+      'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/favorites.html', context)
 
