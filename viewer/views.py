@@ -217,6 +217,7 @@ def ServeFavorite(  # noqa: C901
   show_duplicates = bool(int(request.GET.get('dup', '0')))        # default: False
   show_portraits = bool(int(request.GET.get('portrait', '1')))    # default: True
   show_landscapes = bool(int(request.GET.get('landscape', '1')))  # default: True
+  locked_for_tagging = bool(int(request.GET.get('lock', '0')))    # default: False
   # get images in album
   favorite = db.favorites[user_id][folder_id]
   images: list[int] = favorite['images']  # type: ignore
@@ -287,6 +288,8 @@ def ServeFavorite(  # noqa: C901
       'portrait_url': 'portrait=%d' % int(show_portraits),
       'show_landscapes': show_landscapes,
       'landscape_url': 'landscape=%d' % int(show_landscapes),
+      'locked_for_tagging': locked_for_tagging,
+      'tagging_url': 'lock=%d' % int(locked_for_tagging),
       'pages': favorite['pages'],
       'date': base.STD_TIME_STRING(favorite['date_blobs']),
       'count': len(sorted_blobs),

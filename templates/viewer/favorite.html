@@ -28,7 +28,62 @@
         background-color: fuchsia;
       }
 
+      td.selected {
+        border-color: peru;
+        background-color: peru;
+        padding: 4px;
+      }
+      td.unselected {
+        padding: 4px;
+      }
+
     </style>
+    <script type='text/javascript' language='javascript'>
+
+      function switch_selection(sha) {
+        if (document.getElementById(sha).className == 'selected') {
+          document.getElementById(sha).className = 'unselected';
+        } else {
+          document.getElementById(sha).className = 'selected';
+        }
+      };
+
+      function select_all() {
+        for (i in ALL_SHA) {
+          sha = ALL_SHA[i];
+          document.getElementById(sha).className = 'selected';
+        }
+      };
+
+      function select_none() {
+        for (i in ALL_SHA) {
+          sha = ALL_SHA[i];
+          document.getElementById(sha).className = 'unselected';
+        }
+      };
+
+      function get_selected() {
+        var sel = [];
+        for (i in ALL_SHA) {
+          sha = ALL_SHA[i];
+          if (document.getElementById(sha).className == 'selected') {
+            sel.push(sha);
+          }
+        }
+        return sel;
+      }
+
+      var ALL_SHA = [
+          {% for sha_group in stacked_blobs %}
+            {% for _, sha in sha_group %}
+              {% if sha %}
+                "{{ sha }}",
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+      ];
+
+    </script>
   </head>
   <body bgcolor='black' text='lightgray'>
 
@@ -40,26 +95,31 @@
       <tr>
         <td>
           {% if show_duplicates %}
-            <a href='{% url "favorite" user_id folder_id %}?dup=0&{{ portrait_url }}&{{ landscape_url }}' class='filter_show'>
-              Duplicates: ON
+            <a href='{% url "favorite" user_id folder_id %}?dup=0&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' class='filter_show'>
+              Duplicates: <i><b>ON</i></b>
             </a><br/>
           {% else %}
-            <a href='{% url "favorite" user_id folder_id %}?dup=1&{{ portrait_url }}&{{ landscape_url }}' class='filter_hide'>
-              Duplicates: OFF
+            <a href='{% url "favorite" user_id folder_id %}?dup=1&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' class='filter_hide'>
+              Duplicates: <i><b>OFF</i></b>
             </a>
           {% endif %}
         </td>
-        <td>&nbsp;&nbsp;(images marked in <span style='color: red;'>RED</span> below have exact duplicates in this album; images in <span style='color: fuchsia;'>FUCHSIA</span> have been marked &quot;skip&quot; in perceptual duplicates)</td>
+        <td>
+          &nbsp;
+          {% if not locked_for_tagging %}
+            &nbsp;(images marked in <span style='color: red;'>RED</span> below have exact duplicates in this album; images in <span style='color: fuchsia;'>FUCHSIA</span> have been marked &quot;skip&quot; in perceptual duplicates)
+          {% endif %}
+        </td>
       </tr>
       <tr>
         <td>
           {% if show_portraits %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=0&{{ landscape_url }}' class='filter_show'>
-              Portrait-Aspect Images: ON
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}' class='filter_show'>
+              Portrait-Aspect Images: <i><b>ON</i></b>
             </a>
           {% else %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=1&{{ landscape_url }}' class='filter_hide'>
-              Portrait-Aspect Images: OFF
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}' class='filter_hide'>
+              Portrait-Aspect Images: <i><b>OFF</i></b>
             </a>
           {% endif %}
         </td>
@@ -68,17 +128,55 @@
       <tr>
         <td>
           {% if show_landscapes %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=0' class='filter_show'>
-              Landscape-Aspect Images: ON
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}' class='filter_show'>
+              Landscape-Aspect Images: <i><b>ON</i></b>
             </a>
           {% else %}
-            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=1' class='filter_hide'>
-              Landscape-Aspect Images: OFF
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}' class='filter_hide'>
+              Landscape-Aspect Images: <i><b>OFF</i></b>
             </a>
           {% endif %}
         </td>
         <td>&nbsp;&nbsp;(images with <b>width</b> more than 10% larger than <b>height</b>)</td>
       </tr>
+      <tr>
+        {% if locked_for_tagging %}
+          <td>
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&lock=0' class='filter_show'>
+              Locked for Tagging: <i><b>ON</i></b>
+            </a>&nbsp;&nbsp;&#128274;
+          </td>
+          <td>&nbsp;&nbsp;(clicking on images will <i><b>select</i></b> them, tagging options available at bottom)</td>
+        {% else %}
+          <td>
+            <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&lock=1' class='filter_hide'>
+              Locked for Tagging: <i><b>OFF</i></b>
+            </a>&nbsp;&nbsp;&#128275;
+          </td>
+          <td>&nbsp;&nbsp;(clicking on images will <i><b>open</i></b> them, no selection of images enabled)</td>
+        {% endif %}
+      </tr>
+      <tr>
+        <td colspan='2'>
+          {% if locked_for_tagging %}
+            The image icon (<small><small>&#128444;</small></small>) will take you to the local image (blob) for inspection (this is always fine, only opens locally).<br/>
+            Click on the images to select or deselect them. Selected images will show in <span style='color: peru;'>PERU</span>.<br/>
+            If you reload the page you will lose your selection! Go to the bottom of this page (<i>Ctrl+End</i>) to tag them.<br/>
+          {% endif %}
+          The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!
+        </td>
+      </tr>
+      {% if locked_for_tagging %}
+        <tr>
+          <td colspan='2' align='right'>
+            <b><i>
+              <a onclick='javascript:select_all();' class='filter_show'>Select ALL</a>&nbsp;&nbsp;&nbsp;&#10037;&nbsp;&nbsp;&nbsp;
+              <a onclick='javascript:select_none();' class='filter_show'>Select NONE</a>
+              &nbsp;&nbsp;&nbsp;<a onclick='javascript:get_selected();' class='filter_show'>GEEEEEEEET</a>
+            </i></b>
+          </td>
+        </tr>
+      {% endif %}
     </table>
 
     {% load static %}
@@ -91,13 +189,26 @@
           {% for img, sha in sha_group %}
             {% if sha %}
               {% with blob=blobs_data|lookup:sha %}
-                <td align='center' valign='center' {% if blob.is_duplicate %}class='duplicate'{% endif %} {% if blob.is_percept %}class='percept'{% endif %}>
-                  <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
-                    <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/></a>
-                  &nbsp;<small><small><small>
-                    <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
-                  </small></small></small>
-                </td>
+                {% if locked_for_tagging %}
+                  <td align='center' valign='center' id='{{ sha }}' class='unselected'>
+                    <img src='{% static blob.thumb %}'
+                        onclick='javascript:switch_selection("{{ sha }}");'
+                        title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}{% if blob.is_duplicate %} - has exact duplicate{% endif %}{% if blob.is_percept %} - has perceptual duplicate{% endif %}'/><br/>
+                    <small><small><small>
+                      <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>&#128444;</a>
+                      &nbsp;&nbsp;
+                      <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
+                    </small></small></small>
+                  </td>
+                {% else %}
+                  <td align='center' valign='center' {% if blob.is_duplicate %}class='duplicate'{% endif %} {% if blob.is_percept %}class='percept'{% endif %}>
+                    <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
+                      <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/></a>
+                    &nbsp;<small><small><small>
+                      <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
+                    </small></small></small>
+                  </td>
+                {% endif %}
               {% endwith %}
             {% else %}
               <td></td>
