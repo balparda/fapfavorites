@@ -23,15 +23,17 @@ from typing import Literal, Optional
 from imagededup import methods as image_methods
 
 
-# internal data utils
-DUPLICATES_TYPE = dict[tuple[str, ...], dict[str, Literal['new', 'false', 'keep', 'skip']]]
+# internal types definitions
+
+DuplicatesKeyType = tuple[str, ...]
+DuplicatesType = dict[DuplicatesKeyType, dict[str, Literal['new', 'false', 'keep', 'skip']]]
 DUPLICATE_OPTIONS = {'new', 'false', 'keep', 'skip'}
 
 
 class Duplicates:
   """Stores and manipulates duplicates data."""
 
-  def __init__(self, duplicates_index: DUPLICATES_TYPE):
+  def __init__(self, duplicates_index: DuplicatesType):
     """Construct.
 
     Args:
@@ -48,7 +50,7 @@ class Duplicates:
       all_sha.update(sha_tuple)
     return all_sha
 
-  def _GetSetKey(self, sha: str) -> Optional[tuple[str, ...]]:
+  def _GetSetKey(self, sha: str) -> Optional[DuplicatesKeyType]:
     """Find and return the key containing `sha`, or None if not found."""
     for k in self.index.keys():
       if sha in k:

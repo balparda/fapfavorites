@@ -125,17 +125,17 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
         db.blobs[db.image_ids_index[i]]['sz']
         for d, u in db.favorites.items() if d == uid
         for f in u.values()
-        for i in f['images'] if i in db.image_ids_index]  # type: ignore
+        for i in f['images'] if i in db.image_ids_index]
     thumbs_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz_thumb']
         for d, u in db.favorites.items() if d == uid
         for f in u.values()
-        for i in f['images'] if i in db.image_ids_index]  # type: ignore
+        for i in f['images'] if i in db.image_ids_index]
     n_animated = sum(
         bool(db.blobs[db.image_ids_index[i]]['animated'])
         for d, u in db.favorites.items() if d == uid
         for f in u.values()
-        for i in f['images'] if i in db.image_ids_index)  # type: ignore
+        for i in f['images'] if i in db.image_ids_index)
     n_img = len(file_sizes)
     users[uid] = {
         'name': name,
@@ -203,16 +203,16 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   favorites, total_sz, total_thumbs_sz, total_animated = {}, 0, 0, 0
   for fid, name in names:
     obj = db.favorites[user_id][fid]
-    count_img = len(obj['images'])  # type: ignore
+    count_img = len(obj['images'])
     file_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz']
-        for i in obj['images'] if i in db.image_ids_index]  # type: ignore
+        for i in obj['images'] if i in db.image_ids_index]
     thumbs_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz_thumb']
-        for i in obj['images'] if i in db.image_ids_index]  # type: ignore
+        for i in obj['images'] if i in db.image_ids_index]
     n_animated = sum(
-        int(db.blobs[db.image_ids_index[i]]['animated'])    # type: ignore
-        for i in obj['images'] if i in db.image_ids_index)  # type: ignore
+        int(db.blobs[db.image_ids_index[i]]['animated'])
+        for i in obj['images'] if i in db.image_ids_index)
     favorites[fid] = {
         'name': name,
         'pages': obj['pages'],
@@ -283,7 +283,7 @@ def ServeFavorite(  # noqa: C901
           error_message = 'Unknown image %r requested<br/>' % sha
           break
         # add tag to image
-        db.blobs[sha]['tags'].add(selected_tag)  # type: ignore
+        db.blobs[sha]['tags'].add(selected_tag)
         tag_count += 1
       else:
         warning_message = '%d images tagged with %r' % (tag_count, tag_name)
@@ -295,14 +295,14 @@ def ServeFavorite(  # noqa: C901
   locked_for_tagging = bool(int(request.GET.get('lock', '0')))    # default: False
   # get images in album
   favorite = db.favorites[user_id][folder_id]
-  images: list[int] = favorite['images']  # type: ignore
+  images: list[int] = favorite['images']
   sorted_blobs = [(i, db.image_ids_index[i]) for i in images]  # "sorted" here means original order!
   # find images that have duplicates
   duplicates: dict[str, list[int]] = {}
   percept_exclude: set[str] = set()
   for img, sha in sorted_blobs:
     # look for identical (sha256) collisions in the same album
-    hits: list[int] = [i for i, _, _, uid, fid in db.blobs[sha]['loc']  # type: ignore
+    hits: list[int] = [i for i, _, _, uid, fid in db.blobs[sha]['loc']
                        if uid == user_id and fid == folder_id]
     if len(hits) > 1:
       # this image has >=2 instances in this same album
@@ -315,15 +315,14 @@ def ServeFavorite(  # noqa: C901
   # apply filters
   if not show_duplicates:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (sha in duplicates and duplicates[sha][0] != i)]  # type: ignore
-    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (sha in percept_exclude)]  # type: ignore
+                    if not (sha in duplicates and duplicates[sha][0] != i)]
+    sorted_blobs = [(i, sha) for i, sha in sorted_blobs if not (sha in percept_exclude)]
   if not show_portraits:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]  # type: ignore
+                    if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]
   if not show_landscapes:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1)]  # type: ignore
+                    if not (db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1)]
   # stack the hashes in rows of _IMG_COLUMNS columns
   stacked_blobs = [sorted_blobs[i:(i + _IMG_COLUMNS)]
                    for i in range(0, len(sorted_blobs), _IMG_COLUMNS)]
@@ -333,7 +332,7 @@ def ServeFavorite(  # noqa: C901
   for img, sha in sorted_blobs:
     blob = db.blobs[sha]
     # find the correct 'loc' entry (to get the name)
-    for i, _, name, uid, fid in blob['loc']:  # type: ignore
+    for i, _, name, uid, fid in blob['loc']:
       if i == img and uid == user_id and fid == folder_id:
         break
     else:
@@ -342,9 +341,9 @@ def ServeFavorite(  # noqa: C901
     # fill in the other fields, make them readable
     blobs_data[sha] = {
         'name': name,
-        'sz': base.HumanizedBytes(blob['sz']),  # type: ignore
+        'sz': base.HumanizedBytes(blob['sz']),
         'dimensions': '%dx%d (WxH)' % (blob['width'], blob['height']),
-        'tags': ', '.join(sorted(db.PrintableTag(t) for t in blob['tags'])),  # type: ignore
+        'tags': ', '.join(sorted(db.PrintableTag(t) for t in blob['tags'])),
         'thumb': '%s.%s' % (sha, blob['ext']),  # this is just the file name, to be served as
                                                 # a static resource: see settings.py
         'is_duplicate': sha in duplicates,
@@ -389,10 +388,11 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
       raise http.Http404('Unknown tag %d' % tag_id)
     tag_hierarchy = db.GetTag(tag_id)
     page_depth = len(tag_hierarchy)
-    tag_obj: fapdata.TAG_OBJ = db.GetTag(tag_id)[-1][-1]
+    tag_obj: fapdata.TagObjType = db.GetTag(tag_id)[-1][-1]
   else:
     page_depth = 0
-    tag_obj: fapdata.TAG_OBJ = {'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data)
+    tag_obj: fapdata.TagObjType = {
+        'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data) # type: ignore
   # get POST data
   new_tag = request.POST.get('named_child', '').strip()
   delete_tag = int(request.POST.get('delete_input', '0').strip())
@@ -410,7 +410,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
       else:
         # everything OK: add tag
         max_tag = max(i for i, _, _ in all_tags) if all_tags else 0
-        tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}  # type: ignore
+        tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}
         db.Save()
   # do we have a tag to delete?
   elif delete_tag:
@@ -430,12 +430,12 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
           del db.tags[delete_tag]
         else:
           # in this case we have a non-root parent
-          del delete_obj[-2][-1]['tags'][delete_tag]  # type: ignore
+          del delete_obj[-2][-1]['tags'][delete_tag]
         # we must remove the tags from any images that have it too!
         count_tag_deletions = 0
         for blob in db.blobs.values():
-          if delete_tag in blob['tags']:     # type: ignore
-            blob['tags'].remove(delete_tag)  # type: ignore
+          if delete_tag in blob['tags']:
+            blob['tags'].remove(delete_tag)
             count_tag_deletions += 1
         # compose message and remember to save DB
         warning_message = 'Tag %d/%r deleted and association removed from %d blobs (images)' % (
@@ -468,7 +468,7 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
     raise http.Http404('Known blob %r could not be found on disk' % digest)
   # get blob and check for content type (extension)
   blob = db.blobs[digest]
-  ext = blob['ext'].lower()  # type: ignore
+  ext = blob['ext'].lower()
   if ext not in _IMAGE_TYPES:
     raise http.Http404('Blob %r image type (file extension) %r not one of %r' % (
         digest, ext, sorted(_IMAGE_TYPES.keys())))
@@ -546,12 +546,12 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                       'folder_name': db.favorites[uid][fid]['name'],
                       'imagefap': fapdata.IMG_URL(i),
                   }
-                  for i, _, nm, uid, fid in db.blobs[sha]['loc']  # type: ignore
+                  for i, _, nm, uid, fid in db.blobs[sha]['loc']
               },
-              'sz': base.HumanizedBytes(db.blobs[sha]['sz']),  # type: ignore
+              'sz': base.HumanizedBytes(db.blobs[sha]['sz']),
               'dimensions': '%dx%d (WxH)' % (db.blobs[sha]['width'], db.blobs[sha]['height']),
               'tags': ', '.join(sorted(
-                  db.PrintableTag(t) for t in db.blobs[sha]['tags'])),  # type: ignore
+                  db.PrintableTag(t) for t in db.blobs[sha]['tags'])),
               'thumb': '%s.%s' % (sha, db.blobs[sha]['ext']),  # this is just the file name, served
                                                                # as a static resource (settings.py)
               'percept': db.blobs[sha]['percept'],

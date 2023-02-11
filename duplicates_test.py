@@ -29,7 +29,7 @@ class TestDuplicates(unittest.TestCase):
   def test_FindDuplicates(self, mock_find_duplicates):
     """Test."""
     mock_find_duplicates.return_value = _NEW_DUPLICATES
-    dup = duplicates.Duplicates(_DUPLICATES_DICT_BEFORE)  # type: ignore
+    dup = duplicates.Duplicates(_DUPLICATES_DICT_BEFORE)
     self.assertSetEqual(dup.hashes, {'aaa', 'bbb', 'ccc', 'ddd', 'eee'})
     dup.FindDuplicates({'foo': 'bar'})
     self.assertListEqual(
@@ -39,7 +39,7 @@ class TestDuplicates(unittest.TestCase):
         dup.hashes, {'aaa', 'bbb', 'ccc', 'ddd', 'eee', 'fff', 'ggg', 'xxx', 'yyy', 'zzz'})
 
 
-_DUPLICATES_DICT_BEFORE = {
+_DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
     ('aaa', 'bbb'): {
         'aaa': 'keep',
         'bbb': 'skip',
@@ -57,7 +57,7 @@ _NEW_DUPLICATES = {
     'xxx': ['yyy', 'zzz'],
 }
 
-_DUPLICATES_DICT_AFTER = {
+_DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
     ('aaa', 'bbb'): {
         'aaa': 'keep',
         'bbb': 'skip',

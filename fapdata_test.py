@@ -48,9 +48,9 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(db._db, {k: {} for k in fapdata._DB_MAIN_KEYS})
     self.assertDictEqual(db.duplicates.index, {})
     db.users[1] = 'Luke'
-    db.favorites[1] = {2: {}}
-    db.tags[3] = {'name': 'three'}
-    db.blobs['sha1'] = {'tags': {4}}
+    db.favorites[1] = {2: {}}  # type: ignore
+    db.tags[3] = {'name': 'three', 'tags': {}}
+    db.blobs['sha1'] = {'tags': {4}}  # type: ignore
     db.image_ids_index[5] = 'sha2'
     db.duplicates_index[('a', 'b')] = {'a': 'new'}
     self.assertDictEqual(db._db, {
@@ -327,11 +327,11 @@ class TestFapDatabase(unittest.TestCase):
           '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
               'loc': {(801, 'url-1', 'some-name.jpg', 2, 20),
                       (101, 'url-2', 'name-to-use.jpg', 1, 10)},
-              'tags': {}, 'sz': 101, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
+              'tags': set(), 'sz': 101, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'width': 160, 'height': 200, 'animated': False},
           'sha-107': {
               'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
-              'tags': {}, 'sz': 107, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
+              'tags': set(), 'sz': 107, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'width': 107, 'height': 1070, 'animated': False},
       }
       db._db['image_ids_index'] = {
@@ -500,7 +500,7 @@ _TEST_TAGS_1 = {  # this has many places where there are missing keys
     },
 }
 
-_TEST_TAGS_2 = {  # this is all valid tags structure
+_TEST_TAGS_2: fapdata._TagType = {  # this is all valid tags structure
     0: {
         'name': 'plain',
         'tags': {},

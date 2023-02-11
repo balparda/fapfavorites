@@ -30,7 +30,7 @@ import socket
 import statistics
 import tempfile
 import time
-from typing import Iterator, Literal, Optional, Union
+from typing import Iterator, Literal, Optional, TypedDict
 import urllib.error
 import urllib.request
 
@@ -57,18 +57,58 @@ CHECKPOINT_LENGTH = 10  # int number of images to download between database chec
 _PAGE_BACKTRACKING_THRESHOLD = 5
 FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 
-# internal data utils
-_DB_MAIN_KEYS = {
-    'users',
-    'favorites',
-    'tags',
-    'blobs',
-    'image_ids_index',
-    'duplicates_index',
-}
-_DB_KEY_TYPE = Literal['users', 'favorites', 'tags', 'blobs', 'image_ids_index', 'duplicates_index']
-TAG_OBJ = dict[Literal['name', 'tags'], Union[str, dict]]
-_TAG_TYPE = dict[int, TAG_OBJ]
+# internal types definitions
+
+
+class _FavoriteObjType(TypedDict):
+  """Favorite object type."""
+
+  name: str
+  pages: int
+  date_straight: int
+  date_blobs: int
+  images: list[int]
+
+
+class TagObjType(TypedDict):
+  """Tag object type."""
+
+  name: str
+  tags: dict[int, dict]
+
+
+class _BlobObjType(TypedDict):
+  """Blob object type."""
+
+  loc: set[tuple[int, str, str, int, int]]
+  tags: set[int]
+  sz: int
+  sz_thumb: int
+  ext: str
+  percept: str
+  width: int
+  height: int
+  animated: bool
+
+
+_UserType = dict[int, str]
+_FavoriteType = dict[int, dict[int, _FavoriteObjType]]
+_TagType = dict[int, TagObjType]
+_BlobType = dict[str, _BlobObjType]
+_ImagesIdIndexType = dict[int, str]
+_DB_MAIN_KEYS = {'users', 'favorites', 'tags', 'blobs', 'image_ids_index', 'duplicates_index'}
+
+
+class _DatabaseType(TypedDict):
+  """Database type."""
+
+  users: _UserType
+  favorites: _FavoriteType
+  tags: _TagType
+  blobs: _BlobType
+  image_ids_index: _ImagesIdIndexType
+  duplicates_index: duplicates.DuplicatesType
+
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
@@ -129,9 +169,14 @@ class FapDatabase:
     self._db_path = os.path.join(self._db_dir, _DEFAULT_DB_NAME)             # actual DB path
     self._blobs_dir = os.path.join(self._db_dir, _DEFAULT_BLOB_DIR_NAME)     # where to put blobs
     self._thumbs_dir = os.path.join(self._db_dir, DEFAULT_THUMBS_DIR_NAME)   # thumbnails dir
-    self._db: dict[_DB_KEY_TYPE, dict] = {}
-    for k in _DB_MAIN_KEYS:  # creates the main expected key entries
-      self._db[k] = {}  # type: ignore
+    self._db: _DatabaseType = {  # creates empty DB
+        'users': {},
+        'favorites': {},
+        'tags': {},
+        'blobs': {},
+        'image_ids_index': {},
+        'duplicates_index': {},
+    }
     self.duplicates = duplicates.Duplicates(self.duplicates_index)
     # check output directory, create if needed
     if not os.path.isdir(self._db_dir):
@@ -143,37 +188,32 @@ class FapDatabase:
     os.environ['IMAGEFAP_FAVORITES_DB_PATH'] = self._original_dir
 
   @property
-  def users(self) -> dict[int, str]:
+  def users(self) -> _UserType:
     """Users dictionary."""
     return self._db['users']
 
   @property
-  def favorites(self) -> dict[int, dict[int, dict[Literal['name', 'pages',
-                                                          'date_straight', 'date_blobs', 'images'],
-                                                  Union[str, int, list[int]]]]]:
+  def favorites(self) -> _FavoriteType:
     """Favorites dictionary."""
     return self._db['favorites']
 
   @property
-  def tags(self) -> _TAG_TYPE:
+  def tags(self) -> _TagType:
     """Tags dictionary."""
     return self._db['tags']
 
   @property
-  def blobs(self) -> dict[str, dict[Literal['loc', 'tags', 'sz', 'sz_thumb', 'ext', 'percept',
-                                            'width', 'height', 'animated'],
-                                    Union[int, str, bool,
-                                          set[Union[int, tuple[int, str, str, int, int]]]]]]:
+  def blobs(self) -> _BlobType:
     """Blobs dictionary."""
     return self._db['blobs']
 
   @property
-  def image_ids_index(self) -> dict[int, str]:
+  def image_ids_index(self) -> _ImagesIdIndexType:
     """Images IDs index dictionary."""
     return self._db['image_ids_index']
 
   @property
-  def duplicates_index(self) -> duplicates.DUPLICATES_TYPE:
+  def duplicates_index(self) -> duplicates.DuplicatesType:
     """Duplicates dictionary."""
     return self._db['duplicates_index']
 
@@ -235,7 +275,7 @@ class FapDatabase:
     with open(self._BlobPath(sha), 'rb') as f:
       return f.read()
 
-  def GetTag(self, tag_id: int) -> list[tuple[int, str, TAG_OBJ]]:  # noqa: C901
+  def GetTag(self, tag_id: int) -> list[tuple[int, str, TagObjType]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
 
     Args:
@@ -248,12 +288,12 @@ class FapDatabase:
     Raises:
       Error: not found or invalid
     """
-    hierarchy: list[tuple[int, str, TAG_OBJ]] = []
+    hierarchy: list[tuple[int, str, TagObjType]] = []
 
-    def _get_recursive(obj: _TAG_TYPE) -> bool:
+    def _get_recursive(obj: _TagType) -> bool:
       if tag_id in obj:
         try:
-          hierarchy.append((tag_id, obj[tag_id]['name'], obj[tag_id]))  # found! # type: ignore
+          hierarchy.append((tag_id, obj[tag_id]['name'], obj[tag_id]))  # found!
         except KeyError:
           raise Error('Found tag %d is empty (has no \'name\')!' % tag_id)
         return True
@@ -261,7 +301,7 @@ class FapDatabase:
         if o.get('tags', {}):
           if _get_recursive(o['tags']):  # type: ignore
             try:
-              hierarchy.append((i, o['name'], o))  # parent to a found tag # type: ignore
+              hierarchy.append((i, o['name'], o))  # parent to a found tag
             except KeyError:
               raise Error('Parent tag %d (of %d) is empty (has no \'name\')!' % (i, tag_id))
             return True
@@ -277,8 +317,8 @@ class FapDatabase:
     return '/'.join(n for _, n, _ in self.GetTag(tag_id))
 
   def TagsWalk(
-      self, start_tag: Optional[_TAG_TYPE] = None, depth: int = 0) -> Iterator[
-          tuple[int, str, int, _TAG_TYPE]]:
+      self, start_tag: Optional[_TagType] = None, depth: int = 0) -> Iterator[
+          tuple[int, str, int, _TagType]]:
     """Walk all tags recursively, depth first.
 
     Args:
@@ -306,8 +346,8 @@ class FapDatabase:
     Returns:
       list of strings to print as status
     """
-    file_sizes: list[int] = [s['sz'] for s in self.blobs.values()]         # type: ignore
-    thumb_sizes: list[int] = [s['sz_thumb'] for s in self.blobs.values()]  # type: ignore
+    file_sizes: list[int] = [s['sz'] for s in self.blobs.values()]
+    thumb_sizes: list[int] = [s['sz_thumb'] for s in self.blobs.values()]
     all_files_size, all_thumb_size = sum(file_sizes), sum(thumb_sizes)
     db_size = os.path.getsize(self._db_path)
     all_lines = []
@@ -328,12 +368,12 @@ class FapDatabase:
             base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
             base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
             base.HumanizedBytes(int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-',
-            sum(int(s['animated']) for s in self.blobs.values())))  # type: ignore
+            sum(int(s['animated']) for s in self.blobs.values())))
     if file_sizes:
       wh_sizes: list[tuple[int, int]] = [
-          (s['width'], s['height']) for s in self.blobs.values()]  # type: ignore
+          (s['width'], s['height']) for s in self.blobs.values()]
       pixel_sizes: list[int] = [
-          s['width'] * s['height'] for s in self.blobs.values()]  # type: ignore
+          s['width'] * s['height'] for s in self.blobs.values()]
       PrintLine(
           'Pixel size (width, height): %spixels min %r, %spixels max %r, '  # cspell:disable-line
           '%s mean with %s standard deviation' % (
@@ -366,8 +406,8 @@ class FapDatabase:
         base.STD_TIME_STRING(max_date) if max_date else 'pending'))
     PrintLine('%d unique images (%d total, %d exact duplicates)' % (
         len(self.blobs),
-        sum(len(b['loc']) for _, b in self.blobs.items()),       # type: ignore
-        sum(len(b['loc']) - 1 for _, b in self.blobs.items())))  # type: ignore
+        sum(len(b['loc']) for _, b in self.blobs.items()),
+        sum(len(b['loc']) - 1 for _, b in self.blobs.items())))
     PrintLine('%d perceptual duplicates in %d groups' % (
         len(self.duplicates.hashes), len(self.duplicates.index)))
     return all_lines
@@ -385,7 +425,7 @@ class FapDatabase:
           self.blobs[self.image_ids_index[i]]['sz']
           for d, u in self.favorites.items() if d == uid
           for f in u.values()
-          for i in f['images'] if i in self.image_ids_index]   # type: ignore # noqa: E131
+          for i in f['images'] if i in self.image_ids_index]
       print('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
           base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
           base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
@@ -396,9 +436,9 @@ class FapDatabase:
         obj = self.favorites[uid][fid]
         file_sizes: list[int] = [
             self.blobs[self.image_ids_index[i]]['sz']
-            for i in obj['images'] if i in self.image_ids_index]  # type: ignore
+            for i in obj['images'] if i in self.image_ids_index]
         print('    => %d: %r (%d / %d / %s)' % (
-            fid, obj['name'], len(obj['images']), obj['pages'],  # type: ignore
+            fid, obj['name'], len(obj['images']), obj['pages'],
             base.STD_TIME_STRING(max(obj['date_straight'], obj['date_blobs']))
             if obj['date_straight'] or obj['date_blobs'] else 'pending'))
         if file_sizes:
@@ -420,9 +460,9 @@ class FapDatabase:
     for tag_id, tag_name, depth, _ in self.TagsWalk():
       count, sz = 0, 0
       for b in self.blobs.values():
-        if tag_id in b['tags']:  # type: ignore
+        if tag_id in b['tags']:
           count += 1
-          sz += b['sz']  # type: ignore
+          sz += b['sz']
       print('%s%d: %r (%d / %s)' % (
           '    ' * depth, tag_id, tag_name, count, base.HumanizedBytes(sz)))
 
@@ -434,13 +474,13 @@ class FapDatabase:
     for h in sorted(self.blobs.keys()):
       b = self.blobs[h]
       print('%s: %s, %s %r%s' % (
-          h, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in b['loc']),  # type: ignore
-          base.HumanizedDecimal(b['width'] * b['height']),                 # type: ignore
+          h, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in b['loc']),
+          base.HumanizedDecimal(b['width'] * b['height']),
           (b['width'], b['height']),
           ' animated' if b['animated'] else ''))
       if b['tags']:
         print('    => {%s}' % ', '.join(
-            repr(self.GetTag(i)[-1][1]) for i in b['tags']))  # type: ignore
+            repr(self.GetTag(i)[-1][1]) for i in b['tags']))
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.
@@ -529,7 +569,7 @@ class FapDatabase:
           'date_straight': 0, 'date_blobs': 0, 'images': []}
     logging.info('%s folder ID %d/%d = %r',
                  status, user_id, folder_id, self.favorites[user_id][folder_id]['name'])
-    return self.favorites[user_id][folder_id]['name']  # type: ignore
+    return self.favorites[user_id][folder_id]['name']
 
   def AddFolderByName(self, user_id: int, favorites_name: str) -> tuple[int, str]:
     """Add picture folder by name. Find folder ID in the process.
@@ -547,9 +587,9 @@ class FapDatabase:
     # first try to find in DB
     if user_id in self.favorites:
       for fid, f_data in self.favorites[user_id].items():
-        if f_data['name'].lower() == favorites_name.lower():  # type: ignore
+        if f_data['name'].lower() == favorites_name.lower():
           logging.info('Known picture folder %r = ID %d', f_data['name'], fid)
-          return (fid, f_data['name'])  # type: ignore
+          return (fid, f_data['name'])
     # not found: we have to find in actual site
     page_num = 0
     while True:
@@ -633,8 +673,8 @@ class FapDatabase:
     """
     try:
       # check for the timestamps: should we even do this work?
-      tm_download: int = max(self.favorites[user_id][folder_id]['date_straight'],  # type: ignore
-                             self.favorites[user_id][folder_id]['date_blobs'])     # type: ignore
+      tm_download: int = max(self.favorites[user_id][folder_id]['date_straight'],
+                             self.favorites[user_id][folder_id]['date_blobs'])
       tm_now = base.INT_TIME()
       if tm_download and (tm_download + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
         logging.warning(
@@ -643,12 +683,12 @@ class FapDatabase:
             base.STD_TIME_STRING(tm_download), base.HumanizedSeconds(tm_now - tm_download),
             'ignoring time limit and downloading again' if force_download else 'SKIP')
         if not force_download:
-          return self.favorites[user_id][folder_id]['images']  # type: ignore
+          return self.favorites[user_id][folder_id]['images']
       logging.info(
           'Getting all picture folder pages and IDs for %r/%r (%d/%d)',
           self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
-      img_list: list[int] = self.favorites[user_id][folder_id]['images']  # type: ignore
-      seen_pages: int = self.favorites[user_id][folder_id]['pages']       # type: ignore
+      img_list: list[int] = self.favorites[user_id][folder_id]['images']
+      seen_pages: int = self.favorites[user_id][folder_id]['pages']
     except KeyError:
       raise Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
     # do the paging backtracking, if adequate; this is guaranteed to work because
@@ -738,7 +778,7 @@ class FapDatabase:
               sha, self.blobs[sha]['sz'], self.blobs[sha]['percept'], self.blobs[sha]['ext'],
               self.blobs[sha]['width'], self.blobs[sha]['height'], self.blobs[sha]['animated'],
               sz, perceptual_hash, extension, width, height, is_animated)
-        self.blobs[sha]['loc'].add(  # type: ignore
+        self.blobs[sha]['loc'].add(
             (img_id, url_path, sanitized_image_name, user_id, folder_id))
       else:
         # in this case this is a truly new image: never seen img_id or sha
@@ -749,14 +789,14 @@ class FapDatabase:
       return (image_bytes, sha, url_path, sanitized_image_name, extension)
     # we have seen this img_id before, and can skip a lot of computation
     # first: could it be we saw it in this same user_id/folder_id?
-    for iid, url, nm, uid, fid in self.blobs[sha]['loc']:  # type: ignore
+    for iid, url, nm, uid, fid in self.blobs[sha]['loc']:
       if img_id == iid and user_id == uid and folder_id == fid:
         # this is an exact match (img_id/user_id/folder_id) and we won't download or search for URL
-        return (None, sha, url, nm, self.blobs[sha]['ext'])  # type: ignore
+        return (None, sha, url, nm, self.blobs[sha]['ext'])
     # in this last case we know the img_id but it seems to be duplicated in another album,
     # so we have to get the img_id metadata (url, name) at least, and add to the database
     url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
-    self.blobs[sha]['loc'].add(  # type: ignore
+    self.blobs[sha]['loc'].add(
         (img_id, url_path, sanitized_image_name, user_id, folder_id))
     return (None, sha, url_path, sanitized_image_name, extension)
 
@@ -850,7 +890,7 @@ class FapDatabase:
     """
     # check if work needs to be done
     try:
-      tm_download: int = self.favorites[user_id][folder_id][date_key]  # type: ignore
+      tm_download: int = self.favorites[user_id][folder_id][date_key]
       if not self._CheckWorkHysteresis(
           user_id, folder_id, checkpoint_size, force_download, tm_download):
         return 0
@@ -858,7 +898,7 @@ class FapDatabase:
       raise Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
     # download all full resolution images we don't yet have
     total_sz, thumb_sz, saved_count, known_count, exists_count = 0, 0, 0, 0, 0
-    for img_id in self.favorites[user_id][folder_id]['images']:  # type: ignore
+    for img_id in self.favorites[user_id][folder_id]['images']:
       # add image to database
       image_bytes, sha, url_path, sanitized_image_name, extension = (
           self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id))
@@ -950,7 +990,7 @@ class FapDatabase:
       else:
         new_height, factor = _THUMBNAIL_MAX_DIMENSION, height / _THUMBNAIL_MAX_DIMENSION
         new_width = math.floor(width / factor)
-      if self.blobs[sha]['animated'] and self.blobs[sha]['ext'].lower() == 'gif':  # type: ignore
+      if self.blobs[sha]['animated'] and self.blobs[sha]['ext'].lower() == 'gif':
         # special process for animated images, specifically an animated `gif`
         frames = ImageSequence.Iterator(img)
 
@@ -1025,12 +1065,12 @@ class FapDatabase:
       raise Error('Invalid folder %d for user %d/%r' % (folder_id, user_id, self.users[user_id]))
     # get the album and go through the images deleting as necessary
     img_count, duplicate_count = 0, 0
-    images: list[int] = self.favorites[user_id][folder_id]['images']  # type: ignore
+    images: list[int] = self.favorites[user_id][folder_id]['images']
     for img_id in images:
       # get the blob
       sha = self.image_ids_index[img_id]
       # remove the location entry from the blob
-      for loc_key in self.blobs[sha]['loc']:  # type: ignore
+      for loc_key in self.blobs[sha]['loc']:
         if loc_key[0] == img_id and loc_key[3] == user_id and loc_key[4] == folder_id:
           pdb.set_trace()
           logging.info('Deleting image entry %d/%r/%s', img_id, loc_key[2], sha)
@@ -1040,7 +1080,7 @@ class FapDatabase:
             'Invalid image %d in folder %d/%r for user %d/%r; inconsistency should not happen!' % (
                 img_id, folder_id, self.favorites[user_id][folder_id]['name'],
                 user_id, self.users[user_id]))
-      self.blobs[sha]['loc'].remove(loc_key)  # type: ignore
+      self.blobs[sha]['loc'].remove(loc_key)
       # now we either still have locations for this blob, or it is orphaned
       if self.blobs[sha]['loc']:
         # we still have locations using this blob: the blob stays and we might remove index
@@ -1081,7 +1121,7 @@ class FapDatabase:
     """Delete index entry for `imagefap_image_id` IFF no album uses the index."""
     pdb.set_trace()
     if not any(
-        imagefap_image_id in favorite_obj['images']  # type: ignore
+        imagefap_image_id in favorite_obj['images']
         for user_obj in self.favorites.values()
         for favorite_obj in user_obj.values()):
       pdb.set_trace()
@@ -1090,7 +1130,7 @@ class FapDatabase:
   @property
   def _perceptual_hashes_map(self) -> dict[str, str]:
      """A dictionary containing mapping of filenames and corresponding perceptual hashes."""
-     return {sha: obj['percept'] for sha, obj in self.blobs.items()}  # type: ignore
+     return {sha: obj['percept'] for sha, obj in self.blobs.items()}
 
   def FindDuplicates(self) -> None:
     """Find (perceptual) duplicates.
