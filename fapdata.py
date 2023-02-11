@@ -1156,20 +1156,12 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
       # sleep if succeeded
       time.sleep(tm)
       return url_data
-    except socket.timeout:
-      # this was a timeout, so try again
-      n_retry += 1
-      logging.error('Timeout on %r, RETRY # %d', url, n_retry)
-      continue
-    except (urllib.error.URLError, urllib.error.HTTPError) as e:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout) as e:
       err_str = str(e).lower()
-      if 'timed out' in err_str:
-        # also a timeout, so try again
-        n_retry += 1
-        logging.error('Timeout (%r) on %r, RETRY # %d', e, url, n_retry)
-        continue
-      elif ('error eof occurred in violation of protocol' in err_str or
-            'remote end closed connection' in err_str):
+      if ('timed out' in err_str or
+          'timeout' in err_str or
+          'error eof occurred in violation of protocol' in err_str or
+          'remote end closed connection' in err_str):
         # these errors sometimes happen and can be a case for retry
         n_retry += 1
         logging.error('%r error on %r, RETRY # %d', e, url, n_retry)

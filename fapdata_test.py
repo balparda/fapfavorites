@@ -119,6 +119,41 @@ class TestFapDatabase(unittest.TestCase):
         [(22, 'two-two', 0), (24, 'two-four', 0), (246, 'deep', 1)])
     db.PrintTags()
 
+  @mock.patch('fapdata.urllib.request.urlopen')
+  @mock.patch('fapdata.time.sleep')
+  def test_LimpingURLRead(self, unused_time, mock_url):
+    """Test."""
+    # test args error
+    with self.assertRaises(AttributeError):
+      fapdata._LimpingURLRead('no.url', min_wait=1.0, max_wait=0.5)
+    # test direct success
+
+    class _MockResponse1:
+
+      def read(self):
+        return b'foo.response'
+
+    mock_url.return_value = _MockResponse1()
+    self.assertEqual(fapdata._LimpingURLRead('foo.url'), b'foo.response')
+    mock_url.assert_called_once_with('foo.url', timeout=fapdata._URL_TIMEOUT)
+    mock_url.reset_mock(side_effect=True)  # reset calls and side_effect
+    # test exceptions and retry
+
+    class _MockResponse2:
+
+      def read(self):
+        raise fapdata.socket.timeout('timeout in page')
+
+    fapdata._MAX_RETRY = 2
+    mock_url.return_value = _MockResponse2()
+    with self.assertRaises(fapdata.Error):
+      fapdata._LimpingURLRead('bar.url')
+    self.assertListEqual(
+        mock_url.call_args_list,
+        [mock.call('bar.url', timeout=15.0),   # 1st try
+         mock.call('bar.url', timeout=15.0),   # retry 1
+         mock.call('bar.url', timeout=15.0)])  # retry 2
+
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata._FapHTMLRead')
   def test_AddUserByID(self, mock_read, mock_is_dir):
