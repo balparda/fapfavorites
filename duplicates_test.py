@@ -38,6 +38,17 @@ class TestDuplicates(unittest.TestCase):
     self.assertSetEqual(
         dup.hashes, {'aaa', 'bbb', 'ccc', 'ddd', 'eee', 'fff', 'ggg', 'xxx', 'yyy', 'zzz'})
 
+  def test_TrimDeletedBlob(self):
+    """Test."""
+    dup = duplicates.Duplicates(_DUPLICATES_DICT_AFTER)
+    dup.index[('ccc', 'ddd', 'eee', 'fff', 'ggg')]['fff'] = 'keep'
+    dup.index[('ccc', 'ddd', 'eee', 'fff', 'ggg')]['ggg'] = 'skip'
+    self.assertAlmostEqual(dup.TrimDeletedBlob('bbb'), 1)
+    self.assertAlmostEqual(dup.TrimDeletedBlob('eee'), 0)
+    self.assertAlmostEqual(dup.TrimDeletedBlob('zzz'), 0)
+    self.assertAlmostEqual(dup.TrimDeletedBlob('xxx'), 1)
+    self.assertDictEqual(dup.index, _DUPLICATES_DICT_TRIMMED)
+
 
 _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
     ('aaa', 'bbb'): {
@@ -73,6 +84,15 @@ _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
         'xxx': 'new',
         'yyy': 'new',
         'zzz': 'new',
+    },
+}
+
+_DUPLICATES_DICT_TRIMMED: duplicates.DuplicatesType = {
+    ('ccc', 'ddd', 'fff', 'ggg'): {
+        'ccc': 'new',
+        'ddd': 'false',
+        'fff': 'new',
+        'ggg': 'new',
     },
 }
 

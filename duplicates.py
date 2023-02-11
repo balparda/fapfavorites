@@ -17,7 +17,7 @@
 """Imagefap.com duplicates library."""
 
 import logging
-import pdb
+# import pdb
 from typing import Literal, Optional
 
 from imagededup import methods as image_methods
@@ -125,21 +125,17 @@ class Duplicates:
       Number of duplicate groups that were entirely deleted; note that this does NOT include
       duplicates that were trimmed of a key but still had >=2 images in set so were kept
     """
-    raise NotImplementedError()
-    pdb.set_trace()
     deleted_groups = 0
-    for sha_tuple in self.index.keys():
+    for sha_tuple in set(self.index.keys()):
       if sha in sha_tuple:
         # hit! we have to figure something out
         if len(sha_tuple) <= 2:
           # easy deletion case: there is no duplicate with only 1 key, so purge
-          pdb.set_trace()
           del self.index[sha_tuple]
           deleted_groups += 1
           logging.info('Deleted duplicate entry %r', sha_tuple)
           continue
         # this is a group with more than 2 keys, so care must be taken; first delete the sha entry
-        pdb.set_trace()
         del self.index[sha_tuple][sha]
         # now reset the status of the remaining keys that are not 'new' or 'false'
         for k in {k for k, d in self.index[sha_tuple].items() if d in {'keep', 'skip'}}:
