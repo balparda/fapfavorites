@@ -2,7 +2,7 @@
 
 import functools
 import logging
-import pdb
+# import pdb
 import statistics
 from typing import Any, Literal, Optional
 
@@ -104,8 +104,6 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   delete_user_id = int(request.POST.get('delete_input', '0').strip())
   # do we have a favorites album to delete?
   if delete_user_id:
-    raise NotImplementedError()
-    pdb.set_trace()
     # check user is known
     if delete_user_id not in db.users:
       error_message = 'Requested deletion of unknown user %d' % delete_user_id
@@ -117,7 +115,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
           'User %d/%r deleted, and with them %d blobs (images) deleted, '
           'together with their thumbnails, plus %d duplicates groups abandoned' % (
               delete_user_id, delete_user_name, delete_count, duplicates_count))
-      # db.Save() #######################################################################################
+      db.Save()
   # make user sums and data
   users, total_sz, total_img, total_animated, total_thumbs = {}, 0, 0, 0, 0
   for uid, name in db.users.items():
@@ -184,8 +182,6 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   delete_album_id = int(request.POST.get('delete_input', '0').strip())
   # do we have a favorites album to delete?
   if delete_album_id:
-    raise NotImplementedError()
-    pdb.set_trace()
     # check album is known
     if delete_album_id not in user_favorites:
       error_message = 'Requested deletion of unknown favorites album %d' % delete_album_id
@@ -197,7 +193,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
           'Favorites album %d/%r deleted, and with it %d blobs (images) deleted, '
           'together with their thumbnails, plus %d duplicates groups abandoned' % (
               delete_album_id, delete_album_name, delete_count, duplicates_count))
-      # db.Save() #######################################################################################
+      db.Save()
   # sort albums alphabetically and format data
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
   favorites, total_sz, total_thumbs_sz, total_animated = {}, 0, 0, 0

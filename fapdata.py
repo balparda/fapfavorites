@@ -22,7 +22,7 @@ import logging
 import math
 import os
 import os.path
-import pdb
+# import pdb
 import random
 import re
 import shutil
@@ -1027,19 +1027,17 @@ class FapDatabase:
     Raises:
       Error: invalid user_id or folder_id
     """
-    raise NotImplementedError()
-    pdb.set_trace()
     # check input
     if user_id not in self.users:
       raise Error('Invalid user %d' % user_id)
     # delete the favorite albums first
     img_count, duplicate_count = 0, 0
-    for folder_id in self.favorites.get(user_id, {}).keys():
+    for folder_id in set(self.favorites.get(user_id, {}).keys()):
       img, duplicate = self.DeleteAlbum(user_id, folder_id)
       img_count += img
       duplicate_count += duplicate
     # finally delete the actual user entry and return the counts
-    pdb.set_trace()
+    del self.favorites[user_id]
     del self.users[user_id]
     return (img_count, duplicate_count)
 
@@ -1056,8 +1054,6 @@ class FapDatabase:
     Raises:
       Error: invalid user_id or folder_id or image location entry not found
     """
-    raise NotImplementedError()
-    pdb.set_trace()
     # check input
     if user_id not in self.users or user_id not in self.favorites:
       raise Error('Invalid user %d' % user_id)
@@ -1072,7 +1068,6 @@ class FapDatabase:
       # remove the location entry from the blob
       for loc_key in self.blobs[sha]['loc']:
         if loc_key[0] == img_id and loc_key[3] == user_id and loc_key[4] == folder_id:
-          pdb.set_trace()
           logging.info('Deleting image entry %d/%r/%s', img_id, loc_key[2], sha)
           break  # found the entry, as expected
       else:
@@ -1084,19 +1079,16 @@ class FapDatabase:
       # now we either still have locations for this blob, or it is orphaned
       if self.blobs[sha]['loc']:
         # we still have locations using this blob: the blob stays and we might remove index
-        pdb.set_trace()
-        self._DeleteIndexIfOrphan(img_id)
+        self._DeleteIndexIfOrphan(folder_id, img_id)
         continue
       # this blob is orphaned and must be purged; start by deleting the files on disk, if they exist
       try:
-        pdb.set_trace()
-        # os.remove(self._BlobPath(sha)) ################################################################
+        os.remove(self._BlobPath(sha))
         logging.info('Deleted blob %r from disk', sha)
       except FileNotFoundError as e:
         logging.warning('Blob %r not found: %s', sha, e)
       try:
-        pdb.set_trace()
-        # os.remove(self.ThumbnailPath(sha))##########################################################
+        os.remove(self.ThumbnailPath(sha))
         logging.info('Deleted thumbnail %r from disk', sha)
       except FileNotFoundError as e:
         logging.warning('Thumbnail %r not found: %s', sha, e)
@@ -1107,24 +1099,20 @@ class FapDatabase:
       duplicate_count += self.duplicates.TrimDeletedBlob(sha)
       self._DeleteIndexesToBlob(sha)
     # finally delete the actual album entry and return the counts
-    pdb.set_trace()
     del self.favorites[user_id][folder_id]
     return (img_count, duplicate_count)
 
   def _DeleteIndexesToBlob(self, sha: str) -> None:
     """Delete all index entries pointing to (recently deleted) blob `sha`."""
-    pdb.set_trace()
     for i in {i for i, s in self.image_ids_index.items() if s == sha}:
       del self.image_ids_index[i]
 
-  def _DeleteIndexIfOrphan(self, imagefap_image_id: int) -> None:
+  def _DeleteIndexIfOrphan(self, folder_id: int, imagefap_image_id: int) -> None:
     """Delete index entry for `imagefap_image_id` IFF no album uses the index."""
-    pdb.set_trace()
     if not any(
-        imagefap_image_id in favorite_obj['images']
+        imagefap_image_id in favorite_obj['images'] and fid != folder_id
         for user_obj in self.favorites.values()
-        for favorite_obj in user_obj.values()):
-      pdb.set_trace()
+        for fid, favorite_obj in user_obj.items()):
       del self.image_ids_index[imagefap_image_id]
 
   @property
