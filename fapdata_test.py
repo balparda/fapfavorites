@@ -56,7 +56,7 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(db._db, {
         'users': {1: 'Luke'},
         'favorites': {1: {2: {}}},
-        'tags': {3: {'name': 'three'}},
+        'tags': {3: {'name': 'three', 'tags': {}}},
         'blobs': {'sha1': {'tags': {4}}},
         'image_ids_index': {5: 'sha2'},
         'duplicates_index': {('a', 'b'): {'a': 'new'}},
@@ -114,7 +114,8 @@ class TestFapDatabase(unittest.TestCase):
          (2, 'two', 0), (22, 'two-two', 1), (24, 'two-four', 1), (246, 'deep', 2),
          (3, 'three', 0), (33, 'three-three', 1)])
     self.assertListEqual(
-        list((i, n, d) for i, n, d, _ in db.TagsWalk(start_tag=_TEST_TAGS_2[2]['tags'])),
+        list((i, n, d) for i, n, d, _ in db.TagsWalk(
+            start_tag=_TEST_TAGS_2[2]['tags'])),  # type: ignore
         [(22, 'two-two', 0), (24, 'two-four', 0), (246, 'deep', 1)])
     db.PrintTags()
 
@@ -403,7 +404,7 @@ class _MockRegex:
     return self._return_values[query]
 
 
-_BLOBS = {
+_BLOBS: fapdata._BlobType = {
     '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
@@ -417,7 +418,7 @@ _BLOBS = {
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'sz': 101, 'sz_thumb': 0, 'tags': {}, 'width': 160,
+        'percept': 'd99ee32e586716c8', 'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
     },
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
         'animated': False, 'ext': 'jpg', 'height': 222,
@@ -436,11 +437,11 @@ _BLOBS = {
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20), (107, 'url-107', 'name-107.png', 1, 13)},
-        'percept': 'd99ee32e586716c8', 'sz': 107, 'sz_thumb': 72577, 'tags': {}, 'width': 107,
+        'percept': 'd99ee32e586716c8', 'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
     },
 }
 
-_INDEX = {
+_INDEX: fapdata._ImagesIdIndexType = {
     100: 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
     101: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
     102: '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
@@ -452,7 +453,7 @@ _INDEX = {
     801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'
 }
 
-_DUPLICATES = {
+_DUPLICATES: fapdata.duplicates.DuplicatesType = {
     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
      '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
      'sha-107'): {
