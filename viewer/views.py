@@ -294,25 +294,35 @@ def ServeFavorite(  # noqa: C901
   images: list[int] = favorite['images']
   sorted_blobs = [(i, db.image_ids_index[i]) for i in images]  # "sorted" here means original order!
   # find images that have duplicates
-  duplicates: dict[str, list[int]] = {}
-  percept_exclude: set[str] = set()
+  exact_duplicates: dict[str, set[fapdata.LocationTupleType]] = {}  # all locations for duplicates
+  album_duplicates: dict[str, set[fapdata.LocationTupleType]] = {}  # exact duplicates in album
+  percept_duplicates: dict[str, set[duplicates.DuplicatesVerdictType]] = {}  # perceptual sets
   for img, sha in sorted_blobs:
-    # look for identical (sha256) collisions in the same album
-    hits: list[int] = [i for i, _, _, uid, fid in db.blobs[sha]['loc']
-                       if uid == user_id and fid == folder_id]
-    if len(hits) > 1:
-      # this image has >=2 instances in this same album
-      duplicates[sha] = hits
-    # look in perceptual index if this image is marked as 'skip'
+    # collect images with identical twins
+    if len(db.blobs[sha]['loc']) > 1:
+      exact_duplicates[sha] = db.blobs[sha]['loc']
+      hits: set[fapdata.LocationTupleType] = {
+          loc for loc in db.blobs[sha]['loc'] if loc[3] == user_id and loc[4] == folder_id}
+      if len(hits) > 1:
+        # this image has twins in this same album
+        album_duplicates[sha] = hits
+    # look in perceptual index if this image is marked as 'new'/'keep'/'skip'
     for k, st in db.duplicates.index.items():
       if sha in k:
-        if st[sha] == 'skip':
-          percept_exclude.add(sha)
+        if st[sha] != 'false':
+          if sha in percept_duplicates:
+            # TODO: there is no good solution for a case like this; we have to make sure in
+            #     the duplicates module that every sha occurs only once in the keys, or else
+            #     we will get cases like this
+            pass
+          percept_duplicates.setdefault(sha, set()).add(st[sha])
   # apply filters
   if not show_duplicates:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (sha in duplicates and duplicates[sha][0] != i)]
-    sorted_blobs = [(i, sha) for i, sha in sorted_blobs if not (sha in percept_exclude)]
+                    if not (sha in album_duplicates and
+                            i != min(n[0] for n in album_duplicates[sha]))]
+    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
+                    if not (sha in percept_duplicates and 'skip' not in percept_duplicates[sha])]
   if not show_portraits:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
                     if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]
@@ -342,8 +352,9 @@ def ServeFavorite(  # noqa: C901
         'tags': ', '.join(sorted(db.PrintableTag(t) for t in blob['tags'])),
         'thumb': '%s.%s' % (sha, blob['ext']),  # this is just the file name, to be served as
                                                 # a static resource: see settings.py
-        'is_duplicate': sha in duplicates,
-        'is_percept': sha in percept_exclude,
+        'has_duplicate': sha in exact_duplicates,
+        'album_duplicate': sha in album_duplicates,
+        'has_percept': sha in percept_duplicates,
         'imagefap': fapdata.IMG_URL(img),
     }
   # send to page
@@ -476,6 +487,7 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
   db = _DBFactory()
   sorted_keys = sorted(db.duplicates.index.keys(), key=lambda x: x[0])
+  # send to page
   context = {
       'duplicates': {
           k: {
@@ -500,14 +512,23 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   if digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
   sorted_keys = sorted(db.duplicates.index.keys(), key=lambda x: x[0])
+  dup_obj: Optional[dict[str, duplicates.DuplicatesVerdictType]] = None
   for current_index, dup_keys in enumerate(sorted_keys):
+    # if this is a perceptual dup set we will find it here
     if digest in dup_keys:
+      dup_obj = db.duplicates.index[dup_keys]
       break
   else:
-    raise http.Http404('Blob %r does not correspond to a duplicate set' % digest)
-  dup_obj = db.duplicates.index[dup_keys]
+    # not a perceptual set, so maybe a direct hash collision
+    if len(db.blobs[digest]['loc']) <= 1:
+      raise http.Http404(
+          'Blob %r does not correspond to a duplicate set or hash collision' % digest)
+    # it is a hash collision, so use digest as `dup_keys`, and mark index with flag -1
+    current_index, dup_keys = -1, (digest,)
   # get user selected choice, if any and update database
   if request.POST:
+    if not dup_obj:
+      raise http.Http404('Trying to POST data on hash collision %r (not perceptual dup)' % digest)
     for sha in dup_keys:
       # check that the selection is valid
       if sha not in request.POST:
@@ -525,16 +546,17 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   # send to page
   context = {
       'digest': digest,
-      'current_index': current_index,
-      'previous_key': sorted_keys[current_index - 1] if current_index else None,
+      'current_index': current_index,  # can be -1 if indexing is disabled! (hard hash collision)
+      'previous_key': sorted_keys[current_index - 1] if current_index > 0 else None,
       'next_key': (sorted_keys[current_index + 1]
-                   if current_index < (len(sorted_keys) - 1) else None),
+                   if -1 < current_index < (len(sorted_keys) - 1) else None),
       'dup_keys': dup_keys,
       'duplicates': {
           sha: {
-              'action': dup_obj[sha],
-              'loc': {
-                  i: {
+              'action': dup_obj[sha] if dup_obj else '',
+              'loc': [
+                  {
+                      'fap_id': i,
                       'file_name': nm,
                       'user_id': uid,
                       'user_name': db.users[uid],
@@ -543,7 +565,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                       'imagefap': fapdata.IMG_URL(i),
                   }
                   for i, _, nm, uid, fid in db.blobs[sha]['loc']
-              },
+              ],
               'sz': base.HumanizedBytes(db.blobs[sha]['sz']),
               'dimensions': '%dx%d (WxH)' % (db.blobs[sha]['width'], db.blobs[sha]['height']),
               'tags': ', '.join(sorted(

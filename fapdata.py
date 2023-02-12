@@ -58,6 +58,7 @@ _PAGE_BACKTRACKING_THRESHOLD = 5
 FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 
 # internal types definitions
+LocationTupleType = tuple[int, str, str, int, int]
 
 
 class _FavoriteObjType(TypedDict):
@@ -80,7 +81,7 @@ class TagObjType(TypedDict):
 class _BlobObjType(TypedDict):
   """Blob object type."""
 
-  loc: set[tuple[int, str, str, int, int]]
+  loc: set[LocationTupleType]
   tags: set[int]
   sz: int
   sz_thumb: int

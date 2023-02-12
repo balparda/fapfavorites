@@ -26,7 +26,8 @@ from imagededup import methods as image_methods
 # internal types definitions
 
 DuplicatesKeyType = tuple[str, ...]
-DuplicatesType = dict[DuplicatesKeyType, dict[str, Literal['new', 'false', 'keep', 'skip']]]
+DuplicatesVerdictType = Literal['new', 'false', 'keep', 'skip']
+DuplicatesType = dict[DuplicatesKeyType, dict[str, DuplicatesVerdictType]]
 DUPLICATE_OPTIONS = {'new', 'false', 'keep', 'skip'}
 
 

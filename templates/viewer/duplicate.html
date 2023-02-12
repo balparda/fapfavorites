@@ -2,7 +2,9 @@
 <html lang='en-US'>
   <head>
     <meta charset='utf-8'/>
-    <title>Imagefap-Favorites: Duplicate Set</title>
+    <title>
+      Imagefap-Favorites: {% if current_index == -1 %}Exact Duplicate{% else %}Perceptual Duplicate Set{% endif %}
+    </title>
   <style>
 
     th, td {padding: 5px;}
@@ -13,7 +15,9 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Duplicate Set</h1>
+    <h1>
+      {% if current_index == -1 %}Exact Duplicate{% else %}Perceptual Duplicate Set{% endif %}
+    </h1>
 
     {% if error_message %}
       <p style='color: red;'><strong>{{ error_message }}</strong></p>
@@ -22,6 +26,10 @@
 
     {% load static %}
 
+    <p>
+      The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!
+    </p>
+
     <form action='{% url "duplicate" digest %}' method='post'>
       {% csrf_token %}
 
@@ -29,7 +37,9 @@
         <tr>
           <th>Image</th>
           <th>Size&nbsp;Info<br/>FapID&nbsp;/&nbsp;User&nbsp;/&nbsp;Album</th>
-          <th>Action</th>
+          {% if current_index != -1 %}
+            <th>Action</th>
+          {% endif %}
         </tr>
         {% for sha, obj in duplicates.items %}
           <tr>
@@ -50,9 +60,9 @@
                 {% if obj.tags %}
                   <tr><td colspan='4'>{{ obj.tags }}</td></tr>
                 {% endif %}
-                {% for fap_id, location in obj.loc.items %}
+                {% for location in obj.loc %}
                   <tr>
-                    <td>{{ fap_id }}</td>
+                    <td>{{ location.fap_id }}</td>
                     <td><a href='{% url "favorites" location.user_id %}'>{{ location.user_name|escape }}</a></td>
                     <td><a href='{% url "favorite" location.user_id location.folder_id %}'>{{ location.folder_name|escape }}</a></td>
                     <td><small><a href='{{ location.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a></small></td>
@@ -60,29 +70,35 @@
                 {% endfor %}
               </table>
             </td>
-            <td>
-              <fieldset>
-                <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_new' value='new' {% if obj.action == 'new' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_new'>new&nbsp;&#10067;&nbsp;(no user choice yet)</label><br/>
-                <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_false' value='false' {% if obj.action == 'false' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_false'>false&nbsp;positive&nbsp;&#9989;&nbsp;(images are not the same, I want to see them)</label><br/>
-                <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_keep' value='keep' {% if obj.action == 'keep' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_keep'>keep&nbsp;image&nbsp;&#9989;&nbsp;(I want to see this one, even if repeated)</label><br/>
-                <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_skip' value='skip' {% if obj.action == 'skip' %}checked{% endif %}>
-                <label for='action_{{ forloop.counter }}_skip'>skip&nbsp;image&nbsp;&#10060;&nbsp;(I don't want to see this one)</label>
-              </fieldset>
-            </td>
+            {% if current_index != -1 %}
+              <td>
+                <fieldset>
+                  <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_new' value='new' {% if obj.action == 'new' %}checked{% endif %}>
+                  <label for='action_{{ forloop.counter }}_new'>new&nbsp;&#10067;&nbsp;(no user choice yet)</label><br/>
+                  <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_false' value='false' {% if obj.action == 'false' %}checked{% endif %}>
+                  <label for='action_{{ forloop.counter }}_false'>false&nbsp;positive&nbsp;&#9989;&nbsp;(images are not the same, I want to see them)</label><br/>
+                  <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_keep' value='keep' {% if obj.action == 'keep' %}checked{% endif %}>
+                  <label for='action_{{ forloop.counter }}_keep'>keep&nbsp;image&nbsp;&#9989;&nbsp;(I want to see this one, even if repeated)</label><br/>
+                  <input type='radio' name='{{ sha }}' id='action_{{ forloop.counter }}_skip' value='skip' {% if obj.action == 'skip' %}checked{% endif %}>
+                  <label for='action_{{ forloop.counter }}_skip'>skip&nbsp;image&nbsp;&#10060;&nbsp;(I don't want to see this one)</label>
+                </fieldset>
+              </td>
+            {% endif %}
           </tr>
         {% empty %}
-          <tr><td colspan='3'>Duplicate set is empty: SHOULD NEVER HAPPEN!</td></tr>
+          <tr><td colspan='{% if current_index == -1 %}2{% else %}3{% endif %}'>Duplicate set is empty: SHOULD NEVER HAPPEN!</td></tr>
         {% endfor %}
       </table>
 
-      <p><input type='submit' value='Save'></p>
+      {% if current_index != -1 %}
+        <p><input type='submit' value='Save'></p>
+      {% endif %}
 
     </form>
 
-    <p>{% if previous_key %}<a href='{% url "duplicate" previous_key.0 %}'>&#11013;&nbsp;&nbsp;PREV</a>&nbsp;&nbsp;{% endif %}&nbsp;&nbsp;&#10037;&nbsp;&nbsp;<a href='{% url "duplicates" %}'>&#11014;</a>&nbsp;&nbsp;&#10037;&nbsp;&nbsp;{% if next_key %}&nbsp;&nbsp;<a href='{% url "duplicate" next_key.0 %}'>NEXT&nbsp;&nbsp;&#10145;</a>{% endif %}</p>
+    {% if current_index != -1 %}
+      <p>{% if previous_key %}<a href='{% url "duplicate" previous_key.0 %}'>&#11013;&nbsp;&nbsp;PREV</a>&nbsp;&nbsp;{% endif %}&nbsp;&nbsp;&#10037;&nbsp;&nbsp;<a href='{% url "duplicates" %}'>&#11014;</a>&nbsp;&nbsp;&#10037;&nbsp;&nbsp;{% if next_key %}&nbsp;&nbsp;<a href='{% url "duplicate" next_key.0 %}'>NEXT&nbsp;&nbsp;&#10145;</a>{% endif %}</p>
+    {% endif %}
 
     <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
 

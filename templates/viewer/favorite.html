@@ -19,13 +19,17 @@
 
       th, td {padding: 5px;}
 
-      td.duplicate {
+      td.album_duplicate {
         border-color: red;
         background-color: red;
       }
-      td.percept {
+      td.has_duplicate {
         border-color: fuchsia;
         background-color: fuchsia;
+      }
+      td.has_perceptual {
+        border-color: purple;
+        background-color: purple;
       }
 
       td.selected {
@@ -129,9 +133,10 @@
           {% endif %}
         </td>
         <td>
-          &nbsp;
           {% if not locked_for_tagging %}
-            &nbsp;(images marked in <span style='color: red;'>RED</span> below have exact duplicates in this album; images in <span style='color: fuchsia;'>FUCHSIA</span> have been marked &quot;skip&quot; in perceptual duplicates)
+            images marked <span style='color: red;'>RED</span> have exact duplicates <i>in this album</i>;<br/>
+            images marked <span style='color: fuchsia;'>FUCHSIA</span> have exact duplicates somewhere <i>not in the album</i>;<br/>
+            images marked <span style='color: purple;'>PURPLE</span> have (non false-positive) perceptual duplicates <i>somewhere</i>
           {% endif %}
         </td>
       </tr>
@@ -147,7 +152,7 @@
             </a>
           {% endif %}
         </td>
-        <td>&nbsp;&nbsp;(images with <b>height</b> more than 10% larger than <b>width</b>)</td>
+        <td>(images with <b>height</b> more than 10% larger than <b>width</b>)</td>
       </tr>
       <tr>
         <td>
@@ -161,7 +166,7 @@
             </a>
           {% endif %}
         </td>
-        <td>&nbsp;&nbsp;(images with <b>width</b> more than 10% larger than <b>height</b>)</td>
+        <td>(images with <b>width</b> more than 10% larger than <b>height</b>)</td>
       </tr>
       <tr>
         {% if locked_for_tagging %}
@@ -170,14 +175,14 @@
               Locked for Tagging: <i><b>ON</i></b>
             </a>&nbsp;&nbsp;&#128274;
           </td>
-          <td>&nbsp;&nbsp;(clicking on images will <i><b>select</i></b> them, tagging options available at bottom)</td>
+          <td>(clicking on images will <i><b>select</i></b> them, tagging options available at bottom)</td>
         {% else %}
           <td>
             <a href='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&lock=1' class='filter_hide'>
               Locked for Tagging: <i><b>OFF</i></b>
             </a>&nbsp;&nbsp;&#128275;
           </td>
-          <td>&nbsp;&nbsp;(clicking on images will <i><b>open</i></b> them, no selection of images enabled)</td>
+          <td>clicking on images will <i><b>open</i></b> them, no selection of images enabled</td>
         {% endif %}
       </tr>
       <tr>
@@ -190,7 +195,8 @@
               <b><i><span style='color: red;'>ATTENTION: You have NO tags, so selecting images will serve NO purpose!</span> <a href='{% url "tag" 0 %}'>Create tags first?</a></i></b><br/>
             {% endif %}
           {% endif %}
-          The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!
+          The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!<br/>
+          The <i>"gemini"</i> icon in duplicate images (<small>&#9802;</small>) will open the page showing the duplicates set for inspection and action.
         </td>
       </tr>
       {% if locked_for_tagging %}
@@ -227,12 +233,19 @@
                     </small></small></small>
                   </td>
                 {% else %}
-                  <td align='center' valign='center' {% if blob.is_duplicate %}class='duplicate'{% endif %} {% if blob.is_percept %}class='percept'{% endif %}>
+                  <td align='center' valign='center'
+                      {% if blob.album_duplicate %}class='album_duplicate'{% else %}
+                      {% if blob.has_duplicate %}class='has_duplicate'{% else %}
+                      {% if blob.has_percept %}class='has_perceptual'{% endif %}{% endif %}{% endif %}>
                     <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
                       <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/></a>
                     &nbsp;<small><small><small>
                       <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
-                    </small></small></small>
+                    </small></small>
+                    {% if blob.album_duplicate or blob.has_duplicate or blob.has_percept %}
+                      <a href='{% url "duplicate" sha %}' class='external' title='open duplicate info' target='_blank' rel='noopener noreferrer'>&#9802;</a>
+                    {% endif %}
+                    </small>
                   </td>
                 {% endif %}
               {% endwith %}
