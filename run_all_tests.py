@@ -11,6 +11,7 @@ import duplicates_test
 import fapdata_test
 import favorites_test
 import process_test
+from viewer import views_test
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -21,6 +22,7 @@ _TEST_MODULES_TO_RUN = (
     fapdata_test,
     favorites_test,
     process_test,
+    views_test,
 )
 
 

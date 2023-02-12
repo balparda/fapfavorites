@@ -6,7 +6,7 @@
 #
 
 coverage run \
-    --omit=*_test.py,*_tests.py,*/__init__.py,*/dist-packages/*,*/baselib/* \
+    --omit=*_test.py,*_tests.py,*/settings.py,*/__init__.py,*/dist-packages/*,*/baselib/* \
     run_all_tests.py
 coverage report -m
 coverage html
