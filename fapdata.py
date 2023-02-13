@@ -409,7 +409,8 @@ class FapDatabase:
     PrintLine('%d users' % len(self.users))
     all_dates = [max(f['date_straight'], f['date_blobs'])
                  for u in self.favorites.values() for f in u.values()]
-    min_date, max_date = min(all_dates), max(all_dates)
+    min_date = min(all_dates) if all_dates else 0
+    max_date = max(all_dates) if all_dates else 0
     PrintLine('%d favorite galleries (oldest: %s / newer: %s)' % (
         sum(len(f) for _, f in self.favorites.items()),
         base.STD_TIME_STRING(min_date) if min_date else 'pending',
