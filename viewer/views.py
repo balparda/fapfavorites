@@ -4,7 +4,7 @@ import functools
 import logging
 # import pdb
 import statistics
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from django import http
 from django import shortcuts
@@ -303,7 +303,7 @@ def ServeFavorite(  # noqa: C901
   # find images that have duplicates
   exact_duplicates: dict[str, set[fapdata.LocationTupleType]] = {}  # all locations for duplicates
   album_duplicates: dict[str, set[fapdata.LocationTupleType]] = {}  # exact duplicates in album
-  percept_duplicates: dict[str, set[duplicates.DuplicatesVerdictType]] = {}  # perceptual sets
+  percept_duplicates: dict[str, duplicates.DuplicatesVerdictType] = {}  # perceptual duplicates
   for img, sha in sorted_blobs:
     # collect images with identical twins
     if len(db.blobs[sha]['loc']) > 1:
@@ -313,23 +313,18 @@ def ServeFavorite(  # noqa: C901
       if len(hits) > 1:
         # this image has twins in this same album
         album_duplicates[sha] = hits
-    # look in perceptual index if this image is marked as 'new'/'keep'/'skip'
-    for k, st in db.duplicates.registry.items():
-      if sha in k:
-        if st[sha] != 'false':
-          if sha in percept_duplicates:
-            # TODO: there is no good solution for a case like this; we have to make sure in
-            #     the duplicates module that every sha occurs only once in the keys, or else
-            #     we will get cases like this
-            pass
-          percept_duplicates.setdefault(sha, set()).add(st[sha])
+    # look in perceptual index if this image is marked as 'new'/'keep'/'skip' (!='false')
+    if sha in db.duplicates.index:
+      verdict = db.duplicates.registry[db.duplicates.index[sha]][sha]
+      if verdict != 'false':
+        percept_duplicates[sha] = verdict
   # apply filters
   if not show_duplicates:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
                     if not (sha in album_duplicates and
                             i != min(n[0] for n in album_duplicates[sha]))]
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (sha in percept_duplicates and 'skip' not in percept_duplicates[sha])]
+                    if not (sha in percept_duplicates and percept_duplicates[sha] == 'skip')]
   if not show_portraits:
     sorted_blobs = [(i, sha) for i, sha in sorted_blobs
                     if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]
@@ -497,16 +492,16 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   # send to page
   context: dict[str, Any] = {
       'duplicates': {
-          k: {
-              'size': len(k),
-              'action': any(st == 'new' for st in db.duplicates.registry[k].values()),
+          dup_key: {
+              'size': len(dup_key),
+              'action': any(st == 'new' for st in db.duplicates.registry[dup_key].values()),
           }
-          for k in sorted_keys
+          for dup_key in sorted_keys
       },
-      'dup_action': sum(1 for d in db.duplicates.registry.values()
-                        if any(st == 'new' for st in d.values())),
+      'dup_action': sum(1 for dup_obj in db.duplicates.registry.values()
+                        if any(st == 'new' for st in dup_obj.values())),
       'dup_count': len(sorted_keys),
-      'img_count': sum(len(k) for k in sorted_keys),
+      'img_count': sum(len(dup_key) for dup_key in sorted_keys),
   }
   return shortcuts.render(request, 'viewer/duplicates.html', context)
 
@@ -520,29 +515,29 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
     raise http.Http404('Unknown blob %r' % digest)
   sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
   dup_obj: Optional[dict[str, duplicates.DuplicatesVerdictType]] = None
-  for current_index, dup_keys in enumerate(sorted_keys):
-    # if this is a perceptual dup set we will find it here
-    if digest in dup_keys:
-      dup_obj = db.duplicates.registry[dup_keys]
-      break
+  if digest in db.duplicates.index:
+    # this is a perceptual set, so get the object and its index in sorted_keys
+    dup_key: duplicates.DuplicatesKeyType = db.duplicates.index[digest]
+    dup_obj = db.duplicates.registry[dup_key]
+    current_index = sorted_keys.index(dup_key)
   else:
-    # not a perceptual set, so maybe a direct hash collision
+    # not a perceptual set, so maybe it is a direct hash collision
     if len(db.blobs[digest]['loc']) <= 1:
       raise http.Http404(
           'Blob %r does not correspond to a duplicate set or hash collision' % digest)
-    # it is a hash collision, so use digest as `dup_keys`, and mark index with flag -1
+    # it is a hash collision, so use digest as `dup_key`, and flag `current_index` with -1 value
+    dup_key: duplicates.DuplicatesKeyType = (digest,)
     current_index: int = -1
-    dup_keys: duplicates.DuplicatesKeyType = (digest,)
   # get user selected choice, if any and update database
   if request.POST:
     if not dup_obj:
       raise http.Http404('Trying to POST data on hash collision %r (not perceptual dup)' % digest)
-    for sha in dup_keys:
+    for sha in dup_key:
       # check that the selection is valid
       if sha not in request.POST:
         error_message = 'Expected key %r in POST data, but didn\'t find it!' % sha
         break
-      selected_option: Literal['new', 'false', 'keep', 'skip'] = request.POST[sha]  # type: ignore
+      selected_option: duplicates.DuplicatesVerdictType = request.POST[sha]  # type: ignore
       if selected_option not in duplicates.DUPLICATE_OPTIONS:
         error_message = 'Key %r in POST data has invalid option %r!' % (sha, selected_option)
         break
@@ -558,7 +553,6 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
       'previous_key': sorted_keys[current_index - 1] if current_index > 0 else None,
       'next_key': (sorted_keys[current_index + 1]
                    if -1 < current_index < (len(sorted_keys) - 1) else None),
-      'dup_keys': dup_keys,
       'duplicates': {
           sha: {
               'action': dup_obj[sha] if dup_obj else '',
@@ -582,7 +576,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                                                                # as a static resource (settings.py)
               'percept': db.blobs[sha]['percept'],
           }
-          for sha in dup_keys
+          for sha in dup_key
       },
       'error_message': error_message,
   }
