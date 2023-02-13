@@ -46,22 +46,26 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(db._db_path, '/home/some-user/Downloads/some-dir/imagefap.database')
     self.assertEqual(db._blobs_dir, '/home/some-user/Downloads/some-dir/blobs/')
     self.assertDictEqual(db._db, {k: {} for k in fapdata._DB_MAIN_KEYS})
-    self.assertDictEqual(db.duplicates.index, {})
+    self.assertDictEqual(db.duplicates.registry, {})
     db.users[1] = 'Luke'
     db.favorites[1] = {2: {}}  # type: ignore
     db.tags[3] = {'name': 'three', 'tags': {}}
     db.blobs['sha1'] = {'tags': {4}}  # type: ignore
     db.image_ids_index[5] = 'sha2'
-    db.duplicates_index[('a', 'b')] = {'a': 'new'}
+    db._duplicates_registry[('a', 'b')] = {'a': 'new'}
+    db._duplicates_key_index['a'] = ('a', 'b')
+    db._duplicates_key_index['b'] = ('a', 'b')
     self.assertDictEqual(db._db, {
         'users': {1: 'Luke'},
         'favorites': {1: {2: {}}},
         'tags': {3: {'name': 'three', 'tags': {}}},
         'blobs': {'sha1': {'tags': {4}}},
         'image_ids_index': {5: 'sha2'},
-        'duplicates_index': {('a', 'b'): {'a': 'new'}},
+        'duplicates_registry': {('a', 'b'): {'a': 'new'}},
+        'duplicates_key_index': {'a': ('a', 'b'), 'b': ('a', 'b')}
     })
-    self.assertDictEqual(db.duplicates.index, {('a', 'b'): {'a': 'new'}})
+    self.assertDictEqual(db.duplicates.registry, {('a', 'b'): {'a': 'new'}})
+    # self.assertDictEqual(db.duplicates.index, {'a': ('a', 'b'), 'b': ('a', 'b')})
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
 
   @mock.patch('fapdata.os.path.isdir')
@@ -415,7 +419,7 @@ class TestFapDatabase(unittest.TestCase):
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
       self.assertDictEqual(db.blobs, _BLOBS)
       self.assertDictEqual(db.image_ids_index, _INDEX)
-      self.assertDictEqual(db.duplicates.index, _DUPLICATES)
+      self.assertDictEqual(db.duplicates.registry, _DUPLICATES)
       self.assertTrue(os.path.exists(db._BlobPath(
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
       self.assertTrue(os.path.exists(db.ThumbnailPath(
@@ -438,13 +442,13 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.favorites, _FAVORITES_TRIMMED)
       self.assertDictEqual(db.blobs, _BLOBS_TRIMMED)
       self.assertDictEqual(db.image_ids_index, _INDEX_TRIMMED)
-      self.assertDictEqual(db.duplicates.index, _DUPLICATES_TRIMMED)
+      self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
       self.assertTupleEqual(db.DeleteUserAndAlbums(1), (4, 0))
       self.assertDictEqual(db.users, {2: 'Ben'})
       self.assertDictEqual(db.favorites, {2: {20: {'images': [107, 801]}}})
       self.assertDictEqual(db.blobs, _BLOBS_NO_LUKE)
       self.assertDictEqual(db.image_ids_index, _INDEX_NO_LUKE)
-      self.assertDictEqual(db.duplicates.index, _DUPLICATES_TRIMMED)
+      self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
 
 
 class _MockRegex:

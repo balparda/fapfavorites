@@ -147,7 +147,7 @@ def main(operation: str,  # noqa: C901
   print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER   **')
   print('**   balparda@gmail.com (Daniel Balparda)    **')
   print('***********************************************')
-  success_message = 'premature end? user paused?'
+  success_message: str = 'premature end? user paused?'
   try:
     # check inputs
     if not user_name and not user_id:

@@ -321,11 +321,11 @@ from a structure like:
   }
 
   'image_ids_index': {
-    # this is a reverse index for 'blobs' so we can easily search by imagefap_image_id
+    # this is a reverse index for `blobs`, so we can easily search by imagefap_image_id
     imagefap_image_id: file_sha_256_hex_digest,
   }
 
-  'duplicates_index': {
+  'duplicates_registry': {
     tuple(sorted({sha1, sha2, ...})): {  # the key is the set of duplicates
       sha1: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha1
       sha2: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha2
@@ -336,6 +336,12 @@ from a structure like:
           # 'skip': this image will be skipped, meaning disappear/delete
       ...
     }
+  }
+
+  'duplicates_key_index': {
+    # this is key index for `duplicates`, so we can easily find a `sha` in duplicates, and also
+    # to guarantee that every `sha` will grouped in a *single* duplicate set
+    file_sha_256_hex_digest: tuple(sorted({sha1, sha2, ...})),  # `blob` key -> `duplicates` key
   }
 
 }

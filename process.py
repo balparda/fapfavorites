@@ -93,7 +93,7 @@ def _RunDjangoServerAndBlock(development_mode: bool) -> None:
   """
   logging.info('Starting Django local server in %s mode',
                'DEVELOPMENT' if development_mode else 'USER')
-  argv = ['./process.py', 'runserver']
+  argv: list[str] = ['./process.py', 'runserver']
   if not development_mode:
     # this will disable the Django auto-reload BUT will make everything in process.py load TWICE
     argv.append('--noreload')  # cspell:disable-line
@@ -155,7 +155,7 @@ def main(operation: str,
   print('**    IMAGEFAP DATABASE PROCESSING UTILS     **')
   print('**   balparda@gmail.com (Daniel Balparda)    **')
   print('***********************************************')
-  success_message = 'premature end? user paused?'
+  success_message: str = 'premature end? user paused?'
   try:
     # load database
     database = fapdata.FapDatabase(db_dir, create_if_needed=False)

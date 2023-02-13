@@ -97,7 +97,8 @@ _FavoriteType = dict[int, dict[int, _FavoriteObjType]]
 _TagType = dict[int, TagObjType]
 _BlobType = dict[str, _BlobObjType]
 _ImagesIdIndexType = dict[int, str]
-_DB_MAIN_KEYS = {'users', 'favorites', 'tags', 'blobs', 'image_ids_index', 'duplicates_index'}
+_DB_MAIN_KEYS = {'users', 'favorites', 'tags', 'blobs', 'image_ids_index',
+                 'duplicates_registry', 'duplicates_key_index'}
 
 
 class _DatabaseType(TypedDict):
@@ -108,7 +109,8 @@ class _DatabaseType(TypedDict):
   tags: _TagType
   blobs: _BlobType
   image_ids_index: _ImagesIdIndexType
-  duplicates_index: duplicates.DuplicatesType
+  duplicates_registry: duplicates.DuplicatesType
+  duplicates_key_index: duplicates.DuplicatesKeyIndexType
 
 
 # the site page templates we need
@@ -176,9 +178,10 @@ class FapDatabase:
         'tags': {},
         'blobs': {},
         'image_ids_index': {},
-        'duplicates_index': {},
+        'duplicates_registry': {},
+        'duplicates_key_index': {},
     }
-    self.duplicates = duplicates.Duplicates(self.duplicates_index)
+    self.duplicates = duplicates.Duplicates(self._duplicates_registry, self._duplicates_key_index)
     # check output directory, create if needed
     if not os.path.isdir(self._db_dir):
       if not create_if_needed:
@@ -214,9 +217,14 @@ class FapDatabase:
     return self._db['image_ids_index']
 
   @property
-  def duplicates_index(self) -> duplicates.DuplicatesType:
+  def _duplicates_registry(self) -> duplicates.DuplicatesType:
     """Duplicates dictionary."""
-    return self._db['duplicates_index']
+    return self._db['duplicates_registry']
+
+  @property
+  def _duplicates_key_index(self) -> duplicates.DuplicatesKeyIndexType:
+    """Duplicates key index."""
+    return self._db['duplicates_key_index']
 
   @property
   def blobs_dir_exists(self) -> bool:
@@ -238,11 +246,12 @@ class FapDatabase:
       Error: if found DB does not check out
     """
     if os.path.exists(self._db_path):
-      self._db = base.BinDeSerialize(file_path=self._db_path)
+      self._db: _DatabaseType = base.BinDeSerialize(file_path=self._db_path)
       # just a quick dirty check that we got what we expected
       if any(k not in self._db for k in _DB_MAIN_KEYS):
         raise Error('Loaded DB is invalid!')
-      self.duplicates = duplicates.Duplicates(self.duplicates_index)  # has to be reloaded!
+      self.duplicates = duplicates.Duplicates(  # has to be reloaded!
+          self._duplicates_registry, self._duplicates_key_index)
       logging.info('Loaded DB from %r', self._db_path)
       return True
     logging.warning('No DB found in %r', self._db_path)
@@ -298,7 +307,7 @@ class FapDatabase:
         except KeyError:
           raise Error('Found tag %d is empty (has no \'name\')!' % tag_id)
         return True
-      for i, o in obj .items():
+      for i, o in obj.items():
         if o.get('tags', {}):
           if _get_recursive(o['tags']):  # type: ignore
             try:
@@ -351,7 +360,7 @@ class FapDatabase:
     thumb_sizes: list[int] = [s['sz_thumb'] for s in self.blobs.values()]
     all_files_size, all_thumb_size = sum(file_sizes), sum(thumb_sizes)
     db_size = os.path.getsize(self._db_path)
-    all_lines = []
+    all_lines: list[str] = []
 
     def PrintLine(line: str):
       all_lines.append(line)
@@ -410,7 +419,7 @@ class FapDatabase:
         sum(len(b['loc']) for _, b in self.blobs.items()),
         sum(len(b['loc']) - 1 for _, b in self.blobs.items())))
     PrintLine('%d perceptual duplicates in %d groups' % (
-        len(self.duplicates.hashes), len(self.duplicates.index)))
+        len(self.duplicates.index), len(self.duplicates.registry)))
     return all_lines
 
   def PrintUsersAndFavorites(self) -> None:
@@ -459,7 +468,8 @@ class FapDatabase:
     print('TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)')
     print()
     for tag_id, tag_name, depth, _ in self.TagsWalk():
-      count, sz = 0, 0
+      count: int = 0
+      sz: int = 0
       for b in self.blobs.values():
         if tag_id in b['tags']:
           count += 1
@@ -472,16 +482,16 @@ class FapDatabase:
     print('SHA256_HASH: ID1/\'NAME1\' or ID2/\'NAME2\' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED]')
     print('    => {\'TAG1\', \'TAG2\', ...}')
     print()
-    for h in sorted(self.blobs.keys()):
-      b = self.blobs[h]
+    for sha in sorted(self.blobs.keys()):
+      blob = self.blobs[sha]
       print('%s: %s, %s %r%s' % (
-          h, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in b['loc']),
-          base.HumanizedDecimal(b['width'] * b['height']),
-          (b['width'], b['height']),
-          ' animated' if b['animated'] else ''))
-      if b['tags']:
+          sha, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in blob['loc']),
+          base.HumanizedDecimal(blob['width'] * blob['height']),
+          (blob['width'], blob['height']),
+          ' animated' if blob['animated'] else ''))
+      if blob['tags']:
         print('    => {%s}' % ', '.join(
-            repr(self.GetTag(i)[-1][1]) for i in b['tags']))
+            repr(self.GetTag(tid)[-1][1]) for tid in blob['tags']))
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.
@@ -499,7 +509,7 @@ class FapDatabase:
       status = 'Known'
     else:
       status = 'New'
-      url = _FAVORITES_URL(user_id, 0)  # use the favorites page
+      url: str = _FAVORITES_URL(user_id, 0)  # use the favorites page
       logging.info('Fetching favorites page: %s', url)
       user_html = _FapHTMLRead(url)
       user_names: list[str] = _FIND_NAME_IN_FAVORITES.findall(user_html)
@@ -527,7 +537,7 @@ class FapDatabase:
         logging.info('Known user %r = ID %d', unm, uid)
         return (uid, unm)
     # not found: we have to find in actual site
-    url = _USER_PAGE_URL(user_name)
+    url: str = _USER_PAGE_URL(user_name)
     logging.info('Fetching user page: %s', url)
     user_html = _FapHTMLRead(url)
     user_ids: list[str] = _FIND_USER_ID_RE.findall(user_html)
@@ -558,7 +568,7 @@ class FapDatabase:
       status = 'Known'
     else:
       status = 'New'
-      url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder page
+      url: str = _FOLDER_URL(user_id, folder_id, 0)  # use the folder page
       logging.info('Fetching favorites page: %s', url)
       folder_html = _FapHTMLRead(url)
       folder_names: list[str] = _FIND_NAME_IN_FOLDER.findall(folder_html)
@@ -592,9 +602,9 @@ class FapDatabase:
           logging.info('Known picture folder %r = ID %d', f_data['name'], fid)
           return (fid, f_data['name'])
     # not found: we have to find in actual site
-    page_num = 0
+    page_num: int = 0
     while True:
-      url = _FAVORITES_URL(user_id, page_num)
+      url: str = _FAVORITES_URL(user_id, page_num)
       logging.info('Fetching favorites page: %s', url)
       fav_html = _FapHTMLRead(url)
       favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
@@ -620,10 +630,13 @@ class FapDatabase:
     Returns:
       set of int folder IDs
     """
-    page_num, found_folder_ids, known_favorites, non_galleries = 0, set(), 0, 0
+    page_num: int = 0
+    known_favorites: int = 0
+    non_galleries: int = 0
+    found_folder_ids: set[int] = set()
     self.favorites.setdefault(user_id, {})  # just to make sure user is in _favorites
     while True:
-      url = _FAVORITES_URL(user_id, page_num)
+      url: str = _FAVORITES_URL(user_id, page_num)
       logging.info('Fetching favorites page: %s', url)
       fav_html = _FapHTMLRead(url)
       favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
@@ -676,18 +689,8 @@ class FapDatabase:
       # check for the timestamps: should we even do this work?
       tm_download: int = max(self.favorites[user_id][folder_id]['date_straight'],
                              self.favorites[user_id][folder_id]['date_blobs'])
-      tm_now = base.INT_TIME()
-      if tm_download and (tm_download + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
-        logging.warning(
-            'Picture folder image list %r/%r (%d/%d) checked recently (%s, %s ago): %s!',
-            self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id,
-            base.STD_TIME_STRING(tm_download), base.HumanizedSeconds(tm_now - tm_download),
-            'ignoring time limit and downloading again' if force_download else 'SKIP')
-        if not force_download:
-          return self.favorites[user_id][folder_id]['images']
-      logging.info(
-          'Getting all picture folder pages and IDs for %r/%r (%d/%d)',
-          self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
+      if not self._CheckWorkHysteresis(user_id, folder_id, None, force_download, tm_download):
+        return self.favorites[user_id][folder_id]['images']
       img_list: list[int] = self.favorites[user_id][folder_id]['images']
       seen_pages: int = self.favorites[user_id][folder_id]['pages']
     except KeyError:
@@ -696,7 +699,9 @@ class FapDatabase:
     # the site only adds images to the *end* of the images favorites; on the other
     # hand there is the issue of the "disappearing" images, so we have to backtrack
     # to make sure we don't loose any...
-    page_num, new_count, img_set = 0, 0, set(img_list)
+    page_num: int = 0
+    new_count: int = 0
+    img_set: set[int] = set(img_list)
     if seen_pages >= _PAGE_BACKTRACKING_THRESHOLD:
       logging.warning('Backtracking from last seen page (%d) to save time', seen_pages)
       page_num = seen_pages - 1  # remember the site numbers pages starting on zero
@@ -801,15 +806,16 @@ class FapDatabase:
         (img_id, url_path, sanitized_image_name, user_id, folder_id))
     return (None, sha, url_path, sanitized_image_name, extension)
 
-  def _CheckWorkHysteresis(self, user_id: int, folder_id: int,
-                           checkpoint_size: int, force_download: bool, tm_last: int) -> bool:
+  def _CheckWorkHysteresis(
+      self, user_id: int, folder_id: int, checkpoint_size: Optional[int],
+      force_download: bool, tm_last: int) -> bool:
     """Check if work should be done, or if album has recently been downloaded.
 
     Args:
       user_id: User ID
       folder_id: Folder ID
       checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
-          if zero will not checkpoint at all
+          if zero will not checkpoint at all; If None checkpoints do not apply.
       force_download: If True will download even if recently downloaded
       tm_last: Time last download was done
 
@@ -820,17 +826,21 @@ class FapDatabase:
     tm_now = base.INT_TIME()
     if tm_last and (tm_last + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
       logging.warning(
-          'Picture folder %r/%r (%d/%d) images downloaded recently (%s, %s ago): %s!',
+          'Picture folder %r/%r (%d/%d) %s downloaded recently (%s, %s ago): %s!',
           self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id,
+          'pages/IDs' if checkpoint_size is None else 'images',
           base.STD_TIME_STRING(tm_last), base.HumanizedSeconds(tm_now - tm_last),
           'ignoring time limit and downloading again' if force_download else 'SKIP')
       if not force_download:
         return False
     logging.info(
-        'Downloading all images in folder %r/%r (%d/%d); %s',
+        '%s for %r/%r (%d/%d)%s',
+        'Getting all picture folder pages/IDs' if checkpoint_size is None else
+        'Downloading all images in folder',
         self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id,
-        'checkpoint DB every %d downloads' % checkpoint_size if checkpoint_size else
-        'NO checkpoints (work may be lost)')
+        '' if checkpoint_size is None else
+        ('; NO checkpoints (work may be lost)' if checkpoint_size == 0 else
+         '; checkpoint DB every %d downloads' % checkpoint_size))
     return True
 
   def DownloadFavorites(self, user_id: int, folder_id: int,
@@ -898,7 +908,11 @@ class FapDatabase:
     except KeyError:
       raise Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
     # download all full resolution images we don't yet have
-    total_sz, thumb_sz, saved_count, known_count, exists_count = 0, 0, 0, 0, 0
+    total_sz: int = 0
+    thumb_sz: int = 0
+    saved_count: int = 0
+    known_count: int = 0
+    exists_count: int = 0
     for img_id in self.favorites[user_id][folder_id]['images']:
       # add image to database
       image_bytes, sha, url_path, sanitized_image_name, extension = (
@@ -956,7 +970,8 @@ class FapDatabase:
       temp_file.write(img_data)
       temp_file.flush()
       with Image.open(temp_file.name) as img:
-        width, height, is_animated = img.width, img.height, getattr(img, "is_animated", False)
+        width, height = img.width, img.height
+        is_animated: bool = getattr(img, 'is_animated', False)
       percept = self.duplicates.Encode(temp_file.name)
     return (img_data, hashlib.sha256(img_data).hexdigest(), percept, width, height, is_animated)
 
@@ -993,15 +1008,14 @@ class FapDatabase:
         new_width = math.floor(width / factor)
       if self.blobs[sha]['animated'] and self.blobs[sha]['ext'].lower() == 'gif':
         # special process for animated images, specifically an animated `gif`
-        frames = ImageSequence.Iterator(img)
 
-        def _thumbnails(frames):
-          for frame in frames:
+        def _thumbnails(img_frames: Iterator[Image.Image]) -> Iterator[Image.Image]:
+          for frame in img_frames:
             thumbnail = frame.copy()
             thumbnail.thumbnail((new_width, new_height), Image.LANCZOS)
             yield thumbnail
 
-        frames = _thumbnails(frames)
+        frames: Iterator[Image.Image] = _thumbnails(ImageSequence.Iterator(img))
         first_frame = next(frames)   # handle first frame separately: will be used to save
         first_frame.info = img.info  # copy sequence info into first frame
         first_frame.save(output_path, save_all=True, append_images=list(frames))
@@ -1032,7 +1046,8 @@ class FapDatabase:
     if user_id not in self.users:
       raise Error('Invalid user %d' % user_id)
     # delete the favorite albums first
-    img_count, duplicate_count = 0, 0
+    img_count: int = 0
+    duplicate_count: int = 0
     for folder_id in set(self.favorites.get(user_id, {}).keys()):
       img, duplicate = self.DeleteAlbum(user_id, folder_id)
       img_count += img
@@ -1061,7 +1076,8 @@ class FapDatabase:
     if folder_id not in self.favorites[user_id]:
       raise Error('Invalid folder %d for user %d/%r' % (folder_id, user_id, self.users[user_id]))
     # get the album and go through the images deleting as necessary
-    img_count, duplicate_count = 0, 0
+    img_count: int = 0
+    duplicate_count: int = 0
     images: list[int] = self.favorites[user_id][folder_id]['images']
     for img_id in images:
       # get the blob
@@ -1097,7 +1113,7 @@ class FapDatabase:
       del self.blobs[sha]
       img_count += 1
       # purge the duplicates and the indexes associated with this blob
-      duplicate_count += self.duplicates.TrimDeletedBlob(sha)
+      duplicate_count += int(self.duplicates.TrimDeletedBlob(sha))
       self._DeleteIndexesToBlob(sha)
     # finally delete the actual album entry and return the counts
     del self.favorites[user_id][folder_id]
@@ -1105,8 +1121,8 @@ class FapDatabase:
 
   def _DeleteIndexesToBlob(self, sha: str) -> None:
     """Delete all index entries pointing to (recently deleted) blob `sha`."""
-    for i in {i for i, s in self.image_ids_index.items() if s == sha}:
-      del self.image_ids_index[i]
+    for img in {i for i, s in self.image_ids_index.items() if s == sha}:
+      del self.image_ids_index[img]
 
   def _DeleteIndexIfOrphan(self, folder_id: int, imagefap_image_id: int) -> None:
     """Delete index entry for `imagefap_image_id` IFF no album uses the index."""
@@ -1148,11 +1164,11 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
   if min_wait <= 0.0 or max_wait <= 0.0 or max_wait < min_wait:
     raise AttributeError('Invalid min/max wait times')
   tm = random.uniform(min_wait, max_wait)  # nosec
-  n_retry = 0
+  n_retry: int = 0
   while n_retry <= _MAX_RETRY:
     try:
       # get the URL
-      url_data = urllib.request.urlopen(url, timeout=_URL_TIMEOUT).read()  # nosec
+      url_data: bytes = urllib.request.urlopen(url, timeout=_URL_TIMEOUT).read()  # nosec
       logging.debug('Sleep %0.2fs...', tm)
       # sleep if succeeded
       time.sleep(tm)
@@ -1190,7 +1206,7 @@ def _CheckFolderIsForImages(user_id: int, folder_id: int) -> None:
   Raises:
     Error: if folder is not an image folder (i.e. it might be a galleries folder)
   """
-  url = _FOLDER_URL(user_id, folder_id, 0)  # use the folder's 1st page
+  url: str = _FOLDER_URL(user_id, folder_id, 0)  # use the folder's 1st page
   logging.debug('Fetching favorites to check *not* a galleries folder: %s', url)
   folder_html = _FapHTMLRead(url)
   should_have: list[str] = _FIND_ONLY_IN_PICTURE_FOLDER.findall(folder_html)
@@ -1218,7 +1234,7 @@ def _ExtractFavoriteIDs(page_num: int, user_id: int, folder_id: int) -> list[int
   Returns:
     list of integer image IDs; empty list on last (empty) page
   """
-  url = _FOLDER_URL(user_id, folder_id, page_num)
+  url: str = _FOLDER_URL(user_id, folder_id, page_num)
   logging.info('Fetching favorites page: %s', url)
   fav_html = _FapHTMLRead(url)
   images: list[str] = _FAVORITE_IMAGE.findall(fav_html)
@@ -1240,7 +1256,7 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
     Error: for invalid URLs or full-res URL not found
   """
   # get page with full image, to find (raw) image URL
-  url = IMG_URL(img_id)
+  url: str = IMG_URL(img_id)
   logging.info('Fetching image page: %s', url)
   img_html = _FapHTMLRead(url)
   full_res_urls: list[str] = _FULL_IMAGE.findall(img_html)
@@ -1251,7 +1267,7 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   if not img_name:
     raise Error('No image name path in %s' % url)
   # sanitize image name before returning
-  new_name = sanitize_filename.sanitize(html.unescape(img_name[0]))
+  new_name: str = sanitize_filename.sanitize(html.unescape(img_name[0]))
   if new_name != img_name[0]:
     logging.warning('Filename sanitization necessary %r ==> %r', img_name[0], new_name)
   # figure out the file name, sanitize extension

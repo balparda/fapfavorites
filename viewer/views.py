@@ -83,11 +83,11 @@ def _DBFactory() -> fapdata.FapDatabase:
 def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `index` page."""
   db = _DBFactory()
-  context = {
+  context: dict[str, Any] = {
       'users': len(db.users),
       'tags': len(tuple(db.TagsWalk())),
-      'duplicates': len(db.duplicates.index),
-      'dup_action': sum(1 for d in db.duplicates.index.values()
+      'duplicates': len(db.duplicates.registry),
+      'dup_action': sum(1 for d in db.duplicates.registry.values()
                         if any(st == 'new' for st in d.values())),
       'n_images': len(db.blobs),
       'database_stats': db.PrintStats(actually_print=False),
@@ -117,7 +117,11 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
               delete_user_id, delete_user_name, delete_count, duplicates_count))
       db.Save()
   # make user sums and data
-  users, total_sz, total_img, total_animated, total_thumbs = {}, 0, 0, 0, 0
+  users: dict[int, dict[str, Any]] = {}
+  total_sz: int = 0
+  total_img: int = 0
+  total_animated: int = 0
+  total_thumbs: int = 0
   for uid, name in db.users.items():
     file_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz']
@@ -153,7 +157,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
     total_sz += sum(file_sizes) if file_sizes else 0
     total_thumbs += sum(thumbs_sizes) if file_sizes else 0
   # send to page
-  context = {
+  context: dict[str, Any] = {
       'users': users,
       'user_count': len(users),
       'total_img': total_img,
@@ -196,7 +200,10 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
       db.Save()
   # sort albums alphabetically and format data
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
-  favorites, total_sz, total_thumbs_sz, total_animated = {}, 0, 0, 0
+  favorites: dict[int, dict[str, Any]] = {}
+  total_sz: int = 0
+  total_thumbs_sz: int = 0
+  total_animated: int = 0
   for fid, name in names:
     obj = db.favorites[user_id][fid]
     count_img = len(obj['images'])
@@ -229,7 +236,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
     total_animated += n_animated
   # send to page
   all_img_count = sum(f['count'] for f in favorites.values())
-  context = {
+  context: dict[str, Any] = {
       'user_id': user_id,
       'user_name': db.users[user_id],
       'favorites': favorites,
@@ -272,7 +279,7 @@ def ServeFavorite(  # noqa: C901
       error_message = 'Unknown tag %d requested' % selected_tag
     else:
       # tag is OK; add the tags
-      tag_count = 0
+      tag_count: int = 0
       for sha in selected_images:
         # check if image is valid
         if sha not in db.blobs:
@@ -307,7 +314,7 @@ def ServeFavorite(  # noqa: C901
         # this image has twins in this same album
         album_duplicates[sha] = hits
     # look in perceptual index if this image is marked as 'new'/'keep'/'skip'
-    for k, st in db.duplicates.index.items():
+    for k, st in db.duplicates.registry.items():
       if sha in k:
         if st[sha] != 'false':
           if sha in percept_duplicates:
@@ -334,7 +341,7 @@ def ServeFavorite(  # noqa: C901
                    for i in range(0, len(sorted_blobs), _IMG_COLUMNS)]
   stacked_blobs[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_blobs[-1]))]
   # format blob data to be included as auxiliary data
-  blobs_data = {}
+  blobs_data: dict[str, dict[str, Any]] = {}
   for img, sha in sorted_blobs:
     blob = db.blobs[sha]
     # find the correct 'loc' entry (to get the name)
@@ -358,7 +365,7 @@ def ServeFavorite(  # noqa: C901
         'imagefap': fapdata.IMG_URL(img),
     }
   # send to page
-  context = {
+  context: dict[str, Any] = {
       'user_id': user_id,
       'user_name': db.users[user_id],
       'folder_id': folder_id,
@@ -394,10 +401,10 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
     if tag_id not in {tid for tid, _, _ in all_tags}:
       raise http.Http404('Unknown tag %d' % tag_id)
     tag_hierarchy = db.GetTag(tag_id)
-    page_depth = len(tag_hierarchy)
+    page_depth: int = len(tag_hierarchy)
     tag_obj: fapdata.TagObjType = db.GetTag(tag_id)[-1][-1]
   else:
-    page_depth = 0
+    page_depth: int = 0
     tag_obj: fapdata.TagObjType = {
         'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data) # type: ignore
   # get POST data
@@ -439,7 +446,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
           # in this case we have a non-root parent
           del delete_obj[-2][-1]['tags'][delete_tag]
         # we must remove the tags from any images that have it too!
-        count_tag_deletions = 0
+        count_tag_deletions: int = 0
         for blob in db.blobs.values():
           if delete_tag in blob['tags']:
             blob['tags'].remove(delete_tag)
@@ -449,7 +456,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
             delete_tag, delete_obj[-1][1], count_tag_deletions)
         db.Save()
   # send to page
-  context = {
+  context: dict[str, Any] = {
       'tags': [(tid, name, db.PrintableTag(tid), page_depth + depth)
                for tid, name, depth, _ in db.TagsWalk(start_tag=tag_obj['tags'])],  # type: ignore
       'tag_id': tag_id,
@@ -486,17 +493,17 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
   db = _DBFactory()
-  sorted_keys = sorted(db.duplicates.index.keys(), key=lambda x: x[0])
+  sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
   # send to page
-  context = {
+  context: dict[str, Any] = {
       'duplicates': {
           k: {
               'size': len(k),
-              'action': any(st == 'new' for st in db.duplicates.index[k].values()),
+              'action': any(st == 'new' for st in db.duplicates.registry[k].values()),
           }
           for k in sorted_keys
       },
-      'dup_action': sum(1 for d in db.duplicates.index.values()
+      'dup_action': sum(1 for d in db.duplicates.registry.values()
                         if any(st == 'new' for st in d.values())),
       'dup_count': len(sorted_keys),
       'img_count': sum(len(k) for k in sorted_keys),
@@ -511,12 +518,12 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   error_message: Optional[str] = None
   if digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
-  sorted_keys = sorted(db.duplicates.index.keys(), key=lambda x: x[0])
+  sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
   dup_obj: Optional[dict[str, duplicates.DuplicatesVerdictType]] = None
   for current_index, dup_keys in enumerate(sorted_keys):
     # if this is a perceptual dup set we will find it here
     if digest in dup_keys:
-      dup_obj = db.duplicates.index[dup_keys]
+      dup_obj = db.duplicates.registry[dup_keys]
       break
   else:
     # not a perceptual set, so maybe a direct hash collision
@@ -524,7 +531,8 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
       raise http.Http404(
           'Blob %r does not correspond to a duplicate set or hash collision' % digest)
     # it is a hash collision, so use digest as `dup_keys`, and mark index with flag -1
-    current_index, dup_keys = -1, (digest,)
+    current_index: int = -1
+    dup_keys: duplicates.DuplicatesKeyType = (digest,)
   # get user selected choice, if any and update database
   if request.POST:
     if not dup_obj:
@@ -544,7 +552,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
       # everything went smoothly (no break action above), so save the data
       db.Save()
   # send to page
-  context = {
+  context: dict[str, Any] = {
       'digest': digest,
       'current_index': current_index,  # can be -1 if indexing is disabled! (hard hash collision)
       'previous_key': sorted_keys[current_index - 1] if current_index > 0 else None,

@@ -21,7 +21,7 @@ class TestDuplicates(unittest.TestCase):
   def test_Encode(self, mock_encode_image):
     """Test."""
     mock_encode_image.return_value = 'abc'
-    dup = duplicates.Duplicates({})
+    dup = duplicates.Duplicates({}, {})
     self.assertEqual(dup.Encode('path'), 'abc')
     self.assertListEqual(mock_encode_image.call_args_list, [mock.call(image_file='path')])
 
@@ -29,25 +29,28 @@ class TestDuplicates(unittest.TestCase):
   def test_FindDuplicates(self, mock_find_duplicates):
     """Test."""
     mock_find_duplicates.return_value = _NEW_DUPLICATES
-    dup = duplicates.Duplicates(_DUPLICATES_DICT_BEFORE)
-    self.assertSetEqual(dup.hashes, {'aaa', 'bbb', 'ccc', 'ddd', 'eee'})
+    dup = duplicates.Duplicates(_DUPLICATES_DICT_BEFORE, _DUPLICATES_INDEX_BEFORE)
     dup.FindDuplicates({'foo': 'bar'})
     self.assertListEqual(
         mock_find_duplicates.call_args_list, [mock.call(encoding_map={'foo': 'bar'})])
-    self.assertDictEqual(dup.index, _DUPLICATES_DICT_AFTER)
-    self.assertSetEqual(
-        dup.hashes, {'aaa', 'bbb', 'ccc', 'ddd', 'eee', 'fff', 'ggg', 'xxx', 'yyy', 'zzz'})
+    self.assertDictEqual(dup.registry, _DUPLICATES_DICT_AFTER)
+    self.assertDictEqual(dup.index, _DUPLICATES_INDEX_AFTER)
 
   def test_TrimDeletedBlob(self):
     """Test."""
-    dup = duplicates.Duplicates(_DUPLICATES_DICT_AFTER)
-    dup.index[('ccc', 'ddd', 'eee', 'fff', 'ggg')]['fff'] = 'keep'
-    dup.index[('ccc', 'ddd', 'eee', 'fff', 'ggg')]['ggg'] = 'skip'
-    self.assertAlmostEqual(dup.TrimDeletedBlob('bbb'), 1)
-    self.assertAlmostEqual(dup.TrimDeletedBlob('eee'), 0)
-    self.assertAlmostEqual(dup.TrimDeletedBlob('zzz'), 0)
-    self.assertAlmostEqual(dup.TrimDeletedBlob('xxx'), 1)
-    self.assertDictEqual(dup.index, _DUPLICATES_DICT_TRIMMED)
+    self.maxDiff = None
+    dup = duplicates.Duplicates(_DUPLICATES_DICT_AFTER, _DUPLICATES_INDEX_AFTER)
+    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['fff'] = 'keep'
+    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['ggg'] = 'skip'
+    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['hhh'] = 'false'
+    self.assertTrue(dup.TrimDeletedBlob('bbb'))
+    self.assertFalse(dup.TrimDeletedBlob('eee'))
+    self.assertFalse(dup.TrimDeletedBlob('jjj'))
+    self.assertFalse(dup.TrimDeletedBlob('zzz'))
+    self.assertTrue(dup.TrimDeletedBlob('xxx'))
+    self.assertFalse(dup.TrimDeletedBlob('mmm'))  # key not in index
+    self.assertDictEqual(dup.registry, _DUPLICATES_DICT_TRIMMED)
+    self.assertDictEqual(dup.index, _DUPLICATES_INDEX_TRIMMED)
 
 
 _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
@@ -60,12 +63,33 @@ _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
         'ddd': 'false',
         'eee': 'false',
     },
+    ('ggg', 'hhh'): {
+        'ggg': 'keep',
+        'hhh': 'skip',
+    },
+    ('iii', 'jjj'): {
+        'iii': 'keep',
+        'jjj': 'skip',
+    },
+}
+
+_DUPLICATES_INDEX_BEFORE: duplicates.DuplicatesKeyIndexType = {
+    'aaa': ('aaa', 'bbb'),
+    'bbb': ('aaa', 'bbb'),
+    'ccc': ('ccc', 'ddd', 'eee'),
+    'ddd': ('ccc', 'ddd', 'eee'),
+    'eee': ('ccc', 'ddd', 'eee'),
+    'ggg': ('ggg', 'hhh'),
+    'hhh': ('ggg', 'hhh'),
+    'iii': ('iii', 'jjj'),
+    'jjj': ('iii', 'jjj'),
 }
 
 _NEW_DUPLICATES = {
-    'aaa': ['bbb'],
-    'ddd': ['ccc', 'eee', 'fff', 'ggg'],
-    'xxx': ['yyy', 'zzz'],
+    'aaa': ['bbb'],                       # no new info
+    'ddd': ['eee', 'fff', 'ggg', 'hhh'],  # new hash and will need merging
+    'kkk': ['iii', 'jjj'],                # new hash for existing group
+    'xxx': ['yyy', 'zzz'],                # all new group
 }
 
 _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
@@ -73,12 +97,18 @@ _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
         'aaa': 'keep',
         'bbb': 'skip',
     },
-    ('ccc', 'ddd', 'eee', 'fff', 'ggg'): {
+    ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'): {
         'ccc': 'new',
-        'ddd': 'false',
-        'eee': 'false',
+        'ddd': 'new',
+        'eee': 'new',
         'fff': 'new',
         'ggg': 'new',
+        'hhh': 'new',
+    },
+    ('iii', 'jjj', 'kkk'): {
+        'iii': 'keep',
+        'jjj': 'skip',
+        'kkk': 'new',
     },
     ('xxx', 'yyy', 'zzz'): {
         'xxx': 'new',
@@ -87,13 +117,45 @@ _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
     },
 }
 
+_DUPLICATES_INDEX_AFTER: duplicates.DuplicatesKeyIndexType = {
+    'aaa': ('aaa', 'bbb'),
+    'bbb': ('aaa', 'bbb'),
+    'ccc': ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'),
+    'ddd': ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'),
+    'eee': ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'),
+    'fff': ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'),
+    'ggg': ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'),
+    'hhh': ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'),
+    'iii': ('iii', 'jjj', 'kkk'),
+    'jjj': ('iii', 'jjj', 'kkk'),
+    'kkk': ('iii', 'jjj', 'kkk'),
+    'xxx': ('xxx', 'yyy', 'zzz'),
+    'yyy': ('xxx', 'yyy', 'zzz'),
+    'zzz': ('xxx', 'yyy', 'zzz'),
+}
+
 _DUPLICATES_DICT_TRIMMED: duplicates.DuplicatesType = {
-    ('ccc', 'ddd', 'fff', 'ggg'): {
+    ('ccc', 'ddd', 'fff', 'ggg', 'hhh'): {
         'ccc': 'new',
-        'ddd': 'false',
+        'ddd': 'new',
         'fff': 'new',
         'ggg': 'new',
+        'hhh': 'false',
     },
+    ('iii', 'kkk'): {
+        'iii': 'new',
+        'kkk': 'new',
+    },
+}
+
+_DUPLICATES_INDEX_TRIMMED: duplicates.DuplicatesKeyIndexType = {
+    'ccc': ('ccc', 'ddd', 'fff', 'ggg', 'hhh'),
+    'ddd': ('ccc', 'ddd', 'fff', 'ggg', 'hhh'),
+    'fff': ('ccc', 'ddd', 'fff', 'ggg', 'hhh'),
+    'ggg': ('ccc', 'ddd', 'fff', 'ggg', 'hhh'),
+    'hhh': ('ccc', 'ddd', 'fff', 'ggg', 'hhh'),
+    'iii': ('iii', 'kkk'),
+    'kkk': ('iii', 'kkk'),
 }
 
 
