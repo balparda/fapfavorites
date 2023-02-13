@@ -11,12 +11,20 @@
 
     a.external {text-decoration: none;}
 
+    span.regular_hash {
+      font-family: monospace;
+    }
+
   </style>
   </head>
   <body bgcolor='black' text='lightgray'>
 
     <h1>
-      {% if current_index == -1 %}Exact Duplicate{% else %}Perceptual Duplicate Set{% endif %}
+      {% if current_index == -1 %}
+        Exact Duplicate <span class='regular_hash'>{{ dup_key }}</span>
+      {% else %}
+        Perceptual Duplicate Set <span class='regular_hash'>{{ dup_key }}</span>
+      {% endif %}
     </h1>
 
     {% if error_message %}

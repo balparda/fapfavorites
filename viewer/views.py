@@ -10,6 +10,7 @@ from django import http
 from django import shortcuts
 from django import conf
 from django.views.decorators import cache
+from django.utils import safestring
 from django.template import defaulttags
 
 from baselib import base
@@ -485,6 +486,12 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
 
 
+def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeText:
+  """Return an abbreviated HTML representation for the key, each key will show 8 hex bytes."""
+  return safestring.mark_safe(  # nosec
+      '(%s)' % ', '.join('%s&hellip;' % sha[:16] for sha in dup_key))  # cspell:disable-line
+
+
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
   db = _DBFactory()
@@ -493,6 +500,7 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   context: dict[str, Any] = {
       'duplicates': {
           dup_key: {
+              'name': _AbbreviatedKey(dup_key),
               'size': len(dup_key),
               'action': any(st == 'new' for st in db.duplicates.registry[dup_key].values()),
           }
@@ -549,6 +557,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   # send to page
   context: dict[str, Any] = {
       'digest': digest,
+      'dup_key': _AbbreviatedKey(dup_key),
       'current_index': current_index,  # can be -1 if indexing is disabled! (hard hash collision)
       'previous_key': sorted_keys[current_index - 1] if current_index > 0 else None,
       'next_key': (sorted_keys[current_index + 1]
