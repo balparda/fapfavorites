@@ -227,6 +227,13 @@ class TestDjangoViews(unittest.TestCase):
     mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF)
 
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeTag(mock.Mock(views.http.HttpRequest), 666)
+
 
 @mock.patch('fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
