@@ -37,6 +37,10 @@ $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/imagefap-favorites.git
 ```
 
+The project has __more than 90%__ test coverage and its
+code is pretty readable, but is still being developed for
+more features and flexibility.
+
 ## User Journeys, A Simple Guide
 
 ### _"I just want to download a specific favorite album."_
