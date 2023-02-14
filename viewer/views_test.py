@@ -43,6 +43,21 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeIndex(request)
     mock_render.assert_called_once_with(request, 'viewer/index.html', _INDEX_CONTEXT)
 
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.DeleteUserAndAlbums')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeUsers(self, mock_save, mock_delete, mock_render, mock_db):
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    mock_delete.return_value = (66, 22)
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'delete_input': '3'}
+    request.GET = {}
+    views.ServeUsers(request)
+    mock_render.assert_called_once_with(request, 'viewer/users.html', _USERS_CONTEXT)
+
 
 @mock.patch('fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir) -> views.fapdata.FapDatabase:
@@ -297,6 +312,53 @@ _INDEX_CONTEXT: dict[str, Any] = {
         '7 unique images (12 total, 5 exact duplicates)',
         '5 perceptual duplicates in 2 groups',
     ],
+}
+
+_USERS_CONTEXT: dict[str, Any] = {
+    'users': {
+        1: {
+            'name': 'Luke',
+            'n_img': 8,
+            'n_animated': '1 (12.5%)',
+            'files_sz': '729.99kb',
+            'thumbs_sz': '514.80kb',
+            'min_sz': '101b',
+            'max_sz': '434.54kb',
+            'mean_sz': '91.25kb',
+            'dev_sz': '141.78kb',
+        },
+        2: {
+            'name': 'Ben',
+            'n_img': 4,
+            'n_animated': '1 (25.0%)',
+            'files_sz': '534.15kb',
+            'thumbs_sz': '394.57kb',
+            'min_sz': '101b',
+            'max_sz': '434.54kb',
+            'mean_sz': '133.54kb',
+            'dev_sz': '202.08kb',
+        },
+        3: {
+            'name': 'Yoda',
+            'n_img': 0,
+            'n_animated': '0 (0.0%)',
+            'files_sz': '0b',
+            'thumbs_sz': '0b',
+            'min_sz': '-',
+            'max_sz': '-',
+            'mean_sz': '-',
+            'dev_sz': '-',
+        },
+    },
+    'user_count': 3,
+    'total_img': 12,
+    'total_animated': '2 (16.7%)',
+    'total_sz': '1.23Mb',
+    'total_thumbs': '909.36kb',
+    'total_file_storage': '2.12Mb',
+    'warning_message': ('User 3/\'Yoda\' deleted, and with them 66 blobs (images) deleted, '
+                        'together with their thumbnails, plus 22 duplicates groups abandoned'),
+    'error_message': None,
 }
 
 
