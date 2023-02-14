@@ -246,6 +246,73 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeDuplicates(request)
     mock_render.assert_called_once_with(request, 'viewer/duplicates.html', _DUPLICATES_CONTEXT)
 
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  def test_ServeDuplicate_Blob(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {}
+    views.ServeDuplicate(
+        # this is a blob-only (hash collision) duplicate
+        request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', _DUPLICATE_BLOB_CONTEXT)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeDuplicate_Set(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'keep',
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'false',
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': 'false',
+    }
+    request.GET = {}
+    views.ServeDuplicate(
+        request, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e')
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', _DUPLICATE_SET_CONTEXT)
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeDuplicate_Blob_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeDuplicate(mock.Mock(views.http.HttpRequest), 'not-a-valid-blob-hash')
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeDuplicate_Singleton_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeDuplicate(
+          mock.Mock(views.http.HttpRequest),
+          # this hash has no duplicate set nor hash collision
+          'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180')
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeDuplicate_Update_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        # this is a blob-only (hash collision) duplicate, and should not support POST
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'keep',
+    }
+    request.GET = {}
+    with self.assertRaises(views.http.Http404):
+      views.ServeDuplicate(
+          request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+
 
 @mock.patch('fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
@@ -798,6 +865,146 @@ _DUPLICATES_CONTEXT: dict[str, Any] = {
     'dup_action': 1,
     'dup_count': 2,
     'img_count': 5,
+}
+
+_DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
+    'digest': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+    'dup_key': '(9b162a339a3a6f9a&hellip;)',  # cspell:disable-line
+    'current_index': -1,
+    'previous_key': None,
+    'next_key': None,
+    'duplicates': {
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'action': '',
+            'sz': '101b',
+            'dimensions': '160x200 (WxH)',
+            'tags': 'one/one-one, three/three-three',
+            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
+            'percept': 'd99ee32e586716c8',
+            'loc': [
+                {
+                    'fap_id': 101,
+                    'file_name': 'name-101.jpg',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'folder_id': 10,
+                    'folder_name': 'luke-folder-10',
+                    'imagefap': 'https://www.imagefap.com/photo/101/',
+                }, {
+                    'fap_id': 111,
+                    'file_name': 'name-111.jpg',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'folder_id': 11,
+                    'folder_name': 'luke-folder-11',
+                    'imagefap': 'https://www.imagefap.com/photo/111/',
+                }, {
+                    'fap_id': 201,
+                    'file_name': 'name-201.jpg',
+                    'user_id': 2,
+                    'user_name': 'Ben',
+                    'folder_id': 20,
+                    'folder_name': 'ben-folder-20',
+                    'imagefap': 'https://www.imagefap.com/photo/201/',
+                },
+            ],
+        },
+    },
+    'error_message': None,
+}
+
+_DUPLICATE_SET_CONTEXT: dict[str, Any] = {
+    'digest': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+    'dup_key': ('(0aaef1becbd966a2&hellip;, 321e59af9d70af77&hellip;, '  # cspell:disable-line
+                'e221b76f55946176&hellip;)'),                            # cspell:disable-line
+    'current_index': 0,
+    'previous_key': None,
+    'next_key': ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
+                 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+    'duplicates': {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
+            'action': 'keep',
+            'sz': '53.36kb',
+            'dimensions': '198x200 (WxH)',
+            'tags': 'three',
+            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
+            'percept': 'cd4fc618316732e7',
+            'loc': [
+                {
+                    'fap_id': 102,
+                    'file_name': 'name-102.jpg',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'folder_id': 10,
+                    'folder_name': 'luke-folder-10',
+                    'imagefap': 'https://www.imagefap.com/photo/102/',
+                },
+            ],
+        },
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
+            'action': 'false',
+            'sz': '44.25kb',
+            'dimensions': '130x173 (WxH)',
+            'tags': '',
+            'thumb': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png',
+            'percept': 'd99ee32e586716c8',
+            'loc': [
+                {
+                    'fap_id': 110,
+                    'file_name': 'name-110.png',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'folder_id': 11,
+                    'folder_name': 'luke-folder-11',
+                    'imagefap': 'https://www.imagefap.com/photo/110/',
+                }, {
+                    'fap_id': 202,
+                    'file_name': 'name-202.png',
+                    'user_id': 2,
+                    'user_name': 'Ben',
+                    'folder_id': 20,
+                    'folder_name': 'ben-folder-20',
+                    'imagefap': 'https://www.imagefap.com/photo/202/',
+                },
+            ],
+        },
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
+            'action': 'false',
+            'sz': '55.26kb',
+            'dimensions': '200x246 (WxH)',
+            'tags': 'one, two',
+            'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
+            'percept': 'cc8fc37638703ee1',
+            'loc': [
+                {
+                    'fap_id': 100,
+                    'file_name': 'name-100.jpg',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'folder_id': 10,
+                    'folder_name': 'luke-folder-10',
+                    'imagefap': 'https://www.imagefap.com/photo/100/',
+                }, {
+                    'fap_id': 104,
+                    'file_name': 'name-104.jpg',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'folder_id': 10,
+                    'folder_name': 'luke-folder-10',
+                    'imagefap': 'https://www.imagefap.com/photo/104/',
+                }, {
+                    'fap_id': 203,
+                    'file_name': 'name-203.jpg',
+                    'user_id': 2,
+                    'user_name': 'Ben',
+                    'folder_id': 20,
+                    'folder_name': 'ben-folder-20',
+                    'imagefap': 'https://www.imagefap.com/photo/203/',
+                },
+            ],
+        },
+    },
+    'error_message': None,
 }
 
 

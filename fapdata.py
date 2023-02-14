@@ -486,7 +486,8 @@ class FapDatabase:
     for sha in sorted(self.blobs.keys()):
       blob = self.blobs[sha]
       print('%s: %s, %s %r%s' % (
-          sha, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in blob['loc']),
+          sha, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in sorted(
+              (loc for loc in blob['loc']), key=lambda x: x[0])),
           base.HumanizedDecimal(blob['width'] * blob['height']),
           (blob['width'], blob['height']),
           ' animated' if blob['animated'] else ''))

@@ -582,7 +582,8 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                       'folder_name': db.favorites[uid][fid]['name'],
                       'imagefap': fapdata.IMG_URL(i),
                   }
-                  for i, _, nm, uid, fid in db.blobs[sha]['loc']
+                  for i, _, nm, uid, fid in sorted(
+                      (loc for loc in db.blobs[sha]['loc']), key=lambda x: x[0])
               ],
               'sz': base.HumanizedBytes(db.blobs[sha]['sz']),
               'dimensions': '%dx%d (WxH)' % (db.blobs[sha]['width'], db.blobs[sha]['height']),
