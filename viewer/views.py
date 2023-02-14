@@ -445,6 +445,8 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
         # everything OK: add tag
         max_tag = max(i for i, _, _ in all_tags) if all_tags else 0
         tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}
+        # message and save DB
+        warning_message = 'Tag %d/%r created' % (max_tag + 1, new_tag)
         db.Save()
   # do we have a tag to delete?
   elif delete_tag:

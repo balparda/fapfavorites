@@ -4,6 +4,7 @@
 #
 """views.py unittest."""
 
+import copy
 import functools
 import os
 # import pdb
@@ -190,12 +191,48 @@ class TestDjangoViews(unittest.TestCase):
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
     mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
 
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeTag_Root_And_Create(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'named_child': 'new-tag-foo'}
+    request.GET = {}
+    views.ServeTag(request, 0)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_ROOT)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeTag_Leaf_And_Delete(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'delete_input': '33'}
+    request.GET = {}
+    views.ServeTag(request, 2)
+    new_tags = {sha: db.blobs[sha]['tags'] for sha in db.blobs.keys()}
+    self.assertDictEqual(new_tags, _TAG_NEW_TAGS)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF)
+
 
 @mock.patch('fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
   mock_isdir.return_value = True
   db = views.fapdata.FapDatabase('/foo/', create_if_needed=False)
-  db._db = _MOCK_DATABASE
+  db._db = copy.deepcopy(_MOCK_DATABASE)  # needed: some of the test methods will change the dict!
   db.duplicates = views.duplicates.Duplicates(db._duplicates_registry, db._duplicates_key_index)
   return db
 
@@ -675,6 +712,51 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
     'tags': _FAVORITE_CONTEXT_ALL_ON['tags'],
     'warning_message': None,
     'error_message': None,
+}
+
+_TAG_ROOT: dict[str, Any] = {
+    'tags': [
+        (0, 'plain', 'plain', 0),
+        (1, 'one', 'one', 0),
+        (11, 'one-one', 'one/one-one', 1),
+        (2, 'two', 'two', 0),
+        (22, 'two-two', 'two/two-two', 1),
+        (24, 'two-four', 'two/two-four', 1),
+        (246, 'deep', 'two/two-four/deep', 2),
+        (3, 'three', 'three', 0),
+        (33, 'three-three', 'three/three-three', 1),
+        (247, 'new-tag-foo', 'new-tag-foo', 0),
+    ],
+    'tag_id': 0,
+    'page_depth': 0,
+    'page_depth_up': 0,
+    'tag_name': None,
+    'warning_message': 'Tag 247/\'new-tag-foo\' created',
+    'error_message': None,
+}
+
+_TAG_LEAF: dict[str, Any] = {
+    'tags': [
+        (22, 'two-two', 'two/two-two', 1),
+        (24, 'two-four', 'two/two-four', 1),
+        (246, 'deep', 'two/two-four/deep', 2),
+    ],
+    'tag_id': 2,
+    'page_depth': 1,
+    'page_depth_up': 0,
+    'tag_name': 'two',
+    'warning_message': "Tag 33/'three-three' deleted and association removed from 3 blobs (images)",
+    'error_message': None,
+}
+
+_TAG_NEW_TAGS: dict[str, set[int]] = {
+    '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {3},
+    '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': set(),
+    '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {246},
+    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {11},
+    'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {246},
+    'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {1, 2},
+    'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {1, 24},
 }
 
 
