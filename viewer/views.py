@@ -389,6 +389,27 @@ def ServeFavorite(  # noqa: C901
   return shortcuts.render(request, 'viewer/favorite.html', context)
 
 
+# this page seems to be executing TWICE when called, and blobs' binary representations never ever
+# change, so it is perfectly acceptable to cache the hell out of this particular page
+@cache.cache_page(60 * 60)
+def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
+  """Serve the `blob` page, one image, given one SHA256 `digest`."""
+  # check for errors in parameters
+  db = _DBFactory()
+  if not digest or digest not in db.blobs:
+    raise http.Http404('Unknown blob %r' % digest)
+  if not db.HasBlob(digest):
+    raise http.Http404('Known blob %r could not be found on disk' % digest)
+  # get blob and check for content type (extension)
+  blob = db.blobs[digest]
+  ext = blob['ext'].lower()
+  if ext not in _IMAGE_TYPES:
+    raise http.Http404('Blob %r image type (file extension) %r not one of %r' % (
+        digest, ext, sorted(_IMAGE_TYPES.keys())))
+  # send to page
+  return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
+
+
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
   """Serve the `tag` page for one `tag_id`."""
   # check for errors in parameters
@@ -466,27 +487,6 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
       'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/tag.html', context)
-
-
-# this page seems to be executing TWICE when called, and blobs' binary representations never ever
-# change, so it is perfectly acceptable to cache the hell out of this particular page
-@cache.cache_page(60 * 60)
-def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
-  """Serve the `blob` page, one image, given one SHA256 `digest`."""
-  # check for errors in parameters
-  db = _DBFactory()
-  if not digest or digest not in db.blobs:
-    raise http.Http404('Unknown blob %r' % digest)
-  if not db.HasBlob(digest):
-    raise http.Http404('Known blob %r could not be found on disk' % digest)
-  # get blob and check for content type (extension)
-  blob = db.blobs[digest]
-  ext = blob['ext'].lower()
-  if ext not in _IMAGE_TYPES:
-    raise http.Http404('Blob %r image type (file extension) %r not one of %r' % (
-        digest, ext, sorted(_IMAGE_TYPES.keys())))
-  # send to page
-  return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
 
 
 def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeText:

@@ -4,6 +4,7 @@
 #
 """views.py unittest."""
 
+import functools
 import os
 # import pdb
 from typing import Any
@@ -13,7 +14,24 @@ from unittest import mock
 # import duplicates
 # import fapdata
 
+# load the Django modules in a very special manner:
 os.environ['DJANGO_SETTINGS_MODULE'] = 'fapper.settings'  # cspell:disable-line
+# not only we need the os.environ to load django stuff, we also have to patch the cache
+# decorator before we load the module, as decorators are applied at module load, and the
+# cache decorator is a very tricky one to fool at runtime
+from django.views.decorators import cache  # noqa: E402
+
+
+def _mock_decorator(*args, **kwargs):
+  def _decorator(f):
+      @functools.wraps(f)
+      def _decorated_function(*args, **kwargs):
+          return f(*args, **kwargs)
+      return _decorated_function
+  return _decorator
+
+
+cache.cache_page = _mock_decorator  # monkey-patch the cache
 from viewer import views  # noqa: E402
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
@@ -124,6 +142,29 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeFavorite(request, 1, 10)
     mock_save.assert_not_called()
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', _FAVORITE_CONTEXT_ALL_OFF)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.http.HttpResponse')
+  @mock.patch('fapdata.FapDatabase.HasBlob')
+  @mock.patch('fapdata.FapDatabase.GetBlob')
+  def test_ServeBlob(
+      self, mock_get_blob: mock.MagicMock, mock_has_blob: mock.MagicMock,
+      mock_response: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    mock_has_blob.return_value = True
+    mock_get_blob.return_value = b'image binary data'
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {}
+    request.method = 'GET'
+    views.ServeBlob(request, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_has_blob.assert_called_once_with(
+        '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_get_blob.assert_called_once_with(
+        '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
 
 
 @mock.patch('fapdata.os.path.isdir')
