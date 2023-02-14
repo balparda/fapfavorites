@@ -176,20 +176,51 @@ class TestDjangoViews(unittest.TestCase):
       self, mock_get_blob: mock.MagicMock, mock_has_blob: mock.MagicMock,
       mock_response: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
-    self.maxDiff = None
     mock_db.return_value = _TestDBFactory()
     mock_has_blob.return_value = True
     mock_get_blob.return_value = b'image binary data'
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {}
     request.GET = {}
-    request.method = 'GET'
     views.ServeBlob(request, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
     mock_has_blob.assert_called_once_with(
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
     mock_get_blob.assert_called_once_with(
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
     mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeBlob_Existence_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeBlob(mock.Mock(views.http.HttpRequest), 'hash-does-not-exist')
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapdata.FapDatabase.HasBlob')
+  def test_ServeBlob_Blob_Not_On_Disk_404(
+      self, mock_has_blob: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    mock_has_blob.return_value = False
+    with self.assertRaises(views.http.Http404):
+      views.ServeBlob(
+          mock.Mock(views.http.HttpRequest),
+          '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapdata.FapDatabase.HasBlob')
+  def test_ServeBlob_Invalid_Extension_404(
+      self, mock_has_blob: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    db = _TestDBFactory()
+    mock_db.return_value = db
+    mock_has_blob.return_value = True
+    db.blobs['5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8']['ext'] = 'invalid'
+    with self.assertRaises(views.http.Http404):
+      views.ServeBlob(
+          mock.Mock(views.http.HttpRequest),
+          '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
