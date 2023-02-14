@@ -48,9 +48,22 @@ class TestDjangoViews(unittest.TestCase):
     self.assertEqual(digest.to_python('fOO'), 'foo')
     self.assertEqual(digest.to_url('Bar'), 'bar')
 
+  @mock.patch('fapdata.GetDatabaseTimestamp')
+  @mock.patch('fapdata.FapDatabase')
+  def test_DBFactory(self, mock_db: mock.MagicMock, mock_tm: mock.MagicMock) -> None:
+    """Test."""
+    mock_tm.return_value = 100
+    db = mock.MagicMock()
+    mock_db.return_value = db
+    self.assertEqual(views._DBFactory(), db)
+    mock_tm.assert_called_once_with(views.conf.settings.IMAGEFAP_FAVORITES_DB_PATH)
+    mock_db.assert_called_once_with(
+        views.conf.settings.IMAGEFAP_FAVORITES_DB_PATH, create_if_needed=False)
+    db.Load.assert_called_once_with()
+
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.os.path.getsize')
+  @mock.patch('os.path.getsize')
   def test_ServeIndex(
       self, mock_getsize: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
