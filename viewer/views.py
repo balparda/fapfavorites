@@ -337,7 +337,8 @@ def ServeFavorite(  # noqa: C901
   # stack the hashes in rows of _IMG_COLUMNS columns
   stacked_blobs = [sorted_blobs[i:(i + _IMG_COLUMNS)]
                    for i in range(0, len(sorted_blobs), _IMG_COLUMNS)]
-  stacked_blobs[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_blobs[-1]))]
+  if stacked_blobs:
+    stacked_blobs[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_blobs[-1]))]
   # format blob data to be included as auxiliary data
   blobs_data: dict[str, dict[str, Any]] = {}
   for img, sha in sorted_blobs:

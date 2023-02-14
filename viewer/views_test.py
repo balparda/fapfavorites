@@ -83,6 +83,48 @@ class TestDjangoViews(unittest.TestCase):
     mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/favorites.html', _FAVORITES_CONTEXT)
 
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeFavorite_All_On_And_Tagging(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        'tag_select': '24',
+        'selected_blobs': ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19,'
+                           'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+    }
+    request.GET = {
+        'dup': '1',  # by default, show portrait+landscape, lock is off
+    }
+    views.ServeFavorite(request, 1, 10)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', _FAVORITE_CONTEXT_ALL_ON)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeFavorite_All_Off(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {
+        'portrait': '0',  # by default, no duplicates
+        'landscape': '0',
+        'lock': '1',
+    }
+    views.ServeFavorite(request, 1, 10)
+    mock_save.assert_not_called()
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', _FAVORITE_CONTEXT_ALL_OFF)
+
 
 @mock.patch('fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
@@ -138,7 +180,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz': 54643,
             'sz_thumb': 54643,
             'tags': {3},
-            'width': 168,
+            'width': 198,  # image will be considered "square" aspect
         },
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
             'animated': False,
@@ -328,7 +370,7 @@ _INDEX_CONTEXT: dict[str, Any] = {
         ('1.08Mb total (unique) images size (101b min, 434.54kb max, '
          '158.45kb mean with 190.33kb standard deviation, 2 are animated)'),
         ('Pixel size (width, height): 22.49k pixels min (130, 173), '
-         '66.60k pixels max (300, 222), 43.41k mean with 14.84k standard deviation'),
+         '66.60k pixels max (300, 222), 44.27k mean with 14.35k standard deviation'),
         ('754.60kb total thumbnail size (0b min, 295.06kb max, 107.80kb mean with '
          '129.59kb standard deviation), 68.0% of total images size'),
         '',
@@ -427,6 +469,139 @@ _FAVORITES_CONTEXT: dict[str, Any] = {
     'warning_message': ('Favorites album 11/\'luke-folder-11\' deleted, and with it 66 '
                         'blobs (images) deleted, together with their thumbnails, '
                         'plus 22 duplicates groups abandoned'),
+    'error_message': None,
+}
+
+_FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
+    'user_id': 1,
+    'user_name': 'Luke',
+    'folder_id': 10,
+    'name': 'luke-folder-10',
+    'show_duplicates': True,
+    'dup_url': 'dup=1',
+    'show_portraits': True,
+    'portrait_url': 'portrait=1',
+    'show_landscapes': True,
+    'landscape_url': 'landscape=1',
+    'locked_for_tagging': False,
+    'tagging_url': 'lock=0',
+    'pages': 9,
+    'date': '2023/Feb/02-01:06:40-UTC',
+    'count': 5,
+    'stacked_blobs': [
+        [
+            (100, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+            (101, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
+            (102, '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+            (103, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+        ], [
+            (104, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+            (0, ''),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
+    'blobs_data': {
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
+            'name': 'name-104.jpg',
+            'sz': '55.26kb',
+            'dimensions': '200x246 (WxH)',
+            'tags': 'one, two, two/two-four',
+            'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
+            'has_duplicate': True,
+            'album_duplicate': True,
+            'has_percept': True,
+            'imagefap': 'https://www.imagefap.com/photo/104/',
+        },
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'name': 'name-101.jpg',
+            'sz': '101b',
+            'dimensions': '160x200 (WxH)',
+            'tags': 'one/one-one, three/three-three',
+            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
+            'has_duplicate': True,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/101/',
+        },
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
+            'name':
+            'name-102.jpg',
+            'sz': '53.36kb',
+            'dimensions': '198x200 (WxH)',
+            'tags': 'three, two/two-four',
+            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': True,
+            'imagefap': 'https://www.imagefap.com/photo/102/',
+        },
+        'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
+            'name': 'name-103.gif',
+            'sz': '434.54kb',
+            'dimensions': '500x100 (WxH)',
+            'tags': 'one, three/three-three, two/two-four',
+            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/103/',
+        },
+    },
+    'tags': [
+        (0, 'plain', 'plain'),
+        (1, 'one', 'one'),
+        (11, 'one-one', 'one/one-one'),
+        (2, 'two', 'two'),
+        (22, 'two-two', 'two/two-two'),
+        (24, 'two-four', 'two/two-four'),
+        (246, 'deep', 'two/two-four/deep'),
+        (3, 'three', 'three'),
+        (33, 'three-three', 'three/three-three'),
+    ],
+    'warning_message': '2 images tagged with \'two-four\'',
+    'error_message': None,
+}
+
+_FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
+    'user_id': 1,
+    'user_name': 'Luke',
+    'folder_id': 10,
+    'name': 'luke-folder-10',
+    'show_duplicates': False,
+    'dup_url': 'dup=0',
+    'show_portraits': False,
+    'portrait_url': 'portrait=0',
+    'show_landscapes': False,
+    'landscape_url': 'landscape=0',
+    'locked_for_tagging': True,
+    'tagging_url': 'lock=1',
+    'pages': 9,
+    'date': '2023/Feb/02-01:06:40-UTC',
+    'count': 1,
+    'stacked_blobs': [
+        [
+            (102, '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+            (0, ''),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
+    'blobs_data': {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
+            'name': 'name-102.jpg',
+            'sz': '53.36kb',
+            'dimensions': '198x200 (WxH)',
+            'tags': 'three',
+            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': True,
+            'imagefap': 'https://www.imagefap.com/photo/102/',
+        },
+    },
+    'tags': _FAVORITE_CONTEXT_ALL_ON['tags'],
+    'warning_message': None,
     'error_message': None,
 }
 
