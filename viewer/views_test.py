@@ -206,7 +206,7 @@ class TestDjangoViews(unittest.TestCase):
     request.GET = {}
     views.ServeTag(request, 0)
     mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_ROOT)
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_ROOT_CONTEXT)
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -225,7 +225,7 @@ class TestDjangoViews(unittest.TestCase):
     new_tags = {sha: db.blobs[sha]['tags'] for sha in db.blobs.keys()}
     self.assertDictEqual(new_tags, _TAG_NEW_TAGS)
     mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF)
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF_CONTEXT)
 
   @mock.patch('viewer.views._DBFactory')
   def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
@@ -233,6 +233,18 @@ class TestDjangoViews(unittest.TestCase):
     mock_db.return_value = _TestDBFactory()
     with self.assertRaises(views.http.Http404):
       views.ServeTag(mock.Mock(views.http.HttpRequest), 666)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  def test_ServeDuplicates(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {}
+    views.ServeDuplicates(request)
+    mock_render.assert_called_once_with(request, 'viewer/duplicates.html', _DUPLICATES_CONTEXT)
 
 
 @mock.patch('fapdata.os.path.isdir')
@@ -721,7 +733,7 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
     'error_message': None,
 }
 
-_TAG_ROOT: dict[str, Any] = {
+_TAG_ROOT_CONTEXT: dict[str, Any] = {
     'tags': [
         (0, 'plain', 'plain', 0),
         (1, 'one', 'one', 0),
@@ -742,7 +754,7 @@ _TAG_ROOT: dict[str, Any] = {
     'error_message': None,
 }
 
-_TAG_LEAF: dict[str, Any] = {
+_TAG_LEAF_CONTEXT: dict[str, Any] = {
     'tags': [
         (22, 'two-two', 'two/two-two', 1),
         (24, 'two-four', 'two/two-four', 1),
@@ -764,6 +776,28 @@ _TAG_NEW_TAGS: dict[str, set[int]] = {
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {246},
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {1, 2},
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {1, 24},
+}
+
+_DUPLICATES_CONTEXT: dict[str, Any] = {
+    'duplicates': {
+        ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): {
+            'name': ('(0aaef1becbd966a2&hellip;, 321e59af9d70af77&hellip;, '  # cspell:disable-line
+                     'e221b76f55946176&hellip;)'),                            # cspell:disable-line
+            'size': 3,
+            'action': True,
+        },
+        ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
+         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'): {
+            'name': '(5b1d83a7317f2bb1&hellip;, ed1441656a734052&hellip;)',  # cspell:disable-line
+            'size': 2,
+            'action': False,
+        },
+    },
+    'dup_action': 1,
+    'dup_count': 2,
+    'img_count': 5,
 }
 
 
