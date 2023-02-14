@@ -102,6 +102,13 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/favorites.html', _FAVORITES_CONTEXT)
 
   @mock.patch('viewer.views._DBFactory')
+  def test_ServeFavorites_User_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeFavorites(mock.Mock(views.http.HttpRequest), 5)
+
+  @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
   @mock.patch('fapdata.FapDatabase.Save')
   def test_ServeFavorite_All_On_And_Tagging(
@@ -109,7 +116,8 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    db = _TestDBFactory()
+    mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {
         'tag_select': '24',
@@ -120,6 +128,8 @@ class TestDjangoViews(unittest.TestCase):
         'dup': '1',  # by default, show portrait+landscape, lock is off
     }
     views.ServeFavorite(request, 1, 10)
+    new_tags = {sha: db.blobs[sha]['tags'] for sha in _FAVORITE_CONTEXT_ALL_ON['blobs_data'].keys()}
+    self.assertDictEqual(new_tags, _FAVORITE_NEW_TAGS)
     mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', _FAVORITE_CONTEXT_ALL_ON)
 
@@ -142,6 +152,20 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeFavorite(request, 1, 10)
     mock_save.assert_not_called()
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', _FAVORITE_CONTEXT_ALL_OFF)
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeFavorite_User_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeFavorite(mock.Mock(views.http.HttpRequest), 5, 10)
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeFavorite_Folder_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeFavorite(mock.Mock(views.http.HttpRequest), 1, 50)
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.http.HttpResponse')
@@ -602,6 +626,13 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
     ],
     'warning_message': '2 images tagged with \'two-four\'',
     'error_message': None,
+}
+
+_FAVORITE_NEW_TAGS: dict[str, set[int]] = {
+    '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {3, 24},
+    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {11, 33},
+    'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {1, 2, 24},
+    'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {1, 24, 33},
 }
 
 _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
