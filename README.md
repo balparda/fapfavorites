@@ -72,7 +72,11 @@ the `--folder` flag. Example:
 
 Read as many users and folders as you want. They will be in the
 database, thumbnails will be automatically generated, duplicates will
-be found, etc.
+be found, etc. By default it will skip any album recently downloaded
+in the previous 3 days (72h). This is usually very helpful to save
+time when you have to restart the fetching, as it will gladly remember
+the work done and save time. If you know something changed and want
+to force it to download anyway, just add the `--force` flag.
 
 Now you want to see the data and admire the downloaded albums and
 images, so you do:
