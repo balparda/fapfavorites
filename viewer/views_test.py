@@ -37,8 +37,11 @@ class TestDjangoViews(unittest.TestCase):
     self.maxDiff = None
     mock_db.return_value = _TestDBFactory()
     mock_getsize.return_value = 100000
-    views.ServeIndex('req')  # type: ignore
-    mock_render.assert_called_once_with('req', 'viewer/index.html', _INDEX_CONTEXT)
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {}
+    views.ServeIndex(request)
+    mock_render.assert_called_once_with(request, 'viewer/index.html', _INDEX_CONTEXT)
 
 
 @mock.patch('fapdata.os.path.isdir')
