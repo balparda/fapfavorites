@@ -18,7 +18,7 @@ class TestDuplicates(unittest.TestCase):
   """Tests for duplicates.py."""
 
   @mock.patch('duplicates.image_methods.PHash.encode_image')
-  def test_Encode(self, mock_encode_image):
+  def test_Encode(self, mock_encode_image: mock.MagicMock) -> None:
     """Test."""
     mock_encode_image.return_value = 'abc'
     dup = duplicates.Duplicates({}, {})
@@ -26,7 +26,7 @@ class TestDuplicates(unittest.TestCase):
     self.assertListEqual(mock_encode_image.call_args_list, [mock.call(image_file='path')])
 
   @mock.patch('duplicates.image_methods.PHash.find_duplicates')
-  def test_FindDuplicates(self, mock_find_duplicates):
+  def test_FindDuplicates(self, mock_find_duplicates: mock.MagicMock) -> None:
     """Test."""
     mock_find_duplicates.return_value = _NEW_DUPLICATES
     dup = duplicates.Duplicates(_DUPLICATES_DICT_BEFORE, _DUPLICATES_INDEX_BEFORE)
@@ -36,7 +36,7 @@ class TestDuplicates(unittest.TestCase):
     self.assertDictEqual(dup.registry, _DUPLICATES_DICT_AFTER)
     self.assertDictEqual(dup.index, _DUPLICATES_INDEX_AFTER)
 
-  def test_TrimDeletedBlob(self):
+  def test_TrimDeletedBlob(self) -> None:
     """Test."""
     self.maxDiff = None
     dup = duplicates.Duplicates(_DUPLICATES_DICT_AFTER, _DUPLICATES_INDEX_AFTER)

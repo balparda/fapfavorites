@@ -30,9 +30,12 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('favorites.fapdata.FapDatabase.AddAllUserFolders')
   def test_GetOperation(
-      self, add_all, find_duplicates, read_favorites, download_favorites, add_folder_pics,
-      add_folder_by_name, add_folder_by_id, add_user_by_name, add_user_by_id,
-      save, load, mock_is_dir):
+      self, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
+      read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
+      add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
+      add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
+      add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     try:
@@ -66,9 +69,12 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('favorites.fapdata.FapDatabase.AddAllUserFolders')
   def test_ReadOperation(
-      self, add_all, find_duplicates, read_favorites, download_favorites, add_folder_pics,
-      add_folder_by_name, add_folder_by_id, add_user_by_name, add_user_by_id,
-      save, load, mock_is_dir):
+      self, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
+      read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
+      add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
+      add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
+      add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     add_user_by_name.return_value = (10, 'some-user')

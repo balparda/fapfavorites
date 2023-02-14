@@ -23,7 +23,7 @@ __version__ = (1, 0)
 class TestDjangoViews(unittest.TestCase):
   """Tests for views.py."""
 
-  def test_SHA256HexDigest(self):
+  def test_SHA256HexDigest(self) -> None:
     """Test."""
     digest = views.SHA256HexDigest()
     self.assertEqual(digest.to_python('fOO'), 'foo')
@@ -32,7 +32,9 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
   @mock.patch('fapdata.os.path.getsize')
-  def test_ServeIndex(self, mock_getsize, mock_render, mock_db):
+  def test_ServeIndex(
+      self, mock_getsize: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
     mock_db.return_value = _TestDBFactory()
@@ -47,7 +49,9 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('django.shortcuts.render')
   @mock.patch('fapdata.FapDatabase.DeleteUserAndAlbums')
   @mock.patch('fapdata.FapDatabase.Save')
-  def test_ServeUsers(self, mock_save, mock_delete, mock_render, mock_db):
+  def test_ServeUsers(
+      self, mock_save: mock.MagicMock, mock_delete: mock.MagicMock,
+      mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
     mock_db.return_value = _TestDBFactory()
@@ -62,7 +66,7 @@ class TestDjangoViews(unittest.TestCase):
 
 
 @mock.patch('fapdata.os.path.isdir')
-def _TestDBFactory(mock_isdir) -> views.fapdata.FapDatabase:
+def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
   mock_isdir.return_value = True
   db = views.fapdata.FapDatabase('/foo/', create_if_needed=False)
   db._db = _MOCK_DATABASE

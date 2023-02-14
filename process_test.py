@@ -25,7 +25,9 @@ class TestProcess(unittest.TestCase):
   @mock.patch('process.fapdata.FapDatabase.PrintTags')
   @mock.patch('process.fapdata.FapDatabase.PrintBlobs')
   def test_StatsOperation(
-      self, print_blobs, print_tags, print_users, print_stats, save, load, mock_is_dir):
+      self, print_blobs: mock.MagicMock, print_tags: mock.MagicMock, print_users: mock.MagicMock,
+      print_stats: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     try:
@@ -50,7 +52,9 @@ class TestProcess(unittest.TestCase):
   @mock.patch('process.fapdata.FapDatabase.PrintTags')
   @mock.patch('process.fapdata.FapDatabase.PrintBlobs')
   def test_PrintOperation(
-      self, print_blobs, print_tags, print_users, print_stats, save, load, mock_is_dir):
+      self, print_blobs: mock.MagicMock, print_tags: mock.MagicMock, print_users: mock.MagicMock,
+      print_stats: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     try:
@@ -71,7 +75,9 @@ class TestProcess(unittest.TestCase):
   @mock.patch('process.fapdata.FapDatabase.Load')
   @mock.patch('process.fapdata.FapDatabase.Save')
   @mock.patch('django.core.management.execute_from_command_line')
-  def test_RunOperation(self, mock_django, save, load, mock_is_dir):
+  def test_RunOperation(
+      self, mock_django: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     try:

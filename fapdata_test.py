@@ -32,7 +32,9 @@ class TestFapDatabase(unittest.TestCase):
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata.os.mkdir')
   @mock.patch('fapdata.os.path.expanduser')
-  def test_Constructor(self, mock_expanduser, mock_mkdir, mock_is_dir):
+  def test_Constructor(
+      self, mock_expanduser: mock.MagicMock, mock_mkdir: mock.MagicMock,
+      mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = False
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
@@ -69,7 +71,7 @@ class TestFapDatabase(unittest.TestCase):
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
 
   @mock.patch('fapdata.os.path.isdir')
-  def test_Constructor_Fail(self, mock_is_dir):
+  def test_Constructor_Fail(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = False
     with self.assertRaises(fapdata.Error):
@@ -78,7 +80,7 @@ class TestFapDatabase(unittest.TestCase):
       fapdata.FapDatabase('')
 
   @mock.patch('fapdata.os.path.isdir')
-  def test_GetTag(self, mock_is_dir):
+  def test_GetTag(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     db = fapdata.FapDatabase('/xxx/')
@@ -106,7 +108,7 @@ class TestFapDatabase(unittest.TestCase):
       db.GetTag(33)
 
   @mock.patch('fapdata.os.path.isdir')
-  def test_TagsWalk(self, mock_is_dir):
+  def test_TagsWalk(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     db = fapdata.FapDatabase('/xxx/')
@@ -125,7 +127,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata.urllib.request.urlopen')
   @mock.patch('fapdata.time.sleep')
-  def test_LimpingURLRead(self, unused_time, mock_url):
+  def test_LimpingURLRead(self, unused_time: mock.MagicMock, mock_url: mock.MagicMock) -> None:
     """Test."""
     # test args error
     with self.assertRaises(AttributeError):
@@ -160,7 +162,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata._FapHTMLRead')
-  def test_AddUserByID(self, mock_read, mock_is_dir):
+  def test_AddUserByID(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     fapdata._FIND_NAME_IN_FAVORITES = _MockRegex({'user_html': ['foo &amp; user'], 'invalid': []})
@@ -180,7 +182,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata._FapHTMLRead')
-  def test_AddUserByName(self, mock_read, mock_is_dir):
+  def test_AddUserByName(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     fapdata._FIND_USER_ID_RE = _MockRegex({'user_html': ['10'], 'invalid': []})
@@ -206,7 +208,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata._FapHTMLRead')
-  def test_AddFolderByID(self, mock_read, mock_is_dir):
+  def test_AddFolderByID(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     fapdata._FIND_NAME_IN_FOLDER = _MockRegex({'folder_html': ['foo &amp; folder'], 'invalid': []})
@@ -234,7 +236,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata._FapHTMLRead')
-  def test_AddFolderByName(self, mock_read, mock_is_dir):
+  def test_AddFolderByName(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     fapdata._FIND_FOLDERS = _MockRegex({
@@ -266,7 +268,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata._FapHTMLRead')
   @mock.patch('fapdata._FapBinRead')
-  def test_Read(self, read_bin, read_html):
+  def test_Read(self, read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
     fapdata.base.INT_TIME = lambda: 1675368670  # 02/feb/2023 20:11
