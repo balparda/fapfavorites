@@ -64,6 +64,25 @@ class TestDjangoViews(unittest.TestCase):
     mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/users.html', _USERS_CONTEXT)
 
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.DeleteAlbum')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeFavorites(
+      self, mock_save: mock.MagicMock, mock_delete: mock.MagicMock,
+      mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    mock_delete.return_value = (66, 22)
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'delete_input': '11'}
+    request.GET = {}
+    views.ServeFavorites(request, 1)
+    mock_delete.assert_called_once_with(1, 11)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/favorites.html', _FAVORITES_CONTEXT)
+
 
 @mock.patch('fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
@@ -364,6 +383,50 @@ _USERS_CONTEXT: dict[str, Any] = {
     'total_file_storage': '2.12Mb',
     'warning_message': ('User 3/\'Yoda\' deleted, and with them 66 blobs (images) deleted, '
                         'together with their thumbnails, plus 22 duplicates groups abandoned'),
+    'error_message': None,
+}
+
+_FAVORITES_CONTEXT: dict[str, Any] = {
+    'user_id': 1,
+    'user_name': 'Luke',
+    'favorites': {
+        10: {
+            'name': 'luke-folder-10',
+            'pages': 9,
+            'date': '2023/Feb/02-01:06:40-UTC',
+            'count': 5,
+            'files_sz': '598.52kb',
+            'min_sz': '101b',
+            'max_sz': '434.54kb',
+            'mean_sz': '119.70kb',
+            'dev_sz': '177.58kb',
+            'thumbs_sz': '458.94kb',
+            'n_animated': '1 (20.0%)',
+        },
+        11: {
+            'name': 'luke-folder-11',
+            'pages': 8,
+            'date': '2022/Dec/14-06:40:00-UTC',
+            'count': 3,
+            'files_sz': '131.47kb',
+            'min_sz': '101b',
+            'max_sz': '87.12kb',
+            'mean_sz': '43.82kb',
+            'dev_sz': '43.51kb',
+            'thumbs_sz': '55.86kb',
+            'n_animated': '0 (0.0%)',
+        },
+    },
+    'album_count': 2,
+    'img_count': 8,
+    'page_count': 17,
+    'total_sz': '729.99kb',
+    'total_thumbs_sz': '514.80kb',
+    'total_file_storage': '1.22Mb',
+    'total_animated': '1 (12.5%)',
+    'warning_message': ('Favorites album 11/\'luke-folder-11\' deleted, and with it 66 '
+                        'blobs (images) deleted, together with their thumbnails, '
+                        'plus 22 duplicates groups abandoned'),
     'error_message': None,
 }
 

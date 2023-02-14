@@ -259,6 +259,8 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
 def ServeFavorite(  # noqa: C901
     request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
+  # TODO: add mouse-over for gemini icon so can be easily checked
+  # TODO: add gemini icon for "locked/selection" page state
   # check for errors in parameters
   db = _DBFactory()
   warning_message: Optional[str] = None
@@ -494,6 +496,8 @@ def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeTex
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
+  # TODO: add verdict column to show summary of decision "F/F", "K/S", for example,
+  #     in totals, show how many F/N/K/S verdicts there are, with maybe some % stats
   db = _DBFactory()
   sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
   # send to page
