@@ -385,7 +385,7 @@ class FapDatabase:
       pixel_sizes: list[int] = [
           s['width'] * s['height'] for s in self.blobs.values()]
       PrintLine(
-          'Pixel size (width, height): %spixels min %r, %spixels max %r, '  # cspell:disable-line
+          'Pixel size (width, height): %s pixels min %r, %s pixels max %r, '  # cspell:disable-line
           '%s mean with %s standard deviation' % (
               base.HumanizedDecimal(min(pixel_sizes)),
               wh_sizes[pixel_sizes.index(min(pixel_sizes))],
