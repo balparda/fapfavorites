@@ -56,6 +56,8 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {'delete_input': '3'}
     request.GET = {}
     views.ServeUsers(request)
+    mock_delete.assert_called_once_with(3)
+    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/users.html', _USERS_CONTEXT)
 
 
