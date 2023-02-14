@@ -28,6 +28,13 @@ _IMAGE_TYPES = {
 
 _IMG_COLUMNS = 4
 
+_VERDICT_ABBREVIATION: dict[duplicates.DuplicatesVerdictType, str] = {
+    'new': 'N',
+    'false': 'F',
+    'keep': 'K',
+    'skip': 'S',
+}
+
 
 @defaulttags.register.filter(name='lookup')
 def lookup(value: dict, arg: Any) -> Any:
@@ -499,24 +506,41 @@ def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeTex
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
-  # TODO: add verdict column to show summary of decision "F/F", "K/S", for example,
-  #     in totals, show how many F/N/K/S verdicts there are, with maybe some % stats
   db = _DBFactory()
   sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
   # send to page
+  img_count = sum(len(dup_key) for dup_key in sorted_keys)
+  new_count = sum(
+      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'new')
+  false_count = sum(
+      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'false')
+  keep_count = sum(
+      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'keep')
+  skip_count = sum(
+      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'skip')
   context: dict[str, Any] = {
       'duplicates': {
           dup_key: {
               'name': _AbbreviatedKey(dup_key),
               'size': len(dup_key),
               'action': any(st == 'new' for st in db.duplicates.registry[dup_key].values()),
+              'verdicts': ' / '.join(
+                  _VERDICT_ABBREVIATION[db.duplicates.registry[dup_key][sha]] for sha in dup_key),
           }
           for dup_key in sorted_keys
       },
       'dup_action': sum(1 for dup_obj in db.duplicates.registry.values()
                         if any(st == 'new' for st in dup_obj.values())),
       'dup_count': len(sorted_keys),
-      'img_count': sum(len(dup_key) for dup_key in sorted_keys),
+      'img_count': img_count,
+      'new_count': '%d (%0.1f%%)' % (
+          new_count, (100.0 * new_count) / img_count) if img_count else '-',
+      'false_count': '%d (%0.1f%%)' % (
+          false_count, (100.0 * false_count) / img_count) if img_count else '-',
+      'keep_count': '%d (%0.1f%%)' % (
+          keep_count, (100.0 * keep_count) / img_count) if img_count else '-',
+      'skip_count': '%d (%0.1f%%)' % (
+          skip_count, (100.0 * skip_count) / img_count) if img_count else '-',
   }
   return shortcuts.render(request, 'viewer/duplicates.html', context)
 

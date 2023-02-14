@@ -898,17 +898,23 @@ _DUPLICATES_CONTEXT: dict[str, Any] = {
                      'e221b76f55946176&hellip;)'),                            # cspell:disable-line
             'size': 3,
             'action': True,
+            'verdicts': 'N / K / S',
         },
         ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
          'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'): {
             'name': '(5b1d83a7317f2bb1&hellip;, ed1441656a734052&hellip;)',  # cspell:disable-line
             'size': 2,
             'action': False,
+            'verdicts': 'F / F',
         },
     },
     'dup_action': 1,
     'dup_count': 2,
     'img_count': 5,
+    'new_count': '1 (20.0%)',
+    'false_count': '2 (40.0%)',
+    'keep_count': '1 (20.0%)',
+    'skip_count': '1 (20.0%)',
 }
 
 _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {

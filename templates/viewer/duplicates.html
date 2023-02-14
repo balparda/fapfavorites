@@ -21,6 +21,8 @@
         background-color: rgb(15, 15, 59);
       }
 
+      b.red {color: red;}
+
     </style>
   </head>
   <body bgcolor='black' text='lightgray'>
@@ -31,9 +33,12 @@
 
     <table border='2'>
       <tr>
-        <th>Perceptual&nbsp;Duplicate&nbsp;Set<br/>(abbreviated hashes - these are links)</th>
+        <th>Perceptual&nbsp;Duplicate&nbsp;Set<br/>(abbreviated hashes - <i>these are links</i>)</th>
         <th>Size</th>
         <th>Needs&nbsp;Action?</th>
+        <th>
+            Verdicts<br/>
+            <b class='red'>N</b>ew/<b class='red'>F</b>alse/<b class='red'>K</b>eep/<b class='red'>S</b>kip</th> <!-- cspell:disable-line -->
       </tr>
       {% for key, obj in duplicates.items %}
         <tr>
@@ -45,22 +50,32 @@
             <td align='center' class='action_hash'>
               <a href='{% url "duplicate" key.0 %}' class='hash_link'><b>yes</b></a>
             </td>
+            <td align='center' class='action_hash'><b>{{ obj.verdicts }}</b></td>
           {% else %}
             <td class='regular_hash'>
               <a href='{% url "duplicate" key.0 %}' class='hash_link'>{{ obj.name }}</a>
             </td>
             <td align='center' class='regular_hash'>{{ obj.size }}</td>
             <td class='regular_hash'>&nbsp;</td>
+            <td align='center' class='regular_hash'><b>{{ obj.verdicts }}</b></td>
           {% endif %}
         </tr>
       {% empty %}
-        <tr><td colspan='3'>No duplicate sets in database</td></tr>
+        <tr><td colspan='4'>No duplicate sets in database</td></tr>
       {% endfor %}
       {% if duplicates %}
         <tr>
           <td align='right'><b>TOTAL:</b></td>
           <td align='center'><b>{{ img_count }}</b></td>
           <td align='center'><b>{{ dup_action }}</b></td>
+          <td align='left'>
+            <b>
+              New:&nbsp;{{ new_count }}<br/>
+              False:&nbsp;{{ false_count }}<br/>
+              Keep:&nbsp;{{ keep_count }}<br/>
+              Skip:&nbsp;{{ skip_count }}
+            </b>
+          </td>
         </tr>
       {% endif %}
     </table>
