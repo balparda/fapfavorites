@@ -516,14 +516,20 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
         ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
          '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
          'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): {
-            '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'new',
-            '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'keep',
-            'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': 'skip',
+            'sources': {},
+            'verdicts': {
+                '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'new',
+                '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'keep',
+                'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': 'skip',
+            },
         },
         ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
          'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'): {
-            '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': 'false',
-            'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': 'false',
+            'sources': {},
+            'verdicts': {
+                '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': 'false',
+                'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': 'false',
+            },
         },
     },
     'duplicates_key_index': {

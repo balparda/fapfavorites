@@ -96,7 +96,7 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
       'tags': len(tuple(db.TagsWalk())),
       'duplicates': len(db.duplicates.registry),
       'dup_action': sum(1 for d in db.duplicates.registry.values()
-                        if any(st == 'new' for st in d.values())),
+                        if any(st == 'new' for st in d['verdicts'].values())),
       'n_images': len(db.blobs),
       'database_stats': db.PrintStats(actually_print=False),
   }
@@ -325,7 +325,7 @@ def ServeFavorite(  # noqa: C901
         album_duplicates[sha] = hits
     # look in perceptual index if this image is marked as 'new'/'keep'/'skip' (!='false')
     if sha in db.duplicates.index:
-      verdict = db.duplicates.registry[db.duplicates.index[sha]][sha]
+      verdict = db.duplicates.registry[db.duplicates.index[sha]]['verdicts'][sha]
       if verdict != 'false':
         percept_duplicates[sha] = verdict
   # apply filters
@@ -511,26 +511,32 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   # send to page
   img_count = sum(len(dup_key) for dup_key in sorted_keys)
   new_count = sum(
-      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'new')
+      1 for dup_obj in db.duplicates.registry.values()
+      for st in dup_obj['verdicts'].values() if st == 'new')
   false_count = sum(
-      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'false')
+      1 for dup_obj in db.duplicates.registry.values()
+      for st in dup_obj['verdicts'].values() if st == 'false')
   keep_count = sum(
-      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'keep')
+      1 for dup_obj in db.duplicates.registry.values()
+      for st in dup_obj['verdicts'].values() if st == 'keep')
   skip_count = sum(
-      1 for dup_obj in db.duplicates.registry.values() for st in dup_obj.values() if st == 'skip')
+      1 for dup_obj in db.duplicates.registry.values()
+      for st in dup_obj['verdicts'].values() if st == 'skip')
   context: dict[str, Any] = {
       'duplicates': {
           dup_key: {
               'name': _AbbreviatedKey(dup_key),
               'size': len(dup_key),
-              'action': any(st == 'new' for st in db.duplicates.registry[dup_key].values()),
+              'action': any(
+                  st == 'new' for st in db.duplicates.registry[dup_key]['verdicts'].values()),
               'verdicts': ' / '.join(
-                  _VERDICT_ABBREVIATION[db.duplicates.registry[dup_key][sha]] for sha in dup_key),
+                  _VERDICT_ABBREVIATION[
+                      db.duplicates.registry[dup_key]['verdicts'][sha]] for sha in dup_key),
           }
           for dup_key in sorted_keys
       },
       'dup_action': sum(1 for dup_obj in db.duplicates.registry.values()
-                        if any(st == 'new' for st in dup_obj.values())),
+                        if any(st == 'new' for st in dup_obj['verdicts'].values())),
       'dup_count': len(sorted_keys),
       'img_count': img_count,
       'new_count': '%d (%0.1f%%)' % (
@@ -553,7 +559,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   if digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
   sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
-  dup_obj: Optional[dict[str, duplicates.DuplicatesVerdictType]] = None
+  dup_obj: Optional[duplicates.DuplicateObjType] = None
   if digest in db.duplicates.index:
     # this is a perceptual set, so get the object and its index in sorted_keys
     dup_key: duplicates.DuplicatesKeyType = db.duplicates.index[digest]
@@ -581,7 +587,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
         error_message = 'Key %r in POST data has invalid option %r!' % (sha, selected_option)
         break
       # set data in DB structure
-      dup_obj[sha] = selected_option
+      dup_obj['verdicts'][sha] = selected_option
     else:
       # everything went smoothly (no break action above), so save the data
       db.Save()
@@ -595,7 +601,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                    if -1 < current_index < (len(sorted_keys) - 1) else None),
       'duplicates': {
           sha: {
-              'action': dup_obj[sha] if dup_obj else '',
+              'action': dup_obj['verdicts'][sha] if dup_obj else '',
               'loc': [
                   {
                       'fap_id': i,

@@ -18,7 +18,7 @@
 
 import logging
 # import pdb
-from typing import Literal
+from typing import Literal, TypedDict
 
 from imagededup import methods as image_methods
 
@@ -29,7 +29,17 @@ from baselib import base
 
 DuplicatesKeyType = tuple[str, ...]
 DuplicatesVerdictType = Literal['new', 'false', 'keep', 'skip']
-DuplicatesType = dict[DuplicatesKeyType, dict[str, DuplicatesVerdictType]]
+DuplicatesHashType = Literal['percept', 'average', 'diff', 'wavelet', 'cnn']
+
+
+class DuplicateObjType(TypedDict):
+  """Duplicate object type."""
+
+  sources: dict[DuplicatesHashType, dict[DuplicatesKeyType, float]]
+  verdicts: dict[str, DuplicatesVerdictType]
+
+
+DuplicatesType = dict[DuplicatesKeyType, DuplicateObjType]
 DUPLICATE_OPTIONS = {'new', 'false', 'keep', 'skip'}
 DuplicatesKeyIndexType = dict[str, DuplicatesKeyType]
 
@@ -75,7 +85,8 @@ class Duplicates:
     added_count: int = 0
     if not dup_keys:
       new_key: DuplicatesKeyType = tuple(sorted(sha_set))
-      self.registry[new_key] = {sha: 'new' for sha in sha_set}
+      self.registry[new_key] = {'sources': {}, 'verdicts': {sha: 'new' for sha in sha_set}}
+      # TODO: add 'sources'
       added_count = len(sha_set)
     # maybe this is all related to exactly one existing duplicates group
     elif len(dup_keys) == 1:
@@ -85,13 +96,14 @@ class Duplicates:
       diff_sha_set = set(new_key).difference(old_key)
       added_count = len(diff_sha_set)
       # we only have to act where there is some diff (otherwise we already incorporated all keys)
+      # TODO: add 'sources'
       if diff_sha_set:
         # move the entry to the new key, delete at old position, we keep the old verdicts
         self.registry[new_key] = self.registry[old_key]
         del self.registry[old_key]
         # now we add the new duplicate sha to the new key position
         for sha in diff_sha_set:
-          self.registry[new_key][sha] = 'new'
+          self.registry[new_key]['verdicts'][sha] = 'new'
     # final possible case is that we have multiple separate groups
     else:
       # compose a new key
@@ -103,7 +115,8 @@ class Duplicates:
       new_key: DuplicatesKeyType = tuple(sorted(sha_set.union(old_key_set)))
       added_count = len(set(new_key).difference(old_key_set))
       # not a good idea to try to keep old verdicts, so the new super-group will be reset to 'new'
-      self.registry[new_key] = {sha: 'new' for sha in new_key}
+      self.registry[new_key] = {'sources': {}, 'verdicts': {sha: 'new' for sha in new_key}}
+      # TODO: add 'sources'
     # now we update the index (make sure to overwrite all sha in new_key!), and return the count
     for sha in new_key:
       self.index[sha] = new_key
@@ -160,10 +173,11 @@ class Duplicates:
       logging.info('Deleted duplicate entry %r', old_key)
       return True
     # this is a group that had more than 2 keys; first delete the `sha` entry inside the object
-    del self.registry[old_key][sha]
+    del self.registry[old_key]['verdicts'][sha]
+    # TODO: delete all 'sources' pairs with the key
     # now reset the status of the remaining keys that are not 'new' or 'false'
-    for k in {k for k, d in self.registry[old_key].items() if d in {'keep', 'skip'}}:
-      self.registry[old_key][k] = 'new'
+    for k in {k for k, d in self.registry[old_key]['verdicts'].items() if d in {'keep', 'skip'}}:
+      self.registry[old_key]['verdicts'][k] = 'new'
     # finally move the entry to a new clean key entry with only the remaining digests
     new_key: DuplicatesKeyType = tuple(sorted(remaining_digests))
     self.registry[new_key] = self.registry[old_key]

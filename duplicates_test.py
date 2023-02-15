@@ -40,9 +40,9 @@ class TestDuplicates(unittest.TestCase):
     """Test."""
     self.maxDiff = None
     dup = duplicates.Duplicates(_DUPLICATES_DICT_AFTER, _DUPLICATES_INDEX_AFTER)
-    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['fff'] = 'keep'
-    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['ggg'] = 'skip'
-    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['hhh'] = 'false'
+    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['verdicts']['fff'] = 'keep'
+    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['verdicts']['ggg'] = 'skip'
+    dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['verdicts']['hhh'] = 'false'
     self.assertTrue(dup.TrimDeletedBlob('bbb'))
     self.assertFalse(dup.TrimDeletedBlob('eee'))
     self.assertFalse(dup.TrimDeletedBlob('jjj'))
@@ -55,21 +55,33 @@ class TestDuplicates(unittest.TestCase):
 
 _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
     ('aaa', 'bbb'): {
-        'aaa': 'keep',
-        'bbb': 'skip',
+        'sources': {},
+        'verdicts': {
+            'aaa': 'keep',
+            'bbb': 'skip',
+        },
     },
     ('ccc', 'ddd', 'eee'): {
-        'ccc': 'new',
-        'ddd': 'false',
-        'eee': 'false',
+        'sources': {},
+        'verdicts': {
+            'ccc': 'new',
+            'ddd': 'false',
+            'eee': 'false',
+        },
     },
     ('ggg', 'hhh'): {
-        'ggg': 'keep',
-        'hhh': 'skip',
+        'sources': {},
+        'verdicts': {
+            'ggg': 'keep',
+            'hhh': 'skip',
+        },
     },
     ('iii', 'jjj'): {
-        'iii': 'keep',
-        'jjj': 'skip',
+        'sources': {},
+        'verdicts': {
+            'iii': 'keep',
+            'jjj': 'skip',
+        },
     },
 }
 
@@ -94,26 +106,38 @@ _NEW_DUPLICATES = {
 
 _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
     ('aaa', 'bbb'): {
-        'aaa': 'keep',
-        'bbb': 'skip',
+        'sources': {},
+        'verdicts': {
+            'aaa': 'keep',
+            'bbb': 'skip',
+        },
     },
     ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'): {
-        'ccc': 'new',
-        'ddd': 'new',
-        'eee': 'new',
-        'fff': 'new',
-        'ggg': 'new',
-        'hhh': 'new',
+        'sources': {},
+        'verdicts': {
+            'ccc': 'new',
+            'ddd': 'new',
+            'eee': 'new',
+            'fff': 'new',
+            'ggg': 'new',
+            'hhh': 'new',
+        },
     },
     ('iii', 'jjj', 'kkk'): {
-        'iii': 'keep',
-        'jjj': 'skip',
-        'kkk': 'new',
+        'sources': {},
+        'verdicts': {
+            'iii': 'keep',
+            'jjj': 'skip',
+            'kkk': 'new',
+        },
     },
     ('xxx', 'yyy', 'zzz'): {
-        'xxx': 'new',
-        'yyy': 'new',
-        'zzz': 'new',
+        'sources': {},
+        'verdicts': {
+            'xxx': 'new',
+            'yyy': 'new',
+            'zzz': 'new',
+        },
     },
 }
 
@@ -136,15 +160,21 @@ _DUPLICATES_INDEX_AFTER: duplicates.DuplicatesKeyIndexType = {
 
 _DUPLICATES_DICT_TRIMMED: duplicates.DuplicatesType = {
     ('ccc', 'ddd', 'fff', 'ggg', 'hhh'): {
-        'ccc': 'new',
-        'ddd': 'new',
-        'fff': 'new',
-        'ggg': 'new',
-        'hhh': 'false',
+        'sources': {},
+        'verdicts': {
+            'ccc': 'new',
+            'ddd': 'new',
+            'fff': 'new',
+            'ggg': 'new',
+            'hhh': 'false',
+        },
     },
     ('iii', 'kkk'): {
-        'iii': 'new',
-        'kkk': 'new',
+        'sources': {},
+        'verdicts': {
+            'iii': 'new',
+            'kkk': 'new',
+        },
     },
 }
 

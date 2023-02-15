@@ -87,6 +87,10 @@ class _BlobObjType(TypedDict):
   sz_thumb: int
   ext: str
   percept: str
+  # average: str  # TODO
+  # diff: str     # TODO
+  # wavelet: str  # TODO
+  # cnn: str      # TODO
   width: int
   height: int
   animated: bool

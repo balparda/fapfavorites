@@ -322,6 +322,10 @@ from a structure like:
       'sz_thumb': int_size_bytes,    # size of saved thumbnail image, if any, else 0
       'ext': string_file_extension,  # the saved file extension ('jpg', 'gif', ...)
       'percept': perceptual_hash,    # 16 character hexadecimal string perceptual hash for the image
+      'average': average_hash,       # TODO
+      'diff': difference_hash,       # TODO
+      'wavelet': wavelet_hash,       # TODO
+      'cnn': convolutional_neural_network_hash,  # TODO
       'width': int,      # image width
       'height': int,     # image height
       'animated': bool,  # True if image is animated (gif), False otherwise
@@ -335,14 +339,24 @@ from a structure like:
 
   'duplicates_registry': {
     tuple(sorted({sha1, sha2, ...})): {  # the key is the set of duplicates
-      sha1: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha1
-      sha2: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha2
-          # 'new': this is a new entry to this set, so it needs a new revision
-          # 'false': this is a false positive
-          #      (if the set has only 2 hashes, then either both are 'false' or neither is!)
-          # 'keep': this is "ignore", meaning image will not be affected, will be kept
-          # 'skip': this image will be skipped, meaning disappear/delete
-      ...
+      'sources': {  # for each method that contributed: the scores that turned up, pair by pair
+        Literal['percept', 'average', 'diff', 'wavelet', 'cnn']: {
+          tuple(sorted({sha1, sha2})): float_score_for_sha1_sha2_pair,
+          tuple(sorted({sha1, sha2})): float_score_for_sha1_sha2_pair,
+          ...
+        },
+        ...
+      },
+      'verdicts': {  # stores the decisions on each case, what to do with the files
+        sha1: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha1
+        sha2: Literal['new', 'false', 'keep', 'skip'],  # what to do with sha2
+            # 'new': this is a new entry to this set, so it needs a new revision
+            # 'false': this is a false positive
+            #      (if the set has only 2 hashes, then either both are 'false' or neither is!)
+            # 'keep': this is "ignore", meaning image will not be affected, will be kept
+            # 'skip': this image will be skipped, meaning disappear/delete
+        ...
+      }
     }
   }
 

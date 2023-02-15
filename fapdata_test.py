@@ -54,7 +54,7 @@ class TestFapDatabase(unittest.TestCase):
     db.tags[3] = {'name': 'three', 'tags': {}}
     db.blobs['sha1'] = {'tags': {4}}  # type: ignore
     db.image_ids_index[5] = 'sha2'
-    db._duplicates_registry[('a', 'b')] = {'a': 'new'}
+    db._duplicates_registry[('a', 'b')] = {'sources': {}, 'verdicts': {'a': 'new'}}
     db._duplicates_key_index['a'] = ('a', 'b')
     db._duplicates_key_index['b'] = ('a', 'b')
     self.assertDictEqual(db._db, {
@@ -63,10 +63,11 @@ class TestFapDatabase(unittest.TestCase):
         'tags': {3: {'name': 'three', 'tags': {}}},
         'blobs': {'sha1': {'tags': {4}}},
         'image_ids_index': {5: 'sha2'},
-        'duplicates_registry': {('a', 'b'): {'a': 'new'}},
+        'duplicates_registry': {('a', 'b'): {'sources': {}, 'verdicts': {'a': 'new'}}},
         'duplicates_key_index': {'a': ('a', 'b'), 'b': ('a', 'b')}
     })
-    self.assertDictEqual(db.duplicates.registry, {('a', 'b'): {'a': 'new'}})
+    self.assertDictEqual(
+        db.duplicates.registry, {('a', 'b'): {'sources': {}, 'verdicts': {'a': 'new'}}})
     # self.assertDictEqual(db.duplicates.index, {'a': ('a', 'b'), 'b': ('a', 'b')})
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
 
@@ -579,16 +580,22 @@ _DUPLICATES: fapdata.duplicates.DuplicatesType = {
     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
      '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
      'sha-107'): {
-        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'new',
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
-        'sha-107': 'new',
+        'sources': {},
+        'verdicts': {
+            '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'new',
+            '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
+            'sha-107': 'new',
+        },
     },
 }
 
 _DUPLICATES_TRIMMED: fapdata.duplicates.DuplicatesType = {
     ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf', 'sha-107'): {
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
-        'sha-107': 'new',
+        'sources': {},
+        'verdicts': {
+            '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
+            'sha-107': 'new',
+        },
     },
 }
 
