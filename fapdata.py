@@ -35,6 +35,7 @@ import urllib.error
 import urllib.request
 
 from PIL import Image, ImageSequence
+import numpy as np
 import sanitize_filename
 
 from baselib import base
@@ -87,10 +88,10 @@ class _BlobObjType(TypedDict):
   sz_thumb: int
   ext: str
   percept: str
-  # average: str  # TODO
-  # diff: str     # TODO
-  # wavelet: str  # TODO
-  # cnn: str      # TODO
+  average: str
+  diff: str
+  wavelet: str
+  cnn: np.ndarray
   width: int
   height: int
   animated: bool
@@ -774,7 +775,8 @@ class FapDatabase:
       # we don't know about this specific img_id yet: get image's full resolution URL + name
       url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
       # get actual binary data
-      image_bytes, sha, perceptual_hash, width, height, is_animated = self._GetBinary(
+      (image_bytes, sha, percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
+       width, height, is_animated) = self._GetBinary(
           url_path, extension)
       # create DB entries and return
       self.image_ids_index[img_id] = sha
@@ -782,21 +784,22 @@ class FapDatabase:
       if sha in self.blobs:
         # in this case we haven't seen this img_id, but the actual binary (sha) was seen in
         # some other album, so we do some checks and add to the 'loc' entry
-        if (self.blobs[sha]['sz'] != sz or self.blobs[sha]['percept'] != perceptual_hash or
+        if (self.blobs[sha]['sz'] != sz or self.blobs[sha]['percept'] != percept_hash or
             self.blobs[sha]['width'] != width or self.blobs[sha]['height'] != height or
             self.blobs[sha]['animated'] != is_animated):
           logging.error(  # this would be truly weird case, especially for the sz data!
               'Mismatch in %r: stored %d/%s/%s/%d/%d/%r versus new %d/%s/%s/%d/%d/%r',
               sha, self.blobs[sha]['sz'], self.blobs[sha]['percept'], self.blobs[sha]['ext'],
               self.blobs[sha]['width'], self.blobs[sha]['height'], self.blobs[sha]['animated'],
-              sz, perceptual_hash, extension, width, height, is_animated)
+              sz, percept_hash, extension, width, height, is_animated)
         self.blobs[sha]['loc'].add(
             (img_id, url_path, sanitized_image_name, user_id, folder_id))
       else:
         # in this case this is a truly new image: never seen img_id or sha
         self.blobs[sha] = {
             'loc': {(img_id, url_path, sanitized_image_name, user_id, folder_id)},
-            'tags': set(), 'sz': sz, 'sz_thumb': 0, 'ext': extension, 'percept': perceptual_hash,
+            'tags': set(), 'sz': sz, 'sz_thumb': 0, 'ext': extension, 'percept': percept_hash,
+            'average': average_hash, 'diff': diff_hash, 'wavelet': wavelet_hash, 'cnn': cnn_hash,
             'width': width, 'height': height, 'animated': is_animated}
       return (image_bytes, sha, url_path, sanitized_image_name, extension)
     # we have seen this img_id before, and can skip a lot of computation
@@ -953,7 +956,10 @@ class FapDatabase:
             known_count, exists_count))
     return total_sz
 
-  def _GetBinary(self, url: str, image_extension: str) -> tuple[bytes, str, str, int, int, bool]:
+  def _GetBinary(
+      self,
+      url: str,
+      image_extension: str) -> tuple[bytes, str, str, str, str, str, np.ndarray, int, int, bool]:
     """Get an image by URL and compute data that depends only on the binary representation.
 
     Args:
@@ -961,7 +967,9 @@ class FapDatabase:
       image_extension: Putative image extension
 
     Returns:
-      (image_bytes, image_sha256_hexdigest, perceptual_hash, width, height, is_animated)
+      (image_bytes, image_sha256_hexdigest,
+       percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
+       width, height, is_animated)
 
     Raises:
       Error: for invalid URLs or empty images
@@ -978,8 +986,9 @@ class FapDatabase:
       with Image.open(temp_file.name) as img:
         width, height = img.width, img.height
         is_animated: bool = getattr(img, 'is_animated', False)
-      percept = self.duplicates.Encode(temp_file.name)
-    return (img_data, hashlib.sha256(img_data).hexdigest(), percept, width, height, is_animated)
+      percept, average, diff, wavelet, cnn = self.duplicates.Encode(temp_file.name)
+    return (img_data, hashlib.sha256(img_data).hexdigest(),
+            percept, average, diff, wavelet, cnn, width, height, is_animated)
 
   def _MakeThumbnailForBlob(self, sha: str) -> int:
     """Make equivalent thumbnail for `sha` entry. Will overwrite destination.
@@ -1139,9 +1148,10 @@ class FapDatabase:
       del self.image_ids_index[imagefap_image_id]
 
   @property
-  def _perceptual_hashes_map(self) -> dict[str, str]:
+  def _hashes_encodings_map(self) -> duplicates.HashEncodingMapType:
      """A dictionary containing mapping of filenames and corresponding perceptual hashes."""
-     return {sha: obj['percept'] for sha, obj in self.blobs.items()}
+     return {method: {sha: obj[method] for sha, obj in self.blobs.items()}  # type: ignore
+             for method in duplicates.DUPLICATE_HASHES}
 
   def FindDuplicates(self) -> None:
     """Find (perceptual) duplicates.
@@ -1149,7 +1159,7 @@ class FapDatabase:
     Returns:
       dict of {sha: set_of_other_sha_duplicates}
     """
-    self.duplicates.FindDuplicates(self._perceptual_hashes_map)
+    self.duplicates.FindDuplicates(self._hashes_encodings_map)
 
 
 def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> bytes:

@@ -35,6 +35,8 @@ def main() -> int:
     module.SUITE.debug()
     logging.info('OK')
     logging.info('*' * 80)
+  logging.info('               ======>>>>  ALL MODULES PASSED OK  <<<<======')
+  logging.info('*' * 80)
   return 0
 
 

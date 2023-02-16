@@ -120,7 +120,7 @@ saving them to disk instead of saving them as blobs. It will create
 a simple database file that, if kept in the directory, will avoid
 having to do repeated work for known images. (You can disable the
 database file creation with the `--no-db` option, but there really
-is no need to, as the file is typically tiny: _much less than 0.02%_
+is no need to, as the file is typically tiny: _much less than 0.5%_
 of the size of the downloaded images and usually less than 1Mb.)
 If you use the database you will save a lot of time for repeated
 uses or if your connection is broken. The system will remember
@@ -321,11 +321,11 @@ from a structure like:
       'sz': int_size_bytes,          # size of blob file
       'sz_thumb': int_size_bytes,    # size of saved thumbnail image, if any, else 0
       'ext': string_file_extension,  # the saved file extension ('jpg', 'gif', ...)
-      'percept': perceptual_hash,    # 16 character hexadecimal string perceptual hash for the image
-      'average': average_hash,       # TODO
-      'diff': difference_hash,       # TODO
-      'wavelet': wavelet_hash,       # TODO
-      'cnn': convolutional_neural_network_hash,  # TODO
+      'percept': perceptual_hash,    # 16 character hex (64 bit) string hash for the image
+      'average': average_hash,       # 16 character hex (64 bit) string hash for the image
+      'diff': difference_hash,       # 16 character hex (64 bit) string hash for the image
+      'wavelet': wavelet_hash,       # 16 character hex (64 bit) string hash for the image
+      'cnn': convolutional_neural_network_hash,  # np.ndarray of float32 and shape (576,) = 4.5kb
       'width': int,      # image width
       'height': int,     # image height
       'animated': bool,  # True if image is animated (gif), False otherwise
@@ -372,5 +372,5 @@ from a structure like:
 When compressed this structure takes less space than would seem at a first
 glance, especially taking into account that it is stored compressed, and
 has shown to be a minimal fraction compared to the downloaded images size.
-Typically it will take much less than 0.02% of the size of the actual images
+Typically it will take much less than 0.5% of the size of the actual images
 and usually the whole database file won't even reach 1Mb.

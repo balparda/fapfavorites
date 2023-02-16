@@ -17,6 +17,8 @@ from typing import Union
 import unittest
 from unittest import mock
 
+import numpy as np
+
 import fapdata
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
@@ -31,22 +33,17 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata.os.mkdir')
-  @mock.patch('fapdata.os.path.expanduser')
-  def test_Constructor(
-      self, mock_expanduser: mock.MagicMock, mock_mkdir: mock.MagicMock,
-      mock_is_dir: mock.MagicMock) -> None:
+  def test_Constructor(self, mock_mkdir: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = False
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
-    mock_expanduser.return_value = '/home/some-user/Downloads/some-dir/'
     db = fapdata.FapDatabase('~/Downloads/some-dir/')
-    self.assertListEqual(
-        mock_mkdir.call_args_list, [mock.call('/home/some-user/Downloads/some-dir/')])
+    mock_mkdir.assert_called_once_with(os.path.expanduser('~/Downloads/some-dir/'))
     self.assertEqual(db._original_dir, '~/Downloads/some-dir/')
     self.assertEqual(os.environ['IMAGEFAP_FAVORITES_DB_PATH'], '~/Downloads/some-dir/')
-    self.assertEqual(db._db_dir, '/home/some-user/Downloads/some-dir/')
-    self.assertEqual(db._db_path, '/home/some-user/Downloads/some-dir/imagefap.database')
-    self.assertEqual(db._blobs_dir, '/home/some-user/Downloads/some-dir/blobs/')
+    self.assertEqual(db._db_dir, os.path.expanduser('~/Downloads/some-dir/'))
+    self.assertEqual(db._db_path, os.path.expanduser('~/Downloads/some-dir/imagefap.database'))
+    self.assertEqual(db._blobs_dir, os.path.expanduser('~/Downloads/some-dir/blobs/'))
     self.assertDictEqual(db._db, {k: {} for k in fapdata._DB_MAIN_KEYS})
     self.assertDictEqual(db.duplicates.registry, {})
     db.users[1] = 'Luke'
@@ -68,7 +65,7 @@ class TestFapDatabase(unittest.TestCase):
     })
     self.assertDictEqual(
         db.duplicates.registry, {('a', 'b'): {'sources': {}, 'verdicts': {'a': 'new'}}})
-    # self.assertDictEqual(db.duplicates.index, {'a': ('a', 'b'), 'b': ('a', 'b')})
+    self.assertDictEqual(db.duplicates.index, {'a': ('a', 'b'), 'b': ('a', 'b')})
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
 
   @mock.patch('fapdata.os.path.isdir')
@@ -269,7 +266,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata._FapHTMLRead')
   @mock.patch('fapdata._FapBinRead')
-  def test_Read(self, read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:
+  def test_Read(self, read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:  # noqa: C901
     """Test."""
     self.maxDiff = None
     fapdata.base.INT_TIME = lambda: 1675368670  # 02/feb/2023 20:11
@@ -366,15 +363,29 @@ class TestFapDatabase(unittest.TestCase):
                'images': [105, 106, 107, 108, 109], 'pages': 2}}})
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       # ReadFavoritesIntoBlobs #####################################################################
+      # prepare data by reading files, getting some CNN, etc
+      test_images: dict[str, bytes] = {}
+      test_cnn: dict[str, np.ndarray] = {}  # store the CNN data because it is huge
+      for name in ('100.jpg', '101.jpg', '102.jpg', '103.jpg', '104.jpg',
+                   '105.jpg', '106.jpg', '107.png', '108.png', '109.gif'):
+        f_name = os.path.join(_TESTDATA_PATH, name)
+        with open(f_name, 'rb') as f_obj:
+          test_images[name] = f_obj.read()
+        test_cnn[name] = db.duplicates.Encode(f_name)[-1]
+      # mock some more data
       db._db['blobs'] = {
           '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
               'loc': {(801, 'url-1', 'some-name.jpg', 2, 20),
                       (101, 'url-2', 'name-to-use.jpg', 1, 10)},
               'tags': set(), 'sz': 101, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
+              'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+              'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['108.png'],
               'width': 160, 'height': 200, 'animated': False},
           'sha-107': {
               'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
               'tags': set(), 'sz': 107, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
+              'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+              'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['107.png'],
               'width': 107, 'height': 1070, 'animated': False},
       }
       db._db['image_ids_index'] = {
@@ -382,14 +393,9 @@ class TestFapDatabase(unittest.TestCase):
           801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf', 107: 'sha-107'}
       read_html.side_effect = ['img-100', 'img-102', 'img-105', 'img-106',
                                'img-107', 'img-108', 'img-109']
-      test_images = {}
-      for n in ('100.jpg', '101.jpg', '102.jpg', '103.jpg', '104.jpg',
-                '105.jpg', '106.jpg', '107.png', '108.png', '109.gif'):
-        with open(os.path.join(_TESTDATA_PATH, n), 'rb') as f:
-          test_images[n] = f.read()
       os.mkdir(os.path.join(db_path, 'blobs/'))
-      with open(db._BlobPath(hashlib.sha256(test_images['101.jpg']).hexdigest()), 'wb') as f:
-        f.write(test_images['101.jpg'])
+      with open(db._BlobPath(hashlib.sha256(test_images['101.jpg']).hexdigest()), 'wb') as f_obj:
+        f_obj.write(test_images['101.jpg'])
       read_bin.side_effect = [
           test_images['100.jpg'], test_images['102.jpg'], test_images['105.jpg'],
           test_images['106.jpg'], test_images['107.png'], test_images['108.png'],
@@ -420,9 +426,18 @@ class TestFapDatabase(unittest.TestCase):
           [mock.call('url-100'), mock.call('url-102'), mock.call('url-105'), mock.call('url-106'),
            mock.call('url-107'), mock.call('url-108'), mock.call('url-109')])
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
+      for blob in db.blobs.values():
+        del blob['cnn']  # type: ignore
+      for blob in _BLOBS.values():
+        del blob['cnn']  # type: ignore
       self.assertDictEqual(db.blobs, _BLOBS)
       self.assertDictEqual(db.image_ids_index, _INDEX)
+      for dup_val in db.duplicates.registry.values():
+        for method_val in list(dup_val['sources'].values()):
+          for dup_keys in list(method_val.keys()):
+            method_val[dup_keys] = 0.0
       self.assertDictEqual(db.duplicates.registry, _DUPLICATES)
+      self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX)
       self.assertTrue(os.path.exists(db._BlobPath(
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
       self.assertTrue(os.path.exists(db.ThumbnailPath(
@@ -443,15 +458,23 @@ class TestFapDatabase(unittest.TestCase):
       db.blobs['sha-104'] = {'ext': 'jpg', 'loc': {(104, '', 'nm104', 1, 11)}}  # type: ignore
       self.assertTupleEqual(db.DeleteAlbum(1, 13), (3, 0))
       self.assertDictEqual(db.favorites, _FAVORITES_TRIMMED)
+      for blob in _BLOBS_TRIMMED.values():
+        if 'cnn' in blob:
+          del blob['cnn']  # type: ignore
       self.assertDictEqual(db.blobs, _BLOBS_TRIMMED)
       self.assertDictEqual(db.image_ids_index, _INDEX_TRIMMED)
       self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
+      self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
       self.assertTupleEqual(db.DeleteUserAndAlbums(1), (4, 0))
       self.assertDictEqual(db.users, {2: 'Ben'})
       self.assertDictEqual(db.favorites, {2: {20: {'images': [107, 801]}}})
+      for blob in _BLOBS_NO_LUKE.values():
+        if 'cnn' in blob:
+          del blob['cnn']  # type: ignore
       self.assertDictEqual(db.blobs, _BLOBS_NO_LUKE)
       self.assertDictEqual(db.image_ids_index, _INDEX_NO_LUKE)
       self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
+      self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
 
 
 class _MockRegex:
@@ -478,36 +501,50 @@ _BLOBS: fapdata._BlobType = {
     '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
-        'percept': 'cd4fc618316732e7', 'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168,
+        'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
+        'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
+        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168,
     },
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
         'animated': False, 'ext': 'png', 'height': 173,
         'loc': {(108, 'url-108', 'name-108.png', 1, 13)},
-        'percept': 'd99ee32e586716c8', 'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130,
+        'percept': 'd99ee32e586716c8', 'average': 'ffffff9a180060c8', 'diff': '6854541633d5c991',
+        'wavelet': 'ffffbf88180060c8', 'cnn': np.array([1, 2, 3]),
+        'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130,
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
+        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
     },
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
         'animated': False, 'ext': 'jpg', 'height': 222,
         'loc': {(106, 'url-106', 'name-106.jpg', 1, 13)},
-        'percept': '89991f6f62a63479', 'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300,
+        'percept': '89991f6f62a63479', 'average': '091b5f7761323000', 'diff': '737394c5d3e66431',
+        'wavelet': '091b7f7f71333018', 'cnn': np.array([1, 2, 3]),
+        'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300,
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
         'loc': {(100, 'url-100', 'name-100.jpg', 1, 10), (105, 'url-105', 'name-105.jpg', 1, 13)},
-        'percept': 'cc8fc37638703ee1', 'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200,
+        'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
+        'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
+        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200,
     },
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
         'animated': True, 'ext': 'gif', 'height': 100, 'tags': set(),
         'loc': {(109, 'url-109', 'name-109.gif', 1, 13)},
-        'percept': 'e699669966739866', 'sz': 444973, 'sz_thumb': 302143, 'width': 500},
+        'percept': 'e699669966739866', 'average': 'ffffffffffffe7e7', 'diff': '000000000000080c',
+        'wavelet': 'ffffffffffffe7e7', 'cnn': np.array([1, 2, 3]),
+        'sz': 444973, 'sz_thumb': 302143, 'width': 500},
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20), (107, 'url-107', 'name-107.png', 1, 13)},
-        'percept': 'd99ee32e586716c8', 'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
     },
 }
 
@@ -515,22 +552,30 @@ _BLOBS_TRIMMED: fapdata._BlobType = {  # type: ignore
     '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
-        'percept': 'cd4fc618316732e7', 'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168,
+        'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
+        'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
+        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168,
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
+        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
         'loc': {(100, 'url-100', 'name-100.jpg', 1, 10)},
-        'percept': 'cc8fc37638703ee1', 'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200,
+        'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
+        'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
+        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200,
     },
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
     },
     'sha-103': {'ext': 'jpg', 'loc': {(103, '', 'nm103', 1, 11)}},
     'sha-104': {'ext': 'jpg', 'loc': {(104, '', 'nm104', 1, 11)}},
@@ -540,12 +585,16 @@ _BLOBS_NO_LUKE: fapdata._BlobType = {
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(801, 'url-1', 'some-name.jpg', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
+        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
     },
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
     },
 }
 
@@ -580,7 +629,36 @@ _DUPLICATES: fapdata.duplicates.DuplicatesType = {
     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
      '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
      'sha-107'): {
-        'sources': {},
+        'sources': {
+            'average': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0,
+            },
+            'cnn': {
+                ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
+                ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                 'sha-107'): 0.0,
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0,
+            },
+            'diff': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0,
+            },
+            'percept': {
+                ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
+                ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                 'sha-107'): 0.0,
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0,
+            },
+            'wavelet': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0,
+            },
+        },
         'verdicts': {
             '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'new',
             '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
@@ -591,12 +669,52 @@ _DUPLICATES: fapdata.duplicates.DuplicatesType = {
 
 _DUPLICATES_TRIMMED: fapdata.duplicates.DuplicatesType = {
     ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf', 'sha-107'): {
-        'sources': {},
+        'sources': {
+            'average': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0},
+            'cnn': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0},
+            'diff': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0},
+            'percept': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0},
+            'wavelet': {
+                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                 'sha-107'): 0.0},
+        },
         'verdicts': {
             '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
             'sha-107': 'new',
         },
     },
+}
+
+_DUPLICATES_INDEX: fapdata.duplicates.DuplicatesKeyIndexType = {
+    '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': (
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+        'sha-107'),
+    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': (
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+        'sha-107'),
+    'sha-107': (
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+        'sha-107'),
+}
+
+_DUPLICATES_INDEX_TRIMMED: fapdata.duplicates.DuplicatesKeyIndexType = {
+    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': (
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+        'sha-107'),
+    'sha-107': (
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+        'sha-107'),
 }
 
 _TEST_TAGS_1 = {  # this has many places where there are missing keys

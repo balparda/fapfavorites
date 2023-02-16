@@ -18,9 +18,10 @@
 
 import logging
 # import pdb
-from typing import Literal, TypedDict
+from typing import Literal, Optional, TypedDict
 
 from imagededup import methods as image_methods
+import numpy as np
 
 from baselib import base
 
@@ -28,8 +29,12 @@ from baselib import base
 # internal types definitions
 
 DuplicatesKeyType = tuple[str, ...]
+
 DuplicatesVerdictType = Literal['new', 'false', 'keep', 'skip']
+DUPLICATE_OPTIONS: set[DuplicatesVerdictType] = {'new', 'false', 'keep', 'skip'}
+
 DuplicatesHashType = Literal['percept', 'average', 'diff', 'wavelet', 'cnn']
+DUPLICATE_HASHES: tuple[DuplicatesHashType, ...] = ('percept', 'average', 'diff', 'wavelet', 'cnn')
 
 
 class DuplicateObjType(TypedDict):
@@ -39,8 +44,27 @@ class DuplicateObjType(TypedDict):
   verdicts: dict[str, DuplicatesVerdictType]
 
 
+class HasherObjType(TypedDict):
+  """Image dup hasher objects type."""
+
+  percept: image_methods.PHash
+  average: image_methods.AHash
+  diff: image_methods.DHash
+  wavelet: image_methods.WHash
+  cnn: image_methods.CNN
+
+
+class HashEncodingMapType(TypedDict):
+  """Hash encodings type."""
+
+  percept: dict[str, str]
+  average: dict[str, str]
+  diff: dict[str, str]
+  wavelet: dict[str, str]
+  cnn: dict[str, np.ndarray]
+
+
 DuplicatesType = dict[DuplicatesKeyType, DuplicateObjType]
-DUPLICATE_OPTIONS = {'new', 'false', 'keep', 'skip'}
 DuplicatesKeyIndexType = dict[str, DuplicatesKeyType]
 
 
@@ -56,27 +80,62 @@ class Duplicates:
     """Construct.
 
     Args:
-      duplicates_registry: The self.duplicates (self._db['duplicates_registry']) from FapDatabase.
+      duplicates_registry: The registry (self._db['duplicates_registry']) from FapDatabase.
+      duplicates_key_index: The index (self._db['duplicates_key_index']) from FapDatabase.
     """
     self.registry = duplicates_registry
     self.index = duplicates_key_index
-    self._perceptual_hasher = image_methods.PHash()
+    # don't create and store all the hasher object beforehand because the CNN will need to expand
+    # users, create directories, and will be some time loading (noticeable fractions of seconds);
+    # we won't need them all the time, the django site doesn't need them (yet), etc
+    self._lazy_perceptual_hashers: Optional[HasherObjType] = None
 
-  def Encode(self, image_path: str) -> str:
-    """Get perceptual hash for one specific image in image_path."""
-    return self._perceptual_hasher.encode_image(image_file=image_path)
+  @property
+  def perceptual_hashers(self) -> HasherObjType:
+    """Gets the constructed perceptual hashers (HasherObjType). Lazy construction."""
+    if self._lazy_perceptual_hashers is None:
+      self._lazy_perceptual_hashers = {
+          'percept': image_methods.PHash(),
+          'average': image_methods.AHash(),
+          'diff': image_methods.DHash(),
+          'wavelet': image_methods.WHash(),
+          'cnn': image_methods.CNN(),
+          # CNN creation will need to expand users, create directories, and will be some
+          # time loading (noticeable fractions of seconds)
+      }
+    return self._lazy_perceptual_hashers
 
-  def AddDuplicateSet(self, sha_set: set[str]) -> int:
-    """Add a new duplicate set to the collection.
+  def Encode(self, image_path: str) -> tuple[str, str, str, str, np.ndarray]:
+    """Get perceptual hash for one specific image in image_path.
 
     Args:
-      sha_set: The set of sha256 to add
+      image_path: The full image path to get the image from
+
+    Returns:
+      (percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash)
+    """
+    return tuple(  # type: ignore
+        self.perceptual_hashers[method].encode_image(image_file=image_path)[0]
+        if method == 'cnn' else
+        self.perceptual_hashers[method].encode_image(image_file=image_path)
+        for method in DUPLICATE_HASHES)
+
+  def AddDuplicatePair(  # noqa: C901
+      self, sha1: str, sha2: str, score: float, method: DuplicatesHashType) -> int:
+    """Add a new duplicate pair relationship to the collection.
+
+    Args:
+      sha1: The first SHA256
+      sha2: The second SHA256
+      score: The relationship score
+      method: The method used to unearth the relationship
 
     Returns:
       Number of *NEW* sha256 added (the ones marked as 'new' in the database)
     """
     # first we try to find our keys in the existing index: make sure to gather all affected keys
     dup_keys: set[DuplicatesKeyType] = set()
+    sha_set = {sha1, sha2}
     for sha in sha_set:
       if sha in self.index:
         dup_keys.add(self.index[sha])
@@ -85,60 +144,93 @@ class Duplicates:
     added_count: int = 0
     if not dup_keys:
       new_key: DuplicatesKeyType = tuple(sorted(sha_set))
-      self.registry[new_key] = {'sources': {}, 'verdicts': {sha: 'new' for sha in sha_set}}
-      # TODO: add 'sources'
-      added_count = len(sha_set)
+      self.registry[new_key] = {
+          'sources': {method: {new_key: score}},
+          'verdicts': {sha1: 'new', sha2: 'new'},
+      }
+      added_count = 2
     # maybe this is all related to exactly one existing duplicates group
     elif len(dup_keys) == 1:
       # compose a new key, find out the diff to the old one
       old_key = dup_keys.pop()
       new_key: DuplicatesKeyType = tuple(sorted(sha_set.union(old_key)))
       diff_sha_set = set(new_key).difference(old_key)
-      added_count = len(diff_sha_set)
-      # we only have to act where there is some diff (otherwise we already incorporated all keys)
-      # TODO: add 'sources'
+      added_count = len(diff_sha_set)  # can be only 0 or 1
+      # we only have to move the entry where there is some diff
       if diff_sha_set:
         # move the entry to the new key, delete at old position, we keep the old verdicts
         self.registry[new_key] = self.registry[old_key]
         del self.registry[old_key]
         # now we add the new duplicate sha to the new key position
-        for sha in diff_sha_set:
-          self.registry[new_key]['verdicts'][sha] = 'new'
-    # final possible case is that we have multiple separate groups
-    else:
+        new_sha = diff_sha_set.pop()
+        if diff_sha_set:
+          raise Error('SHA remained where none should be: %r/%r, %r' % (sha1, sha2, diff_sha_set))
+        self.registry[new_key]['verdicts'][new_sha] = 'new'
+      # now that the key is OK, add the new score
+      self.registry[new_key]['sources'].setdefault(method, {})[tuple(sorted(sha_set))] = score
+    # final possible case is that we have 2 separate groups that we must merge
+    elif len(dup_keys) == 2:
       # compose a new key
       old_key_set: set[str] = set()
       for dup_key in dup_keys:
         old_key_set = old_key_set.union(dup_key)
-        # we can delete these entries, as we won't be using the old verdicts
-        del self.registry[dup_key]
       new_key: DuplicatesKeyType = tuple(sorted(sha_set.union(old_key_set)))
-      added_count = len(set(new_key).difference(old_key_set))
+      added_count = 0
+      if set(new_key).difference(old_key_set):
+        raise Error('Merging still had inserted keys: %r/%r, %r' % (sha1, sha2, dup_keys))
       # not a good idea to try to keep old verdicts, so the new super-group will be reset to 'new'
       self.registry[new_key] = {'sources': {}, 'verdicts': {sha: 'new' for sha in new_key}}
-      # TODO: add 'sources'
+      # copy sources from old locations and then delete old entries, finishing the merge
+      for dup_key in dup_keys:
+        for old_method, old_scores in self.registry[dup_key]['sources'].items():
+          for pair_key, old_score in old_scores.items():
+            self.registry[new_key]['sources'].setdefault(old_method, {})[pair_key] = old_score
+        del self.registry[dup_key]
+      # now that the merge is complete and all old sources are copied, add the new score
+      self.registry[new_key]['sources'].setdefault(method, {})[tuple(sorted(sha_set))] = score
+    else:
+      raise Error('Unexpected duplicate keys length: %r/%r, %r' % (sha1, sha2, dup_keys))
     # now we update the index (make sure to overwrite all sha in new_key!), and return the count
     for sha in new_key:
       self.index[sha] = new_key
     return added_count
 
-  def FindDuplicates(self, perceptual_hashes_map: dict[str, str]) -> None:
-    """Find (perceptual) duplicates.
+  def FindDuplicates(self, hash_encodings_map: HashEncodingMapType) -> int:
+    """Find (perceptual) duplicates and add them to the DB.
+
+    Args:
+      hash_encodings_map: dict like {method: {sha: encoding}}, see:
+          https://idealo.github.io/imagededup/user_guide/finding_duplicates/
 
     Returns:
-      dict of {sha: set_of_other_sha_duplicates}
+      int count of new individual duplicate images found
     """
     logging.info('Searching for perceptual duplicates in database...')
-    duplicates: dict[str, list[str]] = self._perceptual_hasher.find_duplicates(
-        encoding_map=perceptual_hashes_map)
-    filtered_duplicates = {k: set(d) for k, d in duplicates.items() if d}
     new_duplicates: int = 0
-    for sha, sha_set in filtered_duplicates.items():
-      new_duplicates += self.AddDuplicateSet(sha_set.union({sha}))
+    for method in DUPLICATE_HASHES:
+      # for each method, we get all the duplicates and scores
+      method_dup: dict[str, list[tuple[str, float]]] = (
+          self.perceptual_hashers[method].find_duplicates(
+              encoding_map=hash_encodings_map[method], scores=True))  # type: ignore
+      # we filter them into pairs of duplicates and a score, eliminating symmetric relationships
+      scored_duplicates: dict[DuplicatesKeyType, float] = {}
+      for sha1, dup in method_dup.items():
+        if dup:
+          for sha2, score in dup:
+            dup_key: DuplicatesKeyType = tuple(sorted({sha1, sha2}))
+            if dup_key in scored_duplicates and scored_duplicates[dup_key] != score:
+              raise Error('Duplicate collision, method %r, key %r, new score %d versus %d' % (
+                  method, dup_key, score, scored_duplicates[dup_key]))
+            scored_duplicates[dup_key] = score
+      # now we add each pair to the database
+      for (sha1, sha2), score in scored_duplicates.items():
+        new_duplicates += self.AddDuplicatePair(sha1, sha2, score, method)
+    # finished, log and return all new duplicates found
     logging.info(
-        'Found %d new perceptual duplicates; '
+        'Found %d new perceptual duplicate individual images; '
         'Currently DB has %d images marked as duplicates, lumped in %d groups',
         new_duplicates, len(self.index), len(self.registry))
+    return new_duplicates
 
   def TrimDeletedBlob(self, sha: str) -> bool:
     """Find duplicates depending a (newly deleted) blob and remove them from database.
@@ -174,7 +266,15 @@ class Duplicates:
       return True
     # this is a group that had more than 2 keys; first delete the `sha` entry inside the object
     del self.registry[old_key]['verdicts'][sha]
-    # TODO: delete all 'sources' pairs with the key
+    # traverse the scores and delete all that contained `sha`
+    for method in set(self.registry[old_key]['sources'].keys()):
+      scores = self.registry[old_key]['sources'][method]
+      for key_pair in set(scores.keys()):
+        if sha in key_pair:
+          del scores[key_pair]
+      # remember to wipe out empty method entries
+      if not scores:
+        del self.registry[old_key]['sources'][method]
     # now reset the status of the remaining keys that are not 'new' or 'false'
     for k in {k for k, d in self.registry[old_key]['verdicts'].items() if d in {'keep', 'skip'}}:
       self.registry[old_key]['verdicts'][k] = 'new'

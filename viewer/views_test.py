@@ -12,8 +12,7 @@ from typing import Any
 import unittest
 from unittest import mock
 
-# import duplicates
-# import fapdata
+import numpy as np
 
 # load the Django modules in a very special manner:
 os.environ['DJANGO_SETTINGS_MODULE'] = 'fapper.settings'  # cspell:disable-line
@@ -409,6 +408,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (102, 'url-102', 'name-102.jpg', 1, 10),
             },
             'percept': 'cd4fc618316732e7',
+            'average': '303830301a1c387f',
+            'diff': '60e2c3c2d2b1e2ce',
+            'wavelet': '303838383a1f3e7f',
+            'cnn': np.array([1, 2, 3]),
             'sz': 54643,
             'sz_thumb': 54643,
             'tags': {3},
@@ -423,6 +426,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (202, 'url-202', 'name-202.png', 2, 20),
             },
             'percept': 'd99ee32e586716c8',
+            'average': 'ffffff9a180060c8',
+            'diff': '6854541633d5c991',
+            'wavelet': 'ffffbf88180060c8',
+            'cnn': np.array([1, 2, 3]),
             'sz': 45309,
             'sz_thumb': 45309,
             'tags': set(),  # untagged!
@@ -437,6 +444,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (200, 'url-200', 'name-200.gif', 2, 20),
             },
             'percept': 'e699669966739866',
+            'average': 'ffffff9a180060c8',
+            'diff': '6854541633d5c991',
+            'wavelet': 'ffffbf88180060c8',
+            'cnn': np.array([1, 2, 3]),
             'sz': 444973,
             'sz_thumb': 302143,
             'width': 100,
@@ -451,6 +462,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (201, 'url-201', 'name-201.jpg', 2, 20),
             },
             'percept': 'd99ee32e586716c8',
+            'average': 'd99ee32e586716c8',
+            'diff': 'd99ee32e586716c8',
+            'wavelet': 'd99ee32e586716c8',
+            'cnn': np.array([1, 2, 3]),
             'sz': 101,
             'sz_thumb': 0,
             'tags': {11, 33},
@@ -464,6 +479,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (112, 'url-112', 'name-112.jpg', 1, 11),
             },
             'percept': '89991f6f62a63479',
+            'average': '091b5f7761323000',
+            'diff': '737394c5d3e66431',
+            'wavelet': '091b7f7f71333018',
+            'cnn': np.array([1, 2, 3]),
             'sz': 89216,
             'sz_thumb': 11890,
             'tags': {246},
@@ -479,6 +498,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (203, 'url-203', 'name-203.jpg', 2, 20),
             },
             'percept': 'cc8fc37638703ee1',
+            'average': '3838381810307078',
+            'diff': '626176372565c3f2',
+            'wavelet': '3e3f3f1b10307878',
+            'cnn': np.array([1, 2, 3]),
             'sz': 56583,
             'sz_thumb': 56583,
             'tags': {1, 2},
@@ -493,6 +516,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (103, 'url-103', 'name-103.gif', 1, 10),
             },
             'percept': 'e699669966739866',
+            'average': 'ffffffffffffe7e7',
+            'diff': '000000000000080c',
+            'wavelet': 'ffffffffffffe7e7',
+            'cnn': np.array([1, 2, 3]),
             'sz': 444973,
             'sz_thumb': 302143,
             'width': 500,
@@ -516,7 +543,34 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
         ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
          '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
          'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): {
-            'sources': {},
+            'sources': {
+                'average': {
+                    ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+                     'sha-107'): 0.0,
+                },
+                'cnn': {
+                    ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 1.0,
+                    ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 2.0,
+                    ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 3.0,
+                },
+                'diff': {
+                    ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 0.0,
+                },
+                'percept': {
+                    ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 1.0,
+                    ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.0,
+                },
+                'wavelet': {
+                    ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 5.0,
+                },
+            },
             'verdicts': {
                 '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'new',
                 '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'keep',
@@ -525,7 +579,16 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
         },
         ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
          'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'): {
-            'sources': {},
+            'sources': {
+                'diff': {
+                    ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
+                     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'): 1.0,
+                },
+                'percept': {
+                    ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
+                     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'): 2.0,
+                },
+            },
             'verdicts': {
                 '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': 'false',
                 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': 'false',
