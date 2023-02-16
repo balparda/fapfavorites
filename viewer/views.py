@@ -42,6 +42,12 @@ def lookup(value: dict, arg: Any) -> Any:
   return value[arg]
 
 
+@defaulttags.register.filter(name='green_scale')
+def green_scale(score: str) -> str:
+  """Convert a float string score ('0.0' to '10.0') to a green scale '0' to '200'."""
+  return str(int(float(score) * 20.0))
+
+
 class SHA256HexDigest:
   """Django path converter for a SHA256 hexadecimal digest (exactly 64 chars of hexadecimal)."""
 
@@ -551,6 +557,18 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   return shortcuts.render(request, 'viewer/duplicates.html', context)
 
 
+def _NormalizeHashScore(method: duplicates.DuplicatesHashType, value: int) -> float:
+  """Return score as a 0.0 to 10.0 range."""
+  max_value: int = duplicates.METHOD_SENSITIVITY[method]  # type: ignore
+  return (max_value - value) * (10.0 / max_value)
+
+
+def _NormalizeCosineScore(method: duplicates.DuplicatesHashType, value: float) -> float:
+  """Return score as a 0.0 to 10.0 range."""
+  min_value: float = duplicates.METHOD_SENSITIVITY[method]
+  return (value - min_value) * (10.0 / (1.0 - min_value))
+
+
 def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
   # check for errors in parameters
@@ -622,9 +640,35 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
               'thumb': '%s.%s' % (sha, db.blobs[sha]['ext']),  # this is just the file name, served
                                                                # as a static resource (settings.py)
               'percept': db.blobs[sha]['percept'],
+              'average': db.blobs[sha]['average'],
+              'diff': db.blobs[sha]['diff'],
+              'wavelet': db.blobs[sha]['wavelet'],
           }
           for sha in dup_key
       },
+      'sources': [
+          {
+              'name': method.upper(),
+              'scores': [
+                  {
+                      'key': _AbbreviatedKey(dup_key),
+                      'value': (
+                          '%0.3f' % dup_obj['sources'][method][dup_key] if method == 'cnn' else
+                          '%d' % dup_obj['sources'][method][dup_key]),
+                      'normalized_value': (
+                          '%0.1f' % _NormalizeCosineScore(
+                              method, dup_obj['sources'][method][dup_key])
+                          if method == 'cnn' else
+                          '%0.1f' % _NormalizeHashScore(
+                              method, dup_obj['sources'][method][dup_key])),  # type:ignore
+                      'sha1': dup_key[0],
+                      'sha2': dup_key[1],
+                      'thumb1': '%s.%s' % (dup_key[0], db.blobs[dup_key[0]]['ext']),
+                      'thumb2': '%s.%s' % (dup_key[1], db.blobs[dup_key[1]]['ext']),
+                  } for dup_key in sorted(dup_obj['sources'][method].keys())
+              ]
+          } for method in sorted(dup_obj['sources'].keys())
+      ] if dup_obj else [],
       'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/duplicate.html', context)

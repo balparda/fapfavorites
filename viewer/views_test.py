@@ -462,9 +462,9 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
                 (201, 'url-201', 'name-201.jpg', 2, 20),
             },
             'percept': 'd99ee32e586716c8',
-            'average': 'd99ee32e586716c8',
-            'diff': 'd99ee32e586716c8',
-            'wavelet': 'd99ee32e586716c8',
+            'average': '091b5f7761323000',
+            'diff': 'ffffbf88180060c8',
+            'wavelet': '737394c5d3e66431',
             'cnn': np.array([1, 2, 3]),
             'sz': 101,
             'sz_thumb': 0,
@@ -545,30 +545,30 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
          'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): {
             'sources': {
                 'average': {
-                    ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                     'sha-107'): 8,
+                    ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 2,
                 },
                 'cnn': {
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 0.9,
+                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 0.96,
                     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.8,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.98,
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.7,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.95,
                 },
                 'diff': {
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 2,
+                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 9,
                 },
                 'percept': {
                     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 3,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 10,
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 4,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0,
                 },
                 'wavelet': {
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 5,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 1,
                 },
             },
             'verdicts': {
@@ -1000,6 +1000,9 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
             'tags': 'one/one-one, three/three-three',
             'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'percept': 'd99ee32e586716c8',
+            'average': '091b5f7761323000',
+            'diff': 'ffffbf88180060c8',
+            'wavelet': '737394c5d3e66431',
             'loc': [
                 {
                     'fap_id': 101,
@@ -1029,6 +1032,7 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
             ],
         },
     },
+    'sources': [],
     'error_message': None,
 }
 
@@ -1048,6 +1052,9 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'tags': 'three',
             'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'percept': 'cd4fc618316732e7',
+            'average': '303830301a1c387f',
+            'diff': '60e2c3c2d2b1e2ce',
+            'wavelet': '303838383a1f3e7f',
             'loc': [
                 {
                     'fap_id': 102,
@@ -1067,6 +1074,9 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'tags': '',
             'thumb': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png',
             'percept': 'd99ee32e586716c8',
+            'average': 'ffffff9a180060c8',
+            'diff': '6854541633d5c991',
+            'wavelet': 'ffffbf88180060c8',
             'loc': [
                 {
                     'fap_id': 110,
@@ -1094,6 +1104,9 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'tags': 'one, two',
             'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
             'percept': 'cc8fc37638703ee1',
+            'average': '3838381810307078',
+            'diff': '626176372565c3f2',
+            'wavelet': '3e3f3f1b10307878',
             'loc': [
                 {
                     'fap_id': 100,
@@ -1123,6 +1136,122 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             ],
         },
     },
+    'sources': [
+        {
+            'name': 'AVERAGE',
+            'scores': [
+                {
+                    # cspell:disable-next-line
+                    'key': '(321e59af9d70af77&hellip;, e221b76f55946176&hellip;)',
+                    'value': '2',
+                    'normalized_value': '3.3',
+                    'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                    'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+                    'thumb1': (
+                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
+                    'thumb2': (
+                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
+                },
+            ],
+        }, {
+            'name': 'CNN',
+            'scores': [
+                {
+                    # cspell:disable-next-line
+                    'key': '(0aaef1becbd966a2&hellip;, 321e59af9d70af77&hellip;)',
+                    'value': '0.960',
+                    'normalized_value': '4.3',
+                    'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                    'sha2': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                    'thumb1': (
+                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
+                    'thumb2': (
+                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
+                }, {
+                    # cspell:disable-next-line
+                    'key': '(0aaef1becbd966a2&hellip;, e221b76f55946176&hellip;)',
+                    'value': '0.950',
+                    'normalized_value': '2.9',
+                    'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                    'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+                    'thumb1': (
+                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
+                    'thumb2': (
+                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
+                }, {
+                    # cspell:disable-next-line
+                    'key': '(321e59af9d70af77&hellip;, e221b76f55946176&hellip;)',
+                    'value': '0.980',
+                    'normalized_value': '7.1',
+                    'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                    'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+                    'thumb1': (
+                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
+                    'thumb2': (
+                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
+                },
+            ],
+        }, {
+            'name': 'DIFF',
+            'scores': [
+                {
+                    # cspell:disable-next-line
+                    'key': '(0aaef1becbd966a2&hellip;, 321e59af9d70af77&hellip;)',
+                    'value': '9',
+                    'normalized_value': '1.0',
+                    'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                    'sha2': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                    'thumb1': (
+                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
+                    'thumb2': (
+                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
+                },
+            ],
+        }, {
+            'name': 'PERCEPT',
+            'scores': [
+                {
+                    # cspell:disable-next-line
+                    'key': '(0aaef1becbd966a2&hellip;, e221b76f55946176&hellip;)',
+                    'value': '0',
+                    'normalized_value': '10.0',
+                    'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                    'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+                    'thumb1': (
+                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
+                    'thumb2': (
+                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
+                }, {
+                    # cspell:disable-next-line
+                    'key': '(321e59af9d70af77&hellip;, e221b76f55946176&hellip;)',
+                    'value': '10',
+                    'normalized_value': '0.0',
+                    'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+                    'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+                    'thumb1': (
+                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
+                    'thumb2': (
+                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
+                },
+            ],
+        }, {
+            'name': 'WAVELET',
+            'scores': [
+                {
+                    # cspell:disable-next-line
+                    'key': '(0aaef1becbd966a2&hellip;, e221b76f55946176&hellip;)',
+                    'value': '1',
+                    'normalized_value': '6.7',
+                    'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
+                    'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+                    'thumb1': (
+                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
+                    'thumb2': (
+                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
+                },
+            ],
+        },
+    ],
     'error_message': None,
 }
 

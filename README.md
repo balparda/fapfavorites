@@ -1,7 +1,8 @@
 # Imagefap Favorites
 
 Python code that downloads an entire Imagefap favorites image
-(picture folder) collection, de-duplicates, and helps organize them.
+(picture folder) collection, de-duplicates using multiple methods,
+and helps organize them.
 
 Started in January/2023, by Daniel Balparda.
 
@@ -76,7 +77,11 @@ the `--folder` flag. Example:
 
 Read as many users and folders as you want. They will be in the
 database, thumbnails will be automatically generated, duplicates will
-be found, etc. By default it will skip any album recently downloaded
+be found, etc. We search for duplicates using a hybrid intersection of
+perceptual, average, differential and wavelet hashes, plus a
+convolutional neural network. Duplicate images picked up by these
+methods will be consolidated for the user, who can later decide which
+images to keep. By default it will skip any album recently downloaded
 in the previous 3 days (72h). This is usually very helpful to save
 time when you have to restart the fetching, as it will gladly remember
 the work done and save time. If you know something changed and want
@@ -157,12 +162,13 @@ name will be the one give for the first time it was saved.
 This `read` command is for when you want to do more than just download
 images from one (or a few) galleries. This will store the images as blobs
 and will feed the database with data. It is _not_ meant for immediate
-consumption. The idea is to later run the advanced de-dup on them,
-and/or tag them, and/or re-export them in some other fashion.
+consumption. The idea is to capture data for processing.
 
-_(For now the mentioned "advanced" features are only planned and not
-implemented, so this option has limited use, but it is important
-to document.)_
+With this command duplicates will be found. We search for duplicates
+using a hybrid intersection of perceptual, average, differential
+and wavelet hashes, plus a convolutional neural network.
+Duplicate images picked up by these methods will be consolidated
+for the user.
 
 This example will find the user _"dirty999"_ and the favorite
 gallery _"my pics"_ and read all images into the database in
@@ -225,7 +231,7 @@ to `favorites.py` or `process.py`! You might lose data!___
 ```
 
 The app will list the users, the favorites that were downloaded for the
-user, the tags you created, the duplicates.
+user, the tags you created, the duplicates, etc.
 
 If you are developing this software, run it with the `--development` flag
 so that the server (Django) will automatically reload the app when you

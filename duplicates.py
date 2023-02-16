@@ -68,7 +68,7 @@ DuplicatesType = dict[DuplicatesKeyType, DuplicateObjType]
 DuplicatesKeyIndexType = dict[str, DuplicatesKeyType]
 
 
-_METHOD_SENSITIVITY: dict[DuplicatesHashType, Union[int, float]] = {
+METHOD_SENSITIVITY: dict[DuplicatesHashType, Union[int, float]] = {
     # TODO: another round of tuning these parameters
     'percept': 10,  # max hamming distance considered a duplicate (library default =10)
     'diff': 10,     # max hamming distance considered a duplicate (library default =10)
@@ -221,20 +221,20 @@ class Duplicates:
       # for each method, we get all the duplicates and scores
       if method == 'cnn':
         logging.info(
-            'Computing diffs using \'CNN\', with threshold >= %0.2f', _METHOD_SENSITIVITY['cnn'])
+            'Computing diffs using \'CNN\', with threshold >= %0.2f', METHOD_SENSITIVITY['cnn'])
         method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
             self.perceptual_hashers[method].find_duplicates(
                 encoding_map=hash_encodings_map[method],  # type: ignore
-                min_similarity_threshold=_METHOD_SENSITIVITY['cnn'],
+                min_similarity_threshold=METHOD_SENSITIVITY['cnn'],
                 scores=True))
       else:
         logging.info(
             'Computing diffs using %r, with threshold <= %d',
-            method.upper(), _METHOD_SENSITIVITY[method])
+            method.upper(), METHOD_SENSITIVITY[method])
         method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
             self.perceptual_hashers[method].find_duplicates(
                 encoding_map=hash_encodings_map[method],
-                max_distance_threshold=_METHOD_SENSITIVITY[method],  # type: ignore
+                max_distance_threshold=METHOD_SENSITIVITY[method],  # type: ignore
                 scores=True))
       # we filter them into pairs of duplicates and a score, eliminating symmetric relationships
       scored_duplicates: dict[DuplicatesKeyType, Union[int, float]] = {}

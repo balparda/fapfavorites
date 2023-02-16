@@ -15,6 +15,10 @@
       font-family: monospace;
     }
 
+    td.regular_hash {
+      font-family: monospace;
+    }
+
   </style>
   </head>
   <body bgcolor='black' text='lightgray'>
@@ -35,7 +39,9 @@
     {% load static %}
 
     <p>
-      The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!
+      The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!<br/>
+      The visual hashes in use are: <b><i>Pe</i></b>rceptual, <b><i>Di</i></b>ff, <b><i>Av</i></b>erage & <b><i>Wa</i></b>velet.  <!-- cspell:disable-line -->
+      Convolutional Neural Networks (CNN) are also in use, but the hashes are too large to display.
     </p>
 
     <form action='{% url "duplicate" digest %}' method='post'>
@@ -51,8 +57,8 @@
         </tr>
         {% for sha, obj in duplicates.items %}
           <tr>
-            <td colspan='3' style='font-family:monospace'>
-              {{ sha }}<br/>&nbsp;#{{ obj.percept }}
+            <td colspan='{% if current_index == -1 %}2{% else %}3{% endif %}' class='regular_hash' id='td_{{ sha }}'>
+              {{ sha }}
             </td>
           </tr>
           <tr>
@@ -62,12 +68,18 @@
               </a>
             </td>
             <td>
-              <table border='1'>
-                <tr><td colspan='4'>{{ obj.dimensions }}</td></tr>
-                <tr><td colspan='4'>{{ obj.sz }}</td></tr>
+              <table border='0'>
+                <tr><th align='right'>Dim.:</th><td colspan='3'>{{ obj.dimensions }}</td></tr>
+                <tr><th align='right'>Size:</th><td colspan='3'>{{ obj.sz }}</td></tr>
                 {% if obj.tags %}
                   <tr><td colspan='4'>{{ obj.tags }}</td></tr>
                 {% endif %}
+                <tr>
+                  <th>Fap&nbsp;ID</th>
+                  <th>User</th>
+                  <th>Album</th>
+                  <th>&nbsp;</th>
+                </tr>
                 {% for location in obj.loc %}
                   <tr>
                     <td>{{ location.fap_id }}</td>
@@ -76,6 +88,17 @@
                     <td><small><a href='{{ location.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a></small></td>
                   </tr>
                 {% endfor %}
+                <tr>
+                  <th colspan='4'>Visual Hashes</th>
+                </tr>
+                <tr>
+                  <td class='regular_hash' colspan='2'><b>Pe:</b>{{ obj.percept }}</td>
+                  <td class='regular_hash' colspan='2'><b>Di:</b>{{ obj.diff }}</td>
+                </tr>
+                <tr>
+                  <td class='regular_hash' colspan='2'><b>Av:</b>{{ obj.average }}</td>
+                  <td class='regular_hash' colspan='2'><b>Wa:</b>{{ obj.wavelet }}</td>
+                </tr>
               </table>
             </td>
             {% if current_index != -1 %}
@@ -109,6 +132,61 @@
     {% endif %}
 
     <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
+
+    {% if current_index != -1 %}
+
+      <hr/>
+
+      <h2>Pair Scoring Details (debugging)</h2>
+
+      <table border='1'>
+        <tr>
+          <th>
+            Hashes
+          </th>
+          <th colspan='2'>
+            Image&nbsp;Pair
+          </th>
+          <th>
+            Actual<br/>Score
+          </th>
+          <th>
+            Normalized<br/>Score&nbsp;(0-10)
+          </th>
+        </tr>
+        {% for source in sources %}
+          <tr>
+            <th colspan='5'>
+              {{ source.name }}
+            </th>
+          </tr>
+          {% for score in source.scores %}
+            <tr>
+              <td class='regular_hash' align='center'>
+                {{ score.key }}
+              </td>
+              <td align='center'>
+                <a href='#td_{{ score.sha1 }}'><img src='{% static score.thumb1 %}' height='60'/></a>
+              </td>
+              <td align='center'>
+                <a href='#td_{{ score.sha2 }}'><img src='{% static score.thumb2 %}' height='60'/></a>
+              </td>
+              <td>
+                {{ score.value }}
+              </td>
+              <td style='background-color: rgb(0, {{ score.normalized_value|green_scale }}, 0);'>
+                ({{ score.normalized_value }})
+              </td>
+            </tr>
+          {% endfor %}
+        {% endfor %}
+      </table>
+
+      <p>{% if previous_key %}<a href='{% url "duplicate" previous_key.0 %}'>&#11013;&nbsp;&nbsp;PREV</a>&nbsp;&nbsp;{% endif %}&nbsp;&nbsp;&#10037;&nbsp;&nbsp;<a href='{% url "duplicates" %}'>&#11014;</a>&nbsp;&nbsp;&#10037;&nbsp;&nbsp;{% if next_key %}&nbsp;&nbsp;<a href='{% url "duplicate" next_key.0 %}'>NEXT&nbsp;&nbsp;&#10145;</a>{% endif %}</p>
+
+      <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
+
+    {% endif %}
 
   </body>
 </html>
