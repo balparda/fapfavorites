@@ -74,11 +74,16 @@ class TestDuplicates(unittest.TestCase):
         'cnn': {'foo': np.array([[1, 2, 3]])},
     }
     self.assertEqual(dup.FindDuplicates(mock_encoding), 5)
-    mock_p.assert_called_once_with(encoding_map=mock_encoding['percept'], scores=True)
-    mock_a.assert_called_once_with(encoding_map=mock_encoding['average'], scores=True)
-    mock_d.assert_called_once_with(encoding_map=mock_encoding['diff'], scores=True)
-    mock_w.assert_called_once_with(encoding_map=mock_encoding['wavelet'], scores=True)
-    mock_cnn.assert_called_once_with(encoding_map=mock_encoding['cnn'], scores=True)
+    mock_p.assert_called_once_with(
+        encoding_map=mock_encoding['percept'], max_distance_threshold=10, scores=True)
+    mock_a.assert_called_once_with(
+        encoding_map=mock_encoding['average'], max_distance_threshold=3, scores=True)
+    mock_d.assert_called_once_with(
+        encoding_map=mock_encoding['diff'], max_distance_threshold=10, scores=True)
+    mock_w.assert_called_once_with(
+        encoding_map=mock_encoding['wavelet'], max_distance_threshold=3, scores=True)
+    mock_cnn.assert_called_once_with(
+        encoding_map=mock_encoding['cnn'], min_similarity_threshold=0.93, scores=True)
     self.assertDictEqual(dup.registry, _DUPLICATES_DICT_AFTER)
     self.assertDictEqual(dup.index, _DUPLICATES_INDEX_AFTER)
 

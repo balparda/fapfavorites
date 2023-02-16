@@ -18,7 +18,7 @@
 
 import logging
 # import pdb
-from typing import Literal, Optional, TypedDict
+from typing import Literal, Optional, Union, TypedDict
 
 from imagededup import methods as image_methods
 import numpy as np
@@ -40,7 +40,7 @@ DUPLICATE_HASHES: tuple[DuplicatesHashType, ...] = ('percept', 'average', 'diff'
 class DuplicateObjType(TypedDict):
   """Duplicate object type."""
 
-  sources: dict[DuplicatesHashType, dict[DuplicatesKeyType, float]]
+  sources: dict[DuplicatesHashType, dict[DuplicatesKeyType, Union[int, float]]]
   verdicts: dict[str, DuplicatesVerdictType]
 
 
@@ -66,6 +66,16 @@ class HashEncodingMapType(TypedDict):
 
 DuplicatesType = dict[DuplicatesKeyType, DuplicateObjType]
 DuplicatesKeyIndexType = dict[str, DuplicatesKeyType]
+
+
+_METHOD_SENSITIVITY: dict[DuplicatesHashType, Union[int, float]] = {
+    # TODO: another round of tuning these parameters
+    'percept': 10,  # max hamming distance considered a duplicate (library default =10)
+    'diff': 10,     # max hamming distance considered a duplicate (library default =10)
+    'average': 3,   # max hamming distance considered a duplicate (library default =10)
+    'wavelet': 3,   # max hamming distance considered a duplicate (library default =10)
+    'cnn': 0.93,    # min cosine similarity threshold considered a duplicate (library default =0.9)
+}
 
 
 class Error(base.Error):
@@ -121,7 +131,7 @@ class Duplicates:
         for method in DUPLICATE_HASHES)
 
   def AddDuplicatePair(  # noqa: C901
-      self, sha1: str, sha2: str, score: float, method: DuplicatesHashType) -> int:
+      self, sha1: str, sha2: str, score: Union[int, float], method: DuplicatesHashType) -> int:
     """Add a new duplicate pair relationship to the collection.
 
     Args:
@@ -209,11 +219,25 @@ class Duplicates:
     new_duplicates: int = 0
     for method in DUPLICATE_HASHES:
       # for each method, we get all the duplicates and scores
-      method_dup: dict[str, list[tuple[str, float]]] = (
-          self.perceptual_hashers[method].find_duplicates(
-              encoding_map=hash_encodings_map[method], scores=True))  # type: ignore
+      if method == 'cnn':
+        logging.info(
+            'Computing diffs using \'CNN\', with threshold >= %0.2f', _METHOD_SENSITIVITY['cnn'])
+        method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
+            self.perceptual_hashers[method].find_duplicates(
+                encoding_map=hash_encodings_map[method],  # type: ignore
+                min_similarity_threshold=_METHOD_SENSITIVITY['cnn'],
+                scores=True))
+      else:
+        logging.info(
+            'Computing diffs using %r, with threshold <= %d',
+            method.upper(), _METHOD_SENSITIVITY[method])
+        method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
+            self.perceptual_hashers[method].find_duplicates(
+                encoding_map=hash_encodings_map[method],
+                max_distance_threshold=_METHOD_SENSITIVITY[method],  # type: ignore
+                scores=True))
       # we filter them into pairs of duplicates and a score, eliminating symmetric relationships
-      scored_duplicates: dict[DuplicatesKeyType, float] = {}
+      scored_duplicates: dict[DuplicatesKeyType, Union[int, float]] = {}
       for sha1, dup in method_dup.items():
         if dup:
           for sha2, score in dup:
@@ -224,6 +248,7 @@ class Duplicates:
             scored_duplicates[dup_key] = score
       # now we add each pair to the database
       for (sha1, sha2), score in scored_duplicates.items():
+        # TODO: some groups start growing more than is comfortable; how can we tame that behavior?
         new_duplicates += self.AddDuplicatePair(sha1, sha2, score, method)
     # finished, log and return all new duplicates found
     logging.info(

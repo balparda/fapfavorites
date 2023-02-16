@@ -546,29 +546,29 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sources': {
                 'average': {
                     ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                     'sha-107'): 0.0,
+                     'sha-107'): 8,
                 },
                 'cnn': {
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 1.0,
+                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 0.9,
                     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 2.0,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.8,
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 3.0,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.7,
                 },
                 'diff': {
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 0.0,
+                     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'): 2,
                 },
                 'percept': {
                     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 1.0,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 3,
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 0.0,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 4,
                 },
                 'wavelet': {
                     ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
-                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 5.0,
+                     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): 5,
                 },
             },
             'verdicts': {
