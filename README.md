@@ -288,7 +288,11 @@ from a structure like:
 
   'users': {
     # stores the seen users
-    user_id: user_name,
+    user_id: {
+      'name': user_name,
+      'date_albums': int_time_last_success_list_all_albums,
+      'date_finished': int_time_last_success_finish,
+    }
   }
 
   'favorites': {

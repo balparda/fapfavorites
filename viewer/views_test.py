@@ -368,9 +368,21 @@ def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
 
 _MOCK_DATABASE: views.fapdata._DatabaseType = {
     'users': {
-        1: 'Luke',  # has 2 albums
-        2: 'Ben',   # has 1 album
-        3: 'Yoda',  # has 0 albums
+        1: {
+            'name': 'Luke',  # has 2 albums
+            'date_albums': 1675350000,
+            'date_finished': 1675390000,
+        },
+        2: {
+            'name': 'Ben',  # has 1 album
+            'date_albums': 1675370000,
+            'date_finished': 0,
+        },
+        3: {
+            'name': 'Yoda',  # has 0 albums
+            'date_albums': 0,
+            'date_finished': 0,
+        },
     },
     'favorites': {
         1: {  # Luke
@@ -686,6 +698,8 @@ _USERS_CONTEXT: dict[str, Any] = {
     'users': {
         1: {
             'name': 'Luke',
+            'date_albums': '2023/Feb/02-15:00:00-UTC',
+            'date_finished': '2023/Feb/03-02:06:40-UTC',
             'n_img': 8,
             'n_animated': '1 (12.5%)',
             'files_sz': '729.99kb',
@@ -697,6 +711,8 @@ _USERS_CONTEXT: dict[str, Any] = {
         },
         2: {
             'name': 'Ben',
+            'date_albums': '2023/Feb/02-20:33:20-UTC',
+            'date_finished': '-',
             'n_img': 4,
             'n_animated': '1 (25.0%)',
             'files_sz': '534.15kb',
@@ -708,6 +724,8 @@ _USERS_CONTEXT: dict[str, Any] = {
         },
         3: {
             'name': 'Yoda',
+            'date_albums': '-',
+            'date_finished': '-',
             'n_img': 0,
             'n_animated': '0 (0.0%)',
             'files_sz': '0b',
@@ -732,6 +750,8 @@ _USERS_CONTEXT: dict[str, Any] = {
 _FAVORITES_CONTEXT: dict[str, Any] = {
     'user_id': 1,
     'user_name': 'Luke',
+    'date_albums': '2023/Feb/02-15:00:00-UTC',
+    'date_finished': '2023/Feb/03-02:06:40-UTC',
     'favorites': {
         10: {
             'name': 'luke-folder-10',

@@ -62,6 +62,14 @@ FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 LocationTupleType = tuple[int, str, str, int, int]
 
 
+class _UserObjType(TypedDict):
+  """User object type."""
+
+  name: str
+  date_albums: int
+  date_finished: int
+
+
 class _FavoriteObjType(TypedDict):
   """Favorite object type."""
 
@@ -97,7 +105,7 @@ class _BlobObjType(TypedDict):
   animated: bool
 
 
-_UserType = dict[int, str]
+_UserType = dict[int, _UserObjType]
 _FavoriteType = dict[int, dict[int, _FavoriteObjType]]
 _TagType = dict[int, TagObjType]
 _BlobType = dict[str, _BlobObjType]
@@ -270,7 +278,7 @@ class FapDatabase:
   def UserStr(self, user_id: int) -> str:
     """Produce standard user representation, like 'UserName (id)'."""
     try:
-      return '%s (%d)' % (self.users[user_id], user_id)
+      return '%s (%d)' % (self.users[user_id]['name'], user_id)
     except KeyError:
       raise Error('User %d not found' % user_id)
 
@@ -278,7 +286,8 @@ class FapDatabase:
     """Produce standard album representation, like 'UserName/FolderName (uid/fid)'."""
     try:
       return '%s/%s (%d/%d)' % (
-          self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
+          self.users[user_id]['name'], self.favorites[user_id][folder_id]['name'],
+          user_id, folder_id)
     except KeyError:
       raise Error('Album %d/%d not found' % (user_id, folder_id))
 
@@ -286,7 +295,7 @@ class FapDatabase:
     """Produce standard location repr, like 'UserName/FolderName/ImageName (uid/fid/img_id)'."""
     try:
       return '%s/%s/%s (%d/%d/%d)' % (
-          self.users[loc[3]], self.favorites[loc[3]][loc[4]]['name'],
+          self.users[loc[3]]['name'], self.favorites[loc[3]][loc[4]]['name'],
           loc[2], loc[3], loc[4], loc[0])
     except KeyError:
       raise Error('Location %s had inconsistencies' % repr(loc))
@@ -480,7 +489,7 @@ class FapDatabase:
     _PrintLine('           FILE STATS FOR FAVORITES')
     for uid in sorted(self.users.keys()):
       _PrintLine()
-      _PrintLine('%d: %r' % (uid, self.users[uid]))
+      _PrintLine('%d: %r' % (uid, self.users[uid]['name']))
       file_sizes: list[int] = [
           self.blobs[self.image_ids_index[i]]['sz']
           for d, u in self.favorites.items() if d == uid
@@ -598,9 +607,10 @@ class FapDatabase:
       user_names: list[str] = _FIND_NAME_IN_FAVORITES.findall(user_html)
       if len(user_names) != 1:
         raise Error('Could not find user name for %d' % user_id)
-      self.users[user_id] = html.unescape(user_names[0])
+      self.users[user_id] = {
+          'name': html.unescape(user_names[0]), 'date_albums': 0, 'date_finished': 0}
     logging.info('%s user %s added', status, self.UserStr(user_id))
-    return self.users[user_id]
+    return self.users[user_id]['name']
 
   def AddUserByName(self, user_name: str) -> tuple[int, str]:
     """Add user by handle. Find user ID in the process.
@@ -615,10 +625,10 @@ class FapDatabase:
       Error: if conversion failed
     """
     # first try to find in DB
-    for uid, unm in self.users.items():
-      if unm.lower() == user_name.lower():
-        logging.info('Know user %s added', self.UserStr(uid))
-        return (uid, unm)
+    for uid, user in self.users.items():
+      if user['name'].lower() == user_name.lower():
+        logging.info('Known user %s', self.UserStr(uid))
+        return (uid, user['name'])
     # not found: we have to find in actual site
     url: str = _USER_PAGE_URL(user_name)
     logging.info('Fetching user page: %s', url)
@@ -630,9 +640,10 @@ class FapDatabase:
     actual_name: list[str] = _FIND_ACTUAL_NAME.findall(user_html)
     if len(actual_name) != 1:
       raise Error('Could not find actual display name for user %r' % user_name)
-    self.users[uid] = html.unescape(actual_name[0])
+    self.users[uid] = {
+        'name': html.unescape(actual_name[0]), 'date_albums': 0, 'date_finished': 0}
     logging.info('New user %s added', self.UserStr(uid))
-    return (uid, self.users[uid])
+    return (uid, self.users[uid]['name'])
 
   def AddFolderByID(self, user_id: int, folder_id: int) -> str:
     """Add folder by ID and find folder name in the process.
@@ -681,7 +692,7 @@ class FapDatabase:
     if user_id in self.favorites:
       for fid, f_data in self.favorites[user_id].items():
         if f_data['name'].lower() == favorites_name.lower():
-          logging.info('Known folder %s added', self.AlbumStr(user_id, fid))
+          logging.info('Known folder %s', self.AlbumStr(user_id, fid))
           return (fid, f_data['name'])
     # not found: we have to find in actual site
     page_num: int = 0
@@ -703,15 +714,25 @@ class FapDatabase:
           return (i_f_id, f_name)
       page_num += 1
 
-  def AddAllUserFolders(self, user_id: int) -> set[int]:
+  def AddAllUserFolders(self, user_id: int, force_download: bool) -> set[int]:  # noqa: C901
     """Add all user's folders that are images galleries.
 
     Args:
       user_id: The user's int ID
+      force_download: If True will download even if recently downloaded
 
     Returns:
       set of int folder IDs
     """
+    try:
+      # check for the timestamps: should we even do this work?
+      if not self._CheckWorkHysteresis(
+          force_download, self.users[user_id]['date_albums'],
+          'Getting all image favorites for user %s' % self.UserStr(user_id)):
+        return set(self.favorites.get(user_id, {}).keys())
+    except KeyError:
+      raise Error('This user was not added to DB yet: %d' % user_id)
+    # get all pages of albums, extract the albums
     page_num: int = 0
     known_favorites: int = 0
     non_galleries: int = 0
@@ -738,7 +759,7 @@ class FapDatabase:
           _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
         except Error:
           # this is a galleries favorite, so we can skip: we want images gallery!
-          logging.info('Discarded galleries folder %r (ID %d)', f_name, i_f_id)
+          logging.info('Discarded galleries folder %r (%d/%d)', f_name, user_id, i_f_id)
           non_galleries += 1
           continue
         # we seem to have a valid new favorite here
@@ -747,6 +768,8 @@ class FapDatabase:
             'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0, 'images': []}
         logging.info('New picture folder %s added', self.AlbumStr(user_id, i_f_id))
       page_num += 1
+    # mark the albums checking as done, log & return
+    self.users[user_id]['date_albums'] = base.INT_TIME()
     logging.info('Found %d total favorite galleries in %d pages (%d were already known; '
                  'also, %d non-image galleries were skipped)',
                  len(found_folder_ids), page_num, known_favorites, non_galleries)
@@ -771,7 +794,9 @@ class FapDatabase:
       # check for the timestamps: should we even do this work?
       tm_download: int = max(self.favorites[user_id][folder_id]['date_straight'],
                              self.favorites[user_id][folder_id]['date_blobs'])
-      if not self._CheckWorkHysteresis(user_id, folder_id, None, force_download, tm_download):
+      if not self._CheckWorkHysteresis(
+          force_download, tm_download,
+          'Reading album %s pages & IDs' % self.AlbumStr(user_id, folder_id)):
         return self.favorites[user_id][folder_id]['images']
       img_list: list[int] = self.favorites[user_id][folder_id]['images']
       seen_pages: int = self.favorites[user_id][folder_id]['pages']
@@ -888,39 +913,26 @@ class FapDatabase:
         (img_id, url_path, sanitized_image_name, user_id, folder_id))
     return (None, sha, url_path, sanitized_image_name, extension)
 
-  def _CheckWorkHysteresis(
-      self, user_id: int, folder_id: int, checkpoint_size: Optional[int],
-      force_download: bool, tm_last: int) -> bool:
-    """Check if work should be done, or if album has recently been downloaded.
+  def _CheckWorkHysteresis(self, force_download: bool, tm_last: int, task_message: str) -> bool:
+    """Check if work should be done, or if task has recently been finished.
 
     Args:
-      user_id: User ID
-      folder_id: Folder ID
-      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
-          if zero will not checkpoint at all; If None checkpoints do not apply.
       force_download: If True will download even if recently downloaded
       tm_last: Time last download was done
+      task_message: Type of work message to log
 
     Returns:
       True if work should be done; False otherwise
     """
-    # check for the timestamp: should we even do this work?
     tm_now = base.INT_TIME()
     if tm_last and (tm_last + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
       logging.warning(
-          'Picture folder %s %s downloaded recently (%s, %s ago): %s!',
-          self.AlbumStr(user_id, folder_id), 'pages/IDs' if checkpoint_size is None else 'images',
-          base.STD_TIME_STRING(tm_last), base.HumanizedSeconds(tm_now - tm_last),
+          '%s recently done (%s, %s ago): %s!',
+          task_message, base.STD_TIME_STRING(tm_last), base.HumanizedSeconds(tm_now - tm_last),
           'ignoring time limit and downloading again' if force_download else 'SKIP')
       if not force_download:
         return False
-    logging.info(
-        '%s for %s%s',
-        'Getting all picture folder pages/IDs' if checkpoint_size is None else
-        'Downloading all images in folder', self.AlbumStr(user_id, folder_id),
-        '' if checkpoint_size is None else
-        ('; NO checkpoints (work may be lost)' if checkpoint_size == 0 else
-         '; checkpoint DB every %d downloads' % checkpoint_size))
+    logging.info(task_message)
     return True
 
   def DownloadFavorites(self, user_id: int, folder_id: int,
@@ -983,8 +995,11 @@ class FapDatabase:
     try:
       tm_download: int = self.favorites[user_id][folder_id][date_key]
       if not self._CheckWorkHysteresis(
-          user_id, folder_id, checkpoint_size, force_download, tm_download):
+          force_download, tm_download,
+          'Downloading album %s images' % self.AlbumStr(user_id, folder_id)):
         return 0
+      logging.info('*NO* checkpoints used (work may be lost!)' if checkpoint_size == 0 else
+                   'Checkpoint DB every %d downloads' % checkpoint_size)
     except KeyError:
       raise Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
     # download all full resolution images we don't yet have
@@ -1160,7 +1175,7 @@ class FapDatabase:
     if user_id not in self.users or user_id not in self.favorites:
       raise Error('Invalid user %d' % user_id)
     if folder_id not in self.favorites[user_id]:
-      raise Error('Invalid folder %d for user %d/%r' % (folder_id, user_id, self.users[user_id]))
+      raise Error('Invalid folder %d for user %s' % (folder_id, self.UserStr(user_id)))
     # get the album and go through the images deleting as necessary
     img_count: int = 0
     duplicate_count: int = 0

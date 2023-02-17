@@ -62,12 +62,16 @@ def _ReadOperation(database: fapdata.FapDatabase,
   """
   # start
   print('Executing READ command')
-  found_folder_ids: set[int] = {folder_id} if folder_id else database.AddAllUserFolders(user_id)
+  found_folder_ids: set[int] = ({folder_id} if folder_id else
+                                database.AddAllUserFolders(user_id, force_download))
   for f_id in sorted(found_folder_ids):
     database.AddFolderPics(user_id, f_id, force_download)
     database.ReadFavoritesIntoBlobs(user_id, f_id, fapdata.CHECKPOINT_LENGTH, force_download)
   # find perceptual duplicates
   database.FindDuplicates()
+  # if we finished getting all user albums, mark user as finished
+  if not folder_id:
+    database.users.get(user_id, {})['date_finished'] = base.INT_TIME()
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/

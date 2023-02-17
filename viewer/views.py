@@ -135,7 +135,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   total_img: int = 0
   total_animated: int = 0
   total_thumbs: int = 0
-  for uid, name in db.users.items():
+  for uid, user in db.users.items():
     file_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz']
         for d, u in db.favorites.items() if d == uid
@@ -153,7 +153,9 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
         for i in f['images'] if i in db.image_ids_index)
     n_img = len(file_sizes)
     users[uid] = {
-        'name': name,
+        'name': user['name'],
+        'date_albums': base.STD_TIME_STRING(user['date_albums']),
+        'date_finished': base.STD_TIME_STRING(user['date_finished']),
         'n_img': n_img,
         'n_animated': '%d (%0.1f%%)' % (
             n_animated, (100.0 * n_animated / n_img) if n_img else 0.0),
@@ -250,7 +252,9 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   all_img_count = sum(f['count'] for f in favorites.values())
   context: dict[str, Any] = {
       'user_id': user_id,
-      'user_name': db.users[user_id],
+      'user_name': db.users[user_id]['name'],
+      'date_albums': base.STD_TIME_STRING(db.users[user_id]['date_albums']),
+      'date_finished': base.STD_TIME_STRING(db.users[user_id]['date_finished']),
       'favorites': favorites,
       'album_count': len(names),
       'img_count': all_img_count,
@@ -397,7 +401,7 @@ def ServeFavorite(  # noqa: C901
   # send to page
   context: dict[str, Any] = {
       'user_id': user_id,
-      'user_name': db.users[user_id],
+      'user_name': db.users[user_id]['name'],
       'folder_id': folder_id,
       'name': favorite['name'],
       'show_duplicates': show_duplicates,
@@ -647,7 +651,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                       'fap_id': i,
                       'file_name': nm,
                       'user_id': uid,
-                      'user_name': db.users[uid],
+                      'user_name': db.users[uid]['name'],
                       'folder_id': fid,
                       'folder_name': db.favorites[uid][fid]['name'],
                       'imagefap': fapdata.IMG_URL(i),

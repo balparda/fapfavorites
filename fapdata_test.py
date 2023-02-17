@@ -46,8 +46,8 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(db._blobs_dir, os.path.expanduser('~/Downloads/some-dir/blobs/'))
     self.assertDictEqual(db._db, {k: {} for k in fapdata._DB_MAIN_KEYS})
     self.assertDictEqual(db.duplicates.registry, {})
-    db.users[1] = 'Luke'
-    db.favorites[1] = {2: {}}  # type: ignore
+    db.users[1] = {'name': 'Luke'}   # type: ignore
+    db.favorites[1] = {2: {}}        # type: ignore
     db.tags[3] = {'name': 'three', 'tags': {}}
     db.blobs['sha1'] = {'tags': {4}}  # type: ignore
     db.image_ids_index[5] = 'sha2'
@@ -55,7 +55,7 @@ class TestFapDatabase(unittest.TestCase):
     db._duplicates_key_index['a'] = ('a', 'b')
     db._duplicates_key_index['b'] = ('a', 'b')
     self.assertDictEqual(db._db, {
-        'users': {1: 'Luke'},
+        'users': {1: {'name': 'Luke'}},
         'favorites': {1: {2: {}}},
         'tags': {3: {'name': 'three', 'tags': {}}},
         'blobs': {'sha1': {'tags': {4}}},
@@ -178,7 +178,8 @@ class TestFapDatabase(unittest.TestCase):
       db.AddUserByID(11)
     mock_read.return_value = 'user_html'
     self.assertEqual(db.AddUserByID(10), 'foo & user')
-    self.assertDictEqual(db.users, {10: 'foo & user'})
+    self.assertDictEqual(
+        db.users, {10: {'date_albums': 0, 'date_finished': 0, 'name': 'foo & user'}})
     fapdata._FIND_NAME_IN_FAVORITES = None  # make sure is not used again in next call
     self.assertEqual(db.AddUserByID(10), 'foo & user')
     self.assertEqual(db.UserStr(10), 'foo & user (10)')
@@ -205,7 +206,8 @@ class TestFapDatabase(unittest.TestCase):
       db.AddUserByName('no-user')
     mock_read.return_value = 'user_html'
     self.assertTupleEqual(db.AddUserByName('foo-user'), (10, 'foo & user'))
-    self.assertDictEqual(db.users, {10: 'foo & user'})
+    self.assertDictEqual(
+        db.users, {10: {'date_albums': 0, 'date_finished': 0, 'name': 'foo & user'}})
     fapdata._FIND_USER_ID_RE = None  # make sure is not used again in next call
     fapdata._FIND_ACTUAL_NAME = None
     self.assertTupleEqual(db.AddUserByName('foo & user'), (10, 'foo & user'))
@@ -227,7 +229,7 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = _MockRegex({'folder_html': ['true']})
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html': []})
     db = fapdata.FapDatabase('/xxx/')
-    db.users[10] = 'username'
+    db.users[10] = {'name': 'username'}  # type: ignore
     mock_read.return_value = 'invalid'
     with self.assertRaisesRegex(fapdata.Error, r'for 11/22'):
       db.AddFolderByID(11, 22)
@@ -261,7 +263,7 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = _MockRegex({'folder_html_test': ['true']})
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html_test': []})
     db = fapdata.FapDatabase('/xxx/')
-    db.users[10] = 'username'
+    db.users[10] = {'name': 'username'}  # type: ignore
     mock_read.return_value = 'invalid'
     with self.assertRaisesRegex(fapdata.Error, r'folder \'no-folder\' for user 11'):
       db.AddFolderByName(11, 'no-folder')
@@ -297,7 +299,9 @@ class TestFapDatabase(unittest.TestCase):
       with self.assertRaises(fapdata.Error):
         fapdata.GetDatabaseTimestamp(db_path)
       db = fapdata.FapDatabase(db_path)
-      db._db['users'] = {1: 'Luke', 2: 'Ben'}
+      db._db['users'] = {
+          1: {'name': 'Luke', 'date_albums': 1675360670, 'date_finished': 1675369670},
+          2: {'name': 'Ben', 'date_albums': 0, 'date_finished': 0}}
       db._db['favorites'] = {1: {11: {
           'name': 'known-folder-1', 'pages': 8,
           'date_straight': 0, 'date_blobs': 1675360670, 'images': [103, 104]}}}
@@ -325,7 +329,7 @@ class TestFapDatabase(unittest.TestCase):
       fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({
           'test-new-f-0': [], 'test-new-f-2': ['true'],
           'test-new-f-3': [], 'test-new-f-4': ['true']})
-      self.assertSetEqual(db.AddAllUserFolders(1), {10, 11, 13})
+      self.assertSetEqual(db.AddAllUserFolders(1, True), {10, 11, 13})
       self.assertListEqual(
           read_html.call_args_list,
           [mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=0'),
@@ -503,7 +507,7 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
       self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
       self.assertTupleEqual(db.DeleteUserAndAlbums(1), (4, 0))
-      self.assertDictEqual(db.users, {2: 'Ben'})
+      self.assertDictEqual(db.users, {2: {'date_albums': 0, 'date_finished': 0, 'name': 'Ben'}})
       self.assertDictEqual(db.favorites, {2: {20: {'images': [107, 801]}}})
       for blob in _BLOBS_NO_LUKE.values():
         if 'cnn' in blob:
@@ -850,7 +854,7 @@ TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)
 """.splitlines()[1:]
 
 _PRINTED_STATS_EMPTY = """
-Database is located in '%s/imagefap.database', and is 250b (25000.000%% of total images size)
+Database is located in '%s/imagefap.database', and is 287b (28700.000%% of total images size)
 0b total (unique) images size (- min, - max, - mean with - standard deviation, 0 are animated)
 
 2 users

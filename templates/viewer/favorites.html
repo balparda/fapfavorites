@@ -25,7 +25,11 @@
 
     <h1>Favorites for User <i>&quot;{{ user_name|escape }}&quot;</i></h1>
 
-    <p><b>{{ album_count }}</b> user favorite albums</p>
+    <p>
+      <b>{{ album_count }}</b> user favorite albums,
+      album list fetched on {{ date_albums }},
+      all user tasks finished on {{ date_finished }}
+    </p>
 
     {% if error_message %}
       <p style='color: red;'><strong>{{ error_message }}</strong></p>
