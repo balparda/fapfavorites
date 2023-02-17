@@ -535,7 +535,7 @@ def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeTex
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   """Serve the `duplicates` page."""
   db = _DBFactory()
-  sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
+  sorted_keys = sorted(db.duplicates.registry.keys())
   # send to page
   img_count = sum(len(dup_key) for dup_key in sorted_keys)
   new_count = sum(
@@ -598,7 +598,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   error_message: Optional[str] = None
   if digest not in db.blobs:
     raise http.Http404('Unknown blob %r' % digest)
-  sorted_keys = sorted(db.duplicates.registry.keys(), key=lambda x: x[0])
+  sorted_keys = sorted(db.duplicates.registry.keys())
   dup_obj: Optional[duplicates.DuplicateObjType] = None
   if digest in db.duplicates.index:
     # this is a perceptual set, so get the object and its index in sorted_keys
@@ -653,7 +653,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                       'imagefap': fapdata.IMG_URL(i),
                   }
                   for i, _, nm, uid, fid in sorted(
-                      (loc for loc in db.blobs[sha]['loc']), key=lambda x: x[0])
+                      (loc for loc in db.blobs[sha]['loc']), key=lambda x: (x[0], x[3], x[4]))
               ],
               'sz': base.HumanizedBytes(db.blobs[sha]['sz']),
               'dimensions': '%dx%d (WxH)' % (db.blobs[sha]['width'], db.blobs[sha]['height']),

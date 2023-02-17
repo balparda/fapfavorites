@@ -112,8 +112,10 @@ class TestFapDatabase(unittest.TestCase):
   @mock.patch('fapdata.os.path.isdir')
   def test_TagsWalk(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
+    self.maxDiff = None
     mock_is_dir.return_value = True
     db = fapdata.FapDatabase('/xxx/')
+    self.assertListEqual(db.PrintTags(actually_print=False), ['NO TAGS CREATED'])
     db._db['tags'] = _TEST_TAGS_2
     self.assertListEqual(
         list((i, n, d) for i, n, d, _ in db.TagsWalk()),
@@ -125,7 +127,9 @@ class TestFapDatabase(unittest.TestCase):
         list((i, n, d) for i, n, d, _ in db.TagsWalk(
             start_tag=_TEST_TAGS_2[2]['tags'])),  # type: ignore
         [(22, 'two-two', 0), (24, 'two-four', 0), (246, 'deep', 1)])
-    db.PrintTags()
+    db._db['blobs'] = {  # type: ignore
+        'a': {'tags': {1, 2, 33}, 'sz': 10}, 'b': {'tags': {246, 33}, 'sz': 55}}
+    self.assertListEqual(db.PrintTags(), _PRINTED_TAGS)
 
   @mock.patch('fapdata.urllib.request.urlopen')
   @mock.patch('fapdata.time.sleep')
@@ -302,10 +306,10 @@ class TestFapDatabase(unittest.TestCase):
       del db
       db = fapdata.FapDatabase(db_path)
       db.Load()
-      db.PrintStats()
-      db.PrintUsersAndFavorites()
-      db.PrintTags()
-      db.PrintBlobs()
+      _PRINTED_STATS_EMPTY[0] = _PRINTED_STATS_EMPTY[0] % db_path  # type: ignore
+      self.assertListEqual(db.PrintStats(), _PRINTED_STATS_EMPTY)
+      self.assertListEqual(db.PrintUsersAndFavorites(), _PRINTED_USERS_EMPTY)
+      self.assertListEqual(db.PrintBlobs(), _PRINTED_BLOBS_EMPTY)
       # AddAllUserFolders ##########################################################################
       read_html.side_effect = [
           'folders-page-1', 'test-new-f-0', 'test-new-f-2',  # page, then looks viability for new
@@ -472,11 +476,17 @@ class TestFapDatabase(unittest.TestCase):
       ##############################################################################################
       db.GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
       db.GetBlob('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')
-      db.PrintStats()
-      db.PrintUsersAndFavorites()
-      db.PrintTags()
+      db.tags[12] = {'name': 'tag12', 'tags': {13: {'name': 'tag13', 'tags': {}}}}
+      db.tags[22] = {'name': 'tag22', 'tags': {23: {'name': 'tag23', 'tags': {}}}}
+      db.blobs['9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf']['tags'].update(
+          {12, 23})
+      db.blobs['321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6']['tags'].update(
+          {13, 22})
+      db.Save()
+      self.assertListEqual(db.PrintStats(actually_print=False)[1:], _PRINTED_STATS_FULL)
+      self.assertListEqual(db.PrintUsersAndFavorites(actually_print=False), _PRINTED_USERS_FULL)
       db.favorites[2] = {20: {'name': 'foo-bar'}}  # type: ignore
-      db.PrintBlobs()
+      self.assertListEqual(db.PrintBlobs(actually_print=False), _PRINTED_BLOBS_FULL)
       # DeleteUserAndAlbums & DeleteAlbum ##########################################################
       db.favorites[2] = {20: {'images': [107, 801]}}  # type: ignore
       db.image_ids_index[103] = 'sha-103'
@@ -588,7 +598,7 @@ _BLOBS_TRIMMED: fapdata._BlobType = {  # type: ignore
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
+        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160,
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
@@ -614,7 +624,7 @@ _BLOBS_NO_LUKE: fapdata._BlobType = {
         'loc': {(801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
+        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160,
     },
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
@@ -824,6 +834,95 @@ _TEST_TAGS_2: fapdata._TagType = {  # this is all valid tags structure
         },
     },
 }
+
+_PRINTED_TAGS = """
+TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)
+
+0: 'plain' (0 / 0b)
+1: 'one' (1 / 10b)
+    11: 'one-one' (0 / 0b)
+2: 'two' (1 / 10b)
+    22: 'two-two' (0 / 0b)
+    24: 'two-four' (0 / 0b)
+        246: 'deep' (1 / 55b)
+3: 'three' (0 / 0b)
+    33: 'three-three' (2 / 65b)
+""".splitlines()[1:]
+
+_PRINTED_STATS_EMPTY = """
+Database is located in '%s/imagefap.database', and is 250b (25000.000%% of total images size)
+0b total (unique) images size (- min, - max, - mean with - standard deviation, 0 are animated)
+
+2 users
+1 favorite galleries (oldest: 2023/Feb/02-17:57:50-UTC / newer: 2023/Feb/02-17:57:50-UTC)
+0 unique images (0 total, 0 exact duplicates)
+0 perceptual duplicates in 0 groups
+""".splitlines()[1:]
+
+_PRINTED_USERS_EMPTY = """
+ID: USER_NAME
+    FILE STATS FOR USER
+    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)
+           FILE STATS FOR FAVORITES
+
+1: 'Luke'
+    0b files size (- min, - max, - mean with - standard deviation)
+    => 11: 'known-folder-1' (2 / 8 / 2023/Feb/02-17:57:50-UTC)
+
+2: 'Ben'
+    0b files size (- min, - max, - mean with - standard deviation)
+""".splitlines()[1:]
+
+_PRINTED_BLOBS_EMPTY = """
+SHA256_HASH: ID1/'NAME1' or ID2/'NAME2' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED]
+    => {'TAG1', 'TAG2', ...}
+
+""".splitlines()[1:]
+
+_PRINTED_STATS_FULL = """
+Database is located in '%s/imagefap.database', and is 1.74kb (0.258%% of total images size)
+674.74kb total (unique) images size (101b min, 434.54kb max, 96.39kb mean with 152.34kb standard deviation, 1 are animated)
+Pixel size (width, height): 22.49k pixels min (130, 173), 114.49k pixels max (107, 1070), 52.62k mean with 30.92k standard deviation
+530.42kb total thumbnail size (0b min, 295.06kb max, 75.77kb mean with 99.91kb standard deviation), 78.6% of total images size
+
+2 users
+3 favorite galleries (oldest: 2023/Feb/02-17:57:50-UTC / newer: 2023/Feb/02-20:11:10-UTC)
+7 unique images (10 total, 3 exact duplicates)
+3 perceptual duplicates in 1 groups
+""".splitlines()[2:]  # noqa: E501
+
+_PRINTED_USERS_FULL = """
+ID: USER_NAME
+    FILE STATS FOR USER
+    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)
+           FILE STATS FOR FAVORITES
+
+1: 'Luke'
+    730.00kb files size (101b min, 434.54kb max, 91.25kb mean with 141.78kb standard deviation)
+    => 10: 'new-f-0' (3 / 9 / 2023/Feb/02-20:11:10-UTC)
+           108.72kb files size (101b min, 55.26kb max, 36.24kb mean with 31.31kb standard deviation)
+    => 11: 'known-folder-1' (2 / 8 / 2023/Feb/02-17:57:50-UTC)
+    => 13: 'new&f-3' (5 / 2 / 2023/Feb/02-20:11:10-UTC)
+           621.28kb files size (107b min, 434.54kb max, 124.25kb mean with 176.23kb standard deviation)
+
+2: 'Ben'
+    0b files size (- min, - max, - mean with - standard deviation)
+""".splitlines()[1:]  # noqa: E501
+
+_PRINTED_BLOBS_FULL = """
+SHA256_HASH: ID1/'NAME1' or ID2/'NAME2' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED]
+    => {'TAG1', 'TAG2', ...}
+
+0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19: Luke/new-f-0/name-102.jpg (1/10/102), 33.60k (168, 200)
+321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6: Luke/new&f-3/name-108.png (1/13/108), 22.49k (130, 173)
+    => {tag13 (13), tag22 (22)}
+9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf: Luke/new-f-0/name-to-use.jpg (1/10/101) or Ben/foo-bar/some-name.jpg (2/20/801), 32.00k (160, 200)
+    => {tag12 (12), tag23 (23)}
+dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180: Luke/new&f-3/name-106.jpg (1/13/106), 66.60k (300, 222)
+e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e: Luke/new-f-0/name-100.jpg (1/10/100) or Luke/new&f-3/name-105.jpg (1/13/105), 49.20k (200, 246)
+ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e: Luke/new&f-3/name-109.gif (1/13/109), 50.00k (500, 100) animated
+sha-107: Luke/new&f-3/name-107.png (1/13/107) or Ben/foo-bar/some-name.gif (2/20/107), 114.49k (107, 1070)
+""".splitlines()[1:]  # noqa: E501
 
 
 SUITE = unittest.TestLoader().loadTestsFromTestCase(TestFapDatabase)

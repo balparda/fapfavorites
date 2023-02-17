@@ -397,15 +397,15 @@ class FapDatabase:
     db_size = os.path.getsize(self._db_path)
     all_lines: list[str] = []
 
-    def PrintLine(line: str):
+    def _PrintLine(line: str = ''):
       all_lines.append(line)
       if actually_print:
         print(line)
 
-    PrintLine('Database is located in %r, and is %s (%0.5f%% of total images size)' % (
+    _PrintLine('Database is located in %r, and is %s (%0.3f%% of total images size)' % (
         self._db_path, base.HumanizedBytes(db_size),
         (100.0 * db_size) / (all_files_size if all_files_size else 1)))
-    PrintLine(
+    _PrintLine(
         '%s total (unique) images size (%s min, %s max, '
         '%s mean with %s standard deviation, %d are animated)' % (
             base.HumanizedBytes(all_files_size),
@@ -419,7 +419,7 @@ class FapDatabase:
           (s['width'], s['height']) for s in self.blobs.values()]
       pixel_sizes: list[int] = [
           s['width'] * s['height'] for s in self.blobs.values()]
-      PrintLine(
+      _PrintLine(
           'Pixel size (width, height): %s pixels min %r, %s pixels max %r, '  # cspell:disable-line
           '%s mean with %s standard deviation' % (
               base.HumanizedDecimal(min(pixel_sizes)),
@@ -430,7 +430,7 @@ class FapDatabase:
               base.HumanizedDecimal(
                   int(statistics.stdev(pixel_sizes))) if len(pixel_sizes) > 2 else '-'))
     if all_files_size and all_thumb_size:
-      PrintLine(
+      _PrintLine(
           '%s total thumbnail size (%s min, %s max, %s mean with %s standard deviation), '
           '%0.1f%% of total images size' % (
               base.HumanizedBytes(all_thumb_size),
@@ -440,39 +440,53 @@ class FapDatabase:
               base.HumanizedBytes(
                   int(statistics.stdev(thumb_sizes))) if len(thumb_sizes) > 2 else '-',
               (100.0 * all_thumb_size) / all_files_size))
-    PrintLine('')
-    PrintLine('%d users' % len(self.users))
+    _PrintLine()
+    _PrintLine('%d users' % len(self.users))
     all_dates = [max(f['date_straight'], f['date_blobs'])
                  for u in self.favorites.values() for f in u.values()]
     min_date = min(all_dates) if all_dates else 0
     max_date = max(all_dates) if all_dates else 0
-    PrintLine('%d favorite galleries (oldest: %s / newer: %s)' % (
+    _PrintLine('%d favorite galleries (oldest: %s / newer: %s)' % (
         sum(len(f) for _, f in self.favorites.items()),
         base.STD_TIME_STRING(min_date) if min_date else 'pending',
         base.STD_TIME_STRING(max_date) if max_date else 'pending'))
-    PrintLine('%d unique images (%d total, %d exact duplicates)' % (
+    _PrintLine('%d unique images (%d total, %d exact duplicates)' % (
         len(self.blobs),
         sum(len(b['loc']) for _, b in self.blobs.items()),
         sum(len(b['loc']) - 1 for _, b in self.blobs.items())))
-    PrintLine('%d perceptual duplicates in %d groups' % (
+    _PrintLine('%d perceptual duplicates in %d groups' % (
         len(self.duplicates.index), len(self.duplicates.registry)))
     return all_lines
 
-  def PrintUsersAndFavorites(self) -> None:
-    """Print database users."""
-    print('ID: USER_NAME')
-    print('    FILE STATS FOR USER')
-    print('    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)')
-    print('           FILE STATS FOR FAVORITES')
+  def PrintUsersAndFavorites(self, actually_print=True) -> list[str]:
+    """Print database users.
+
+    Args:
+      actually_print: (default True) If true will print() the lines; else won't
+
+    Returns:
+      list of strings to print as status
+    """
+    all_lines: list[str] = []
+
+    def _PrintLine(line: str = ''):
+      all_lines.append(line)
+      if actually_print:
+        print(line)
+
+    _PrintLine('ID: USER_NAME')
+    _PrintLine('    FILE STATS FOR USER')
+    _PrintLine('    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)')
+    _PrintLine('           FILE STATS FOR FAVORITES')
     for uid in sorted(self.users.keys()):
-      print()
-      print('%d: %r' % (uid, self.users[uid]))
+      _PrintLine()
+      _PrintLine('%d: %r' % (uid, self.users[uid]))
       file_sizes: list[int] = [
           self.blobs[self.image_ids_index[i]]['sz']
           for d, u in self.favorites.items() if d == uid
           for f in u.values()
           for i in f['images'] if i in self.image_ids_index]
-      print('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
+      _PrintLine('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
           base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
           base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
           base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
@@ -483,51 +497,84 @@ class FapDatabase:
         file_sizes: list[int] = [
             self.blobs[self.image_ids_index[i]]['sz']
             for i in obj['images'] if i in self.image_ids_index]
-        print('    => %d: %r (%d / %d / %s)' % (
+        _PrintLine('    => %d: %r (%d / %d / %s)' % (
             fid, obj['name'], len(obj['images']), obj['pages'],
             base.STD_TIME_STRING(max(obj['date_straight'], obj['date_blobs']))
             if obj['date_straight'] or obj['date_blobs'] else 'pending'))
         if file_sizes:
-          print('           %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
-              base.HumanizedBytes(sum(file_sizes)),
-              base.HumanizedBytes(min(file_sizes)),
-              base.HumanizedBytes(max(file_sizes)),
-              base.HumanizedBytes(int(statistics.mean(file_sizes))),
-              base.HumanizedBytes(
-                  int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'))
+          _PrintLine(
+              '           %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
+                  base.HumanizedBytes(sum(file_sizes)),
+                  base.HumanizedBytes(min(file_sizes)),
+                  base.HumanizedBytes(max(file_sizes)),
+                  base.HumanizedBytes(int(statistics.mean(file_sizes))),
+                  base.HumanizedBytes(
+                      int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'))
+    return all_lines
 
-  def PrintTags(self) -> None:
-    """Print database tags."""
+  def PrintTags(self, actually_print=True) -> list[str]:
+    """Print database tags.
+
+    Args:
+      actually_print: (default True) If true will print() the lines; else won't
+
+    Returns:
+      list of strings to print as status
+    """
+    all_lines: list[str] = []
+
+    def _PrintLine(line: str = ''):
+      all_lines.append(line)
+      if actually_print:
+        print(line)
+
     if not self.tags:
-      print('NO TAGS CREATED')
-      return
-    print('TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)')
-    print()
+      _PrintLine('NO TAGS CREATED')
+      return all_lines
+    _PrintLine('TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)')
+    _PrintLine()
     for tag_id, tag_name, depth, _ in self.TagsWalk():
       count: int = 0
       sz: int = 0
-      for b in self.blobs.values():
-        if tag_id in b['tags']:
+      for blob in self.blobs.values():
+        if tag_id in blob['tags']:
           count += 1
-          sz += b['sz']
-      print('%s%d: %r (%d / %s)' % (
+          sz += blob['sz']
+      _PrintLine('%s%d: %r (%d / %s)' % (
           '    ' * depth, tag_id, tag_name, count, base.HumanizedBytes(sz)))
+    return all_lines
 
-  def PrintBlobs(self) -> None:
-    """Print database blobs metadata."""
-    print('SHA256_HASH: ID1/\'NAME1\' or ID2/\'NAME2\' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED]')
-    print('    => {\'TAG1\', \'TAG2\', ...}')
-    print()
+  def PrintBlobs(self, actually_print=True) -> list[str]:
+    """Print database blobs metadata.
+
+    Args:
+      actually_print: (default True) If true will print() the lines; else won't
+
+    Returns:
+      list of strings to print as status
+    """
+    all_lines: list[str] = []
+
+    def _PrintLine(line: str = ''):
+      all_lines.append(line)
+      if actually_print:
+        print(line)
+
+    _PrintLine('SHA256_HASH: ID1/\'NAME1\' or ID2/\'NAME2\' or ..., PIXELS '
+               '(WIDTH, HEIGHT) [ANIMATED]')
+    _PrintLine('    => {\'TAG1\', \'TAG2\', ...}')
+    _PrintLine()
     for sha in sorted(self.blobs.keys()):
       blob = self.blobs[sha]
-      print('%s: %s, %s %r%s' % (
-          sha, ' or '.join(self.LocationStr(loc) for loc in sorted(
-              (loc for loc in blob['loc']), key=lambda x: x[0])),
+      _PrintLine('%s: %s, %s %r%s' % (
+          sha, ' or '.join(self.LocationStr(loc)
+                           for loc in sorted(blob['loc'], key=lambda x: (x[0], x[3], x[4]))),
           base.HumanizedDecimal(blob['width'] * blob['height']),
           (blob['width'], blob['height']),
           ' animated' if blob['animated'] else ''))
       if blob['tags']:
-        print('    => {%s}' % ', '.join(self.TagStr(tid) for tid in blob['tags']))
+        _PrintLine('    => {%s}' % ', '.join(self.TagStr(tid) for tid in sorted(blob['tags'])))
+    return all_lines
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.

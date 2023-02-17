@@ -667,7 +667,7 @@ _INDEX_CONTEXT: dict[str, Any] = {
     'n_images': 7,
     'database_stats': [
         ('Database is located in \'/foo/imagefap.database\', and is 97.66kb '
-         '(8.80438% of total images size)'),
+         '(8.804% of total images size)'),
         ('1.08Mb total (unique) images size (101b min, 434.54kb max, '
          '158.45kb mean with 190.33kb standard deviation, 2 are animated)'),
         ('Pixel size (width, height): 22.49k pixels min (130, 173), '
