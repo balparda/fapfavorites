@@ -85,7 +85,7 @@ class TestFapDatabase(unittest.TestCase):
     db._db['tags'] = _TEST_TAGS_1
     self.assertListEqual(db.GetTag(0), [(0, 'plain', {'name': 'plain'})])
     self.assertListEqual(db.GetTag(2), [(2, 'two', _TEST_TAGS_1[2])])
-    self.assertEqual(db.PrintableTag(2), 'two')
+    self.assertEqual(db.TagLineageStr(2), 'two (2)')
     self.assertListEqual(
         db.GetTag(22),
         [(2, 'two', _TEST_TAGS_1[2]), (22, 'two-two', {'name': 'two-two', 'tags': {}})])
@@ -93,13 +93,17 @@ class TestFapDatabase(unittest.TestCase):
         db.GetTag(24),
         [(2, 'two', _TEST_TAGS_1[2]),
          (24, 'two-four', {'name': 'two-four', 'tags': {246: {'name': 'deep'}}})])
-    self.assertEqual(db.PrintableTag(24), 'two/two-four')
+    self.assertEqual(db.TagStr(24), 'two-four (24)')
+    self.assertEqual(db.TagStr(24, add_id=False), 'two-four')
+    self.assertEqual(db.TagLineageStr(24), 'two/two-four (24)')
+    self.assertEqual(db.TagLineageStr(24, add_id=False), 'two/two-four')
     self.assertListEqual(
         db.GetTag(246),
         [(2, 'two', _TEST_TAGS_1[2]),
          (24, 'two-four', {'name': 'two-four', 'tags': {246: {'name': 'deep'}}}),
          (246, 'deep', {'name': 'deep'})])
-    self.assertEqual(db.PrintableTag(246), 'two/two-four/deep')
+    self.assertEqual(db.TagStr(246), 'deep (246)')
+    self.assertEqual(db.TagLineageStr(246), 'two/two-four/deep (246)')
     with self.assertRaisesRegex(fapdata.Error, r'tag 11 is empty'):
       db.GetTag(11)
     with self.assertRaisesRegex(fapdata.Error, r'tag 3 \(of 33\) is empty'):
@@ -173,6 +177,9 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(db.users, {10: 'foo & user'})
     fapdata._FIND_NAME_IN_FAVORITES = None  # make sure is not used again in next call
     self.assertEqual(db.AddUserByID(10), 'foo & user')
+    self.assertEqual(db.UserStr(10), 'foo & user (10)')
+    with self.assertRaises(fapdata.Error):
+      db.UserStr(5)
     self.assertListEqual(
         mock_read.call_args_list,
         [mock.call('https://www.imagefap.com/showfavorites.php?userid=11&page=0'),
@@ -198,6 +205,9 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_USER_ID_RE = None  # make sure is not used again in next call
     fapdata._FIND_ACTUAL_NAME = None
     self.assertTupleEqual(db.AddUserByName('foo & user'), (10, 'foo & user'))
+    self.assertEqual(db.UserStr(10), 'foo & user (10)')
+    with self.assertRaises(fapdata.Error):
+      db.UserStr(5)
     self.assertListEqual(
         mock_read.call_args_list,
         [mock.call('https://www.imagefap.com/profile/no-user'),
@@ -213,6 +223,7 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = _MockRegex({'folder_html': ['true']})
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html': []})
     db = fapdata.FapDatabase('/xxx/')
+    db.users[10] = 'username'
     mock_read.return_value = 'invalid'
     with self.assertRaisesRegex(fapdata.Error, r'for 11/22'):
       db.AddFolderByID(11, 22)
@@ -226,6 +237,9 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = None
     self.assertEqual(db.AddFolderByID(10, 20), 'foo & folder')
+    self.assertEqual(db.AlbumStr(10, 20), 'username/foo & folder (10/20)')
+    with self.assertRaises(fapdata.Error):
+      db.AlbumStr(10, 99)
     self.assertListEqual(
         mock_read.call_args_list,
         [mock.call('https://www.imagefap.com/showfavorites.php?userid=11&page=0&folderid=22'),
@@ -243,6 +257,7 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = _MockRegex({'folder_html_test': ['true']})
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html_test': []})
     db = fapdata.FapDatabase('/xxx/')
+    db.users[10] = 'username'
     mock_read.return_value = 'invalid'
     with self.assertRaisesRegex(fapdata.Error, r'folder \'no-folder\' for user 11'):
       db.AddFolderByName(11, 'no-folder')
@@ -256,6 +271,9 @@ class TestFapDatabase(unittest.TestCase):
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
     fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = None
     self.assertTupleEqual(db.AddFolderByName(10, 'foo & folder'), (400, 'foo & folder'))
+    self.assertEqual(db.AlbumStr(10, 400), 'username/foo & folder (10/400)')
+    with self.assertRaises(fapdata.Error):
+      db.AlbumStr(10, 99)
     self.assertListEqual(
         mock_read.call_args_list,
         [mock.call('https://www.imagefap.com/showfavorites.php?userid=11&page=0'),
@@ -442,6 +460,14 @@ class TestFapDatabase(unittest.TestCase):
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
       self.assertTrue(os.path.exists(db.ThumbnailPath(
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
+      self.assertEqual(
+          db.LocationStr((101, 'url-2', 'name-to-use.jpg', 1, 10)),
+          'Luke/new-f-0/name-to-use.jpg (1/10/101)')
+      self.assertEqual(
+          db.LocationStr((107, 'url-1', 'some-name.gif', 1, 11)),
+          'Luke/known-folder-1/some-name.gif (1/11/107)')
+      with self.assertRaises(fapdata.Error):
+        db.LocationStr((999, 'url-1', 'some-name.gif', 9, 99))
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       ##############################################################################################
       db.GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
@@ -449,6 +475,7 @@ class TestFapDatabase(unittest.TestCase):
       db.PrintStats()
       db.PrintUsersAndFavorites()
       db.PrintTags()
+      db.favorites[2] = {20: {'name': 'foo-bar'}}  # type: ignore
       db.PrintBlobs()
       # DeleteUserAndAlbums & DeleteAlbum ##########################################################
       db.favorites[2] = {20: {'images': [107, 801]}}  # type: ignore

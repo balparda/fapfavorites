@@ -129,6 +129,8 @@
 
     {% if current_index != -1 %}
       <p>{% if previous_key %}<a href='{% url "duplicate" previous_key.0 %}'>&#11013;&nbsp;&nbsp;PREV</a>&nbsp;&nbsp;{% endif %}&nbsp;&nbsp;&#10037;&nbsp;&nbsp;<a href='{% url "duplicates" %}'>&#11014;</a>&nbsp;&nbsp;&#10037;&nbsp;&nbsp;{% if next_key %}&nbsp;&nbsp;<a href='{% url "duplicate" next_key.0 %}'>NEXT&nbsp;&nbsp;&#10145;</a>{% endif %}</p>
+    {% else %}
+      <p><a href='{% url "duplicates" %}'>(Go To: Perceptual Duplicates Page - won't list this one)</a></p>
     {% endif %}
 
     <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
@@ -141,11 +143,9 @@
 
       <table border='1'>
         <tr>
-          <th>
-            Hashes
-          </th>
           <th colspan='2'>
-            Image&nbsp;Pair
+            Image&nbsp;Pair<br/>
+            (Hashes)
           </th>
           <th>
             Actual<br/>Score
@@ -156,20 +156,19 @@
         </tr>
         {% for source in sources %}
           <tr>
-            <th colspan='5'>
+            <th colspan='4'>
               {{ source.name }}
             </th>
           </tr>
           {% for score in source.scores %}
             <tr>
-              <td class='regular_hash' align='center'>
-                {{ score.key }}
+              <td align='center' class='regular_hash'>
+                <a href='#td_{{ score.sha1 }}'><img src='{% static score.thumb1 %}' height='60'/></a><br/>
+                {{ score.key1 }}
               </td>
-              <td align='center'>
-                <a href='#td_{{ score.sha1 }}'><img src='{% static score.thumb1 %}' height='60'/></a>
-              </td>
-              <td align='center'>
-                <a href='#td_{{ score.sha2 }}'><img src='{% static score.thumb2 %}' height='60'/></a>
+              <td align='center' class='regular_hash'>
+                <a href='#td_{{ score.sha2 }}'><img src='{% static score.thumb2 %}' height='60'/></a><br/>
+                {{ score.key2 }}
               </td>
               <td>
                 {{ score.value }}

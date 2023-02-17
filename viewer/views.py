@@ -122,13 +122,12 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
     if delete_user_id not in db.users:
       error_message = 'Requested deletion of unknown user %d' % delete_user_id
     else:
-      delete_user_name = db.users[delete_user_id]
       delete_count, duplicates_count = db.DeleteUserAndAlbums(delete_user_id)
       # compose message and remember to save DB
       warning_message = (
-          'User %d/%r deleted, and with them %d blobs (images) deleted, '
+          'User %s deleted, and with them %d blobs (images) deleted, '
           'together with their thumbnails, plus %d duplicates groups abandoned' % (
-              delete_user_id, delete_user_name, delete_count, duplicates_count))
+              db.UserStr(delete_user_id), delete_count, duplicates_count))
       db.Save()
   # make user sums and data
   users: dict[int, dict[str, Any]] = {}
@@ -204,13 +203,12 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
     if delete_album_id not in user_favorites:
       error_message = 'Requested deletion of unknown favorites album %d' % delete_album_id
     else:
-      delete_album_name = user_favorites[delete_album_id]['name']
       delete_count, duplicates_count = db.DeleteAlbum(user_id, delete_album_id)
       # compose message and remember to save DB
       warning_message = (
-          'Favorites album %d/%r deleted, and with it %d blobs (images) deleted, '
+          'Favorites album %s deleted, and with it %d blobs (images) deleted, '
           'together with their thumbnails, plus %d duplicates groups abandoned' % (
-              delete_album_id, delete_album_name, delete_count, duplicates_count))
+              db.AlbumStr(user_id, delete_album_id), delete_count, duplicates_count))
       db.Save()
   # sort albums alphabetically and format data
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
@@ -272,8 +270,6 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
 def ServeFavorite(  # noqa: C901
     request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
-  # TODO: add mouse-over for gemini icon so can be easily checked
-  # TODO: add gemini icon for "locked/selection" page state
   # check for errors in parameters
   db = _DBFactory()
   warning_message: Optional[str] = None
@@ -290,7 +286,7 @@ def ServeFavorite(  # noqa: C901
   if selected_tag and selected_images:
     # we have tags to apply; check tag validity
     try:
-      tag_name = db.GetTag(selected_tag)[-1][1]
+      tag_name = db.TagLineageStr(selected_tag)
     except fapdata.Error:
       error_message = 'Unknown tag %d requested' % selected_tag
     else:
@@ -299,13 +295,13 @@ def ServeFavorite(  # noqa: C901
       for sha in selected_images:
         # check if image is valid
         if sha not in db.blobs:
-          error_message = 'Unknown image %r requested<br/>' % sha
+          error_message = 'Unknown image %r requested' % sha
           break
         # add tag to image
         db.blobs[sha]['tags'].add(selected_tag)
         tag_count += 1
       else:
-        warning_message = '%d images tagged with %r' % (tag_count, tag_name)
+        warning_message = '%d images tagged with %s' % (tag_count, tag_name)
         db.Save()
   # retrieve the `GET` data
   show_duplicates = bool(int(request.GET.get('dup', '0')))        # default: False
@@ -317,35 +313,54 @@ def ServeFavorite(  # noqa: C901
   images: list[int] = favorite['images']
   sorted_blobs = [(i, db.image_ids_index[i]) for i in images]  # "sorted" here means original order!
   # find images that have duplicates
-  exact_duplicates: dict[str, set[fapdata.LocationTupleType]] = {}  # all locations for duplicates
-  album_duplicates: dict[str, set[fapdata.LocationTupleType]] = {}  # exact duplicates in album
-  percept_duplicates: dict[str, duplicates.DuplicatesVerdictType] = {}  # perceptual duplicates
+  exact_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
+  album_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
+  percept_verdicts: dict[tuple[int, str], duplicates.DuplicatesVerdictType] = {}
+  percept_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
+  dup_hints: dict[tuple[int, str], list[str]] = {}  # the hints (mouse-over text) for the duplicates
   for img, sha in sorted_blobs:
     # collect images with identical twins
     if len(db.blobs[sha]['loc']) > 1:
-      exact_duplicates[sha] = db.blobs[sha]['loc']
+      exact_duplicates[(img, sha)] = db.blobs[sha]['loc']
       hits: set[fapdata.LocationTupleType] = {
           loc for loc in db.blobs[sha]['loc'] if loc[3] == user_id and loc[4] == folder_id}
       if len(hits) > 1:
         # this image has twins in this same album
-        album_duplicates[sha] = hits
+        album_duplicates[(img, sha)] = hits
     # look in perceptual index if this image is marked as 'new'/'keep'/'skip' (!='false')
     if sha in db.duplicates.index:
-      verdict = db.duplicates.registry[db.duplicates.index[sha]]['verdicts'][sha]
+      dup_keys = db.duplicates.index[sha]
+      verdict = db.duplicates.registry[dup_keys]['verdicts'][sha]
       if verdict != 'false':
-        percept_duplicates[sha] = verdict
+        percept_verdicts[(img, sha)] = verdict
+        # also collect the locations where we can find the perceptual duplicates
+        for dup_key in (
+            k for k in dup_keys if db.duplicates.registry[dup_keys]['verdicts'][k] != 'false'):
+          percept_duplicates.setdefault((img, sha), set()).update(db.blobs[dup_key]['loc'])
+    # make the hints
+    for loc in exact_duplicates.get((img, sha), set()):
+      is_current = loc[0] == img and loc[3] == user_id and loc[4] == folder_id
+      dup_hints.setdefault((img, sha), []).append(
+          'Exact: %s%s' % (db.LocationStr(loc), ' <= THIS' if is_current else ''))
+    for loc in percept_duplicates.get((img, sha), set()):
+      is_current = loc[0] == img and loc[3] == user_id and loc[4] == folder_id
+      dup_hints.setdefault((img, sha), []).append(
+          'Visual: %s%s' % (db.LocationStr(loc), ' <= THIS' if is_current else ''))
+    if (img, sha) in dup_hints and dup_hints[(img, sha)]:
+      dup_hints[(img, sha)].sort()
   # apply filters
   if not show_duplicates:
-    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (sha in album_duplicates and
-                            i != min(n[0] for n in album_duplicates[sha]))]
-    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
-                    if not (sha in percept_duplicates and percept_duplicates[sha] == 'skip')]
+    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
+                    if not ((img, sha) in album_duplicates and
+                            img != min(n[0] for n in album_duplicates[(img, sha)]))]
+    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
+                    if not ((img, sha) in percept_verdicts and
+                            percept_verdicts[(img, sha)] == 'skip')]
   if not show_portraits:
-    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
+    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
                     if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]
   if not show_landscapes:
-    sorted_blobs = [(i, sha) for i, sha in sorted_blobs
+    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
                     if not (db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1)]
   # stack the hashes in rows of _IMG_COLUMNS columns
   stacked_blobs = [sorted_blobs[i:(i + _IMG_COLUMNS)]
@@ -368,13 +383,16 @@ def ServeFavorite(  # noqa: C901
         'name': name,
         'sz': base.HumanizedBytes(blob['sz']),
         'dimensions': '%dx%d (WxH)' % (blob['width'], blob['height']),
-        'tags': ', '.join(sorted(db.PrintableTag(t) for t in blob['tags'])),
+        'tags': ', '.join(sorted(db.TagLineageStr(t, add_id=False) for t in blob['tags'])),
         'thumb': '%s.%s' % (sha, blob['ext']),  # this is just the file name, to be served as
                                                 # a static resource: see settings.py
-        'has_duplicate': sha in exact_duplicates,
-        'album_duplicate': sha in album_duplicates,
-        'has_percept': sha in percept_duplicates,
+        'has_duplicate': (img, sha) in exact_duplicates,
+        'album_duplicate': (img, sha) in album_duplicates,
+        'has_percept': (img, sha) in percept_verdicts,
         'imagefap': fapdata.IMG_URL(img),
+        'duplicate_hints': (
+            '\n'.join(dup_hints[(img, sha)])
+            if (img, sha) in dup_hints and dup_hints[(img, sha)] else ''),
     }
   # send to page
   context: dict[str, Any] = {
@@ -395,7 +413,7 @@ def ServeFavorite(  # noqa: C901
       'count': len(sorted_blobs),
       'stacked_blobs': stacked_blobs,
       'blobs_data': blobs_data,
-      'tags': [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()],
+      'tags': [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()],
       'warning_message': warning_message,
       'error_message': error_message,
   }
@@ -429,7 +447,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
   db = _DBFactory()
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
-  all_tags = [(tid, name, db.PrintableTag(tid)) for tid, name, _, _ in db.TagsWalk()]
+  all_tags = [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()]
   if tag_id:
     if tag_id not in {tid for tid, _, _ in all_tags}:
       raise http.Http404('Unknown tag %d' % tag_id)
@@ -459,7 +477,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
         max_tag = max(i for i, _, _ in all_tags) if all_tags else 0
         tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}
         # message and save DB
-        warning_message = 'Tag %d/%r created' % (max_tag + 1, new_tag)
+        warning_message = 'Tag %d/%s created' % (max_tag + 1, new_tag)
         db.Save()
   # do we have a tag to delete?
   elif delete_tag:
@@ -468,10 +486,11 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
       error_message = 'Requested deletion of unknown tag %d' % delete_tag
     else:
       delete_obj = db.GetTag(delete_tag)
+      delete_name = db.TagLineageStr(delete_tag)
       # check tag does not have children
       if delete_obj[-1][-1]['tags']:
-        error_message = ('Requested deletion of tag %d/%r that is not empty '
-                         '(delete children first)' % (delete_tag, delete_obj[-1][1]))
+        error_message = ('Requested deletion of tag %s that is not empty '
+                         '(delete children first)' % delete_name)
       else:
         # everything OK: do deletion
         if len(delete_obj) < 2:
@@ -487,17 +506,17 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
             blob['tags'].remove(delete_tag)
             count_tag_deletions += 1
         # compose message and remember to save DB
-        warning_message = 'Tag %d/%r deleted and association removed from %d blobs (images)' % (
-            delete_tag, delete_obj[-1][1], count_tag_deletions)
+        warning_message = 'Tag %s deleted and association removed from %d blobs (images)' % (
+            delete_name, count_tag_deletions)
         db.Save()
   # send to page
   context: dict[str, Any] = {
-      'tags': [(tid, name, db.PrintableTag(tid), page_depth + depth)
+      'tags': [(tid, name, db.TagLineageStr(tid, add_id=False), page_depth + depth)
                for tid, name, depth, _ in db.TagsWalk(start_tag=tag_obj['tags'])],  # type: ignore
       'tag_id': tag_id,
       'page_depth': page_depth,
       'page_depth_up': (page_depth - 1) if page_depth else 0,
-      'tag_name': db.PrintableTag(tag_id) if tag_id else None,
+      'tag_name': db.TagLineageStr(tag_id) if tag_id else None,
       'warning_message': warning_message,
       'error_message': error_message,
   }
@@ -506,8 +525,11 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
 
 def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeText:
   """Return an abbreviated HTML representation for the key, each key will show 8 hex bytes."""
-  return safestring.mark_safe(  # nosec
-      '(%s)' % ', '.join('%s&hellip;' % sha[:16] for sha in dup_key))  # cspell:disable-line
+  if len(dup_key) == 1:
+    return safestring.mark_safe('%s&hellip;' % dup_key[0][:16])  # cspell:disable-line # nosec
+  else:
+    return safestring.mark_safe(  # nosec
+        '(%s)' % ', '.join('%s&hellip;' % sha[:16] for sha in dup_key))  # cspell:disable-line
 
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
@@ -635,8 +657,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
               ],
               'sz': base.HumanizedBytes(db.blobs[sha]['sz']),
               'dimensions': '%dx%d (WxH)' % (db.blobs[sha]['width'], db.blobs[sha]['height']),
-              'tags': ', '.join(sorted(
-                  db.PrintableTag(t) for t in db.blobs[sha]['tags'])),
+              'tags': ', '.join(sorted(db.TagLineageStr(t) for t in db.blobs[sha]['tags'])),
               'thumb': '%s.%s' % (sha, db.blobs[sha]['ext']),  # this is just the file name, served
                                                                # as a static resource (settings.py)
               'percept': db.blobs[sha]['percept'],
@@ -651,7 +672,8 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
               'name': method.upper(),
               'scores': [
                   {
-                      'key': _AbbreviatedKey(dup_key),
+                      'key1': _AbbreviatedKey((dup_key[0],)),
+                      'key2': _AbbreviatedKey((dup_key[1],)),
                       'value': (
                           '%0.3f' % dup_obj['sources'][method][dup_key] if method == 'cnn' else
                           '%d' % dup_obj['sources'][method][dup_key]),

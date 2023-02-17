@@ -267,6 +267,40 @@ class FapDatabase:
     base.BinSerialize(self._db, self._db_path)
     logging.info('Saved DB to %r', self._db_path)
 
+  def UserStr(self, user_id: int) -> str:
+    """Produce standard user representation, like 'UserName (id)'."""
+    try:
+      return '%s (%d)' % (self.users[user_id], user_id)
+    except KeyError:
+      raise Error('User %d not found' % user_id)
+
+  def AlbumStr(self, user_id: int, folder_id: int) -> str:
+    """Produce standard album representation, like 'UserName/FolderName (uid/fid)'."""
+    try:
+      return '%s/%s (%d/%d)' % (
+          self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
+    except KeyError:
+      raise Error('Album %d/%d not found' % (user_id, folder_id))
+
+  def LocationStr(self, loc: LocationTupleType) -> str:
+    """Produce standard location repr, like 'UserName/FolderName/ImageName (uid/fid/img_id)'."""
+    try:
+      return '%s/%s/%s (%d/%d/%d)' % (
+          self.users[loc[3]], self.favorites[loc[3]][loc[4]]['name'],
+          loc[2], loc[3], loc[4], loc[0])
+    except KeyError:
+      raise Error('Location %s had inconsistencies' % repr(loc))
+
+  def TagStr(self, tag_id: int, add_id: bool = True) -> str:
+    """Produce standard tag representation, like 'TagName (id)'."""
+    name = self.GetTag(tag_id)[-1][1]
+    return '%s (%d)' % (name, tag_id) if add_id else name
+
+  def TagLineageStr(self, tag_id: int, add_id: bool = True) -> str:
+    """Print tag name together with parents, like 'grand_name/parent_name/tag_name (id)'."""
+    name = '/'.join(n for _, n, _ in self.GetTag(tag_id))
+    return '%s (%d)' % (name, tag_id) if add_id else name
+
   def _BlobPath(self, sha: str) -> str:
     """Get full file path for a blob hash (`sha`)."""
     try:
@@ -326,10 +360,6 @@ class FapDatabase:
       raise Error('Tag ID %d was not found' % tag_id)
     hierarchy.reverse()
     return hierarchy
-
-  def PrintableTag(self, tag_id: int) -> str:
-    """Print tag name together with parents, like "parent_name/tag_name"."""
-    return '/'.join(n for _, n, _ in self.GetTag(tag_id))
 
   def TagsWalk(
       self, start_tag: Optional[_TagType] = None, depth: int = 0) -> Iterator[
@@ -491,14 +521,13 @@ class FapDatabase:
     for sha in sorted(self.blobs.keys()):
       blob = self.blobs[sha]
       print('%s: %s, %s %r%s' % (
-          sha, ' or '.join('%d/%r' % (i, n) for i, _, n, _, _ in sorted(
+          sha, ' or '.join(self.LocationStr(loc) for loc in sorted(
               (loc for loc in blob['loc']), key=lambda x: x[0])),
           base.HumanizedDecimal(blob['width'] * blob['height']),
           (blob['width'], blob['height']),
           ' animated' if blob['animated'] else ''))
       if blob['tags']:
-        print('    => {%s}' % ', '.join(
-            repr(self.GetTag(tid)[-1][1]) for tid in blob['tags']))
+        print('    => {%s}' % ', '.join(self.TagStr(tid) for tid in blob['tags']))
 
   def AddUserByID(self, user_id: int) -> str:
     """Add user by ID and find user name in the process.
@@ -523,7 +552,7 @@ class FapDatabase:
       if len(user_names) != 1:
         raise Error('Could not find user name for %d' % user_id)
       self.users[user_id] = html.unescape(user_names[0])
-    logging.info('%s user ID %d = %r', status, user_id, self.users[user_id])
+    logging.info('%s user %s added', status, self.UserStr(user_id))
     return self.users[user_id]
 
   def AddUserByName(self, user_name: str) -> tuple[int, str]:
@@ -541,7 +570,7 @@ class FapDatabase:
     # first try to find in DB
     for uid, unm in self.users.items():
       if unm.lower() == user_name.lower():
-        logging.info('Known user %r = ID %d', unm, uid)
+        logging.info('Know user %s added', self.UserStr(uid))
         return (uid, unm)
     # not found: we have to find in actual site
     url: str = _USER_PAGE_URL(user_name)
@@ -555,7 +584,7 @@ class FapDatabase:
     if len(actual_name) != 1:
       raise Error('Could not find actual display name for user %r' % user_name)
     self.users[uid] = html.unescape(actual_name[0])
-    logging.info('New user %r = ID %d', self.users[uid], uid)
+    logging.info('New user %s added', self.UserStr(uid))
     return (uid, self.users[uid])
 
   def AddFolderByID(self, user_id: int, folder_id: int) -> str:
@@ -585,8 +614,7 @@ class FapDatabase:
       self.favorites.setdefault(user_id, {})[folder_id] = {
           'name': html.unescape(folder_names[0]), 'pages': 0,
           'date_straight': 0, 'date_blobs': 0, 'images': []}
-    logging.info('%s folder ID %d/%d = %r',
-                 status, user_id, folder_id, self.favorites[user_id][folder_id]['name'])
+    logging.info('%s folder %s added', status, self.AlbumStr(user_id, folder_id))
     return self.favorites[user_id][folder_id]['name']
 
   def AddFolderByName(self, user_id: int, favorites_name: str) -> tuple[int, str]:
@@ -606,7 +634,7 @@ class FapDatabase:
     if user_id in self.favorites:
       for fid, f_data in self.favorites[user_id].items():
         if f_data['name'].lower() == favorites_name.lower():
-          logging.info('Known picture folder %r = ID %d', f_data['name'], fid)
+          logging.info('Known folder %s added', self.AlbumStr(user_id, fid))
           return (fid, f_data['name'])
     # not found: we have to find in actual site
     page_num: int = 0
@@ -624,7 +652,7 @@ class FapDatabase:
           _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
           self.favorites.setdefault(user_id, {})[i_f_id] = {
               'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0, 'images': []}
-          logging.info('New picture folder %r = ID %d', f_name, i_f_id)
+          logging.info('New folder %s added', self.AlbumStr(user_id, i_f_id))
           return (i_f_id, f_name)
       page_num += 1
 
@@ -654,7 +682,7 @@ class FapDatabase:
         # first check if we know it (for speed)
         if i_f_id in self.favorites[user_id]:
           # we already know of this gallery
-          logging.info('Known picture folder %r (ID %d)', f_name, i_f_id)
+          logging.info('Known picture folder %s', self.AlbumStr(user_id, i_f_id))
           found_folder_ids.add(i_f_id)
           known_favorites += 1
           continue
@@ -670,7 +698,7 @@ class FapDatabase:
         found_folder_ids.add(i_f_id)
         self.favorites[user_id][i_f_id] = {
             'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0, 'images': []}
-        logging.info('New picture folder %r (ID %d)', f_name, i_f_id)
+        logging.info('New picture folder %s added', self.AlbumStr(user_id, i_f_id))
       page_num += 1
     logging.info('Found %d total favorite galleries in %d pages (%d were already known; '
                  'also, %d non-image galleries were skipped)',
@@ -733,14 +761,12 @@ class FapDatabase:
             break  # after 2 extra safety pages, we hope we can now safely give up...
           else:
             page_num += 2  # we found something (2nd extra page), remember to increment page counter
-            logging.warn(
-                'Album %r/%r (%d/%d) had 2 EMPTY PAGES in the middle of the page list!',
-                self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
+            logging.warn('Album %s had 2 EMPTY PAGES in the middle of the page list!',
+                         self.AlbumStr(user_id, folder_id))
         else:
           page_num += 1  # we found something (1st extra page), remember to increment page counter
-          logging.warn(
-              'Album %r/%r (%d/%d) had 1 EMPTY PAGES in the middle of the page list!',
-              self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id)
+          logging.warn('Album %s had 1 EMPTY PAGES in the middle of the page list!',
+                       self.AlbumStr(user_id, folder_id))
       # add the images to the end, preserve order, but skip the ones already there
       for i in new_ids:
         if i not in img_set:
@@ -835,18 +861,16 @@ class FapDatabase:
     tm_now = base.INT_TIME()
     if tm_last and (tm_last + FAVORITES_MIN_DOWNLOAD_WAIT) > tm_now:
       logging.warning(
-          'Picture folder %r/%r (%d/%d) %s downloaded recently (%s, %s ago): %s!',
-          self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id,
-          'pages/IDs' if checkpoint_size is None else 'images',
+          'Picture folder %s %s downloaded recently (%s, %s ago): %s!',
+          self.AlbumStr(user_id, folder_id), 'pages/IDs' if checkpoint_size is None else 'images',
           base.STD_TIME_STRING(tm_last), base.HumanizedSeconds(tm_now - tm_last),
           'ignoring time limit and downloading again' if force_download else 'SKIP')
       if not force_download:
         return False
     logging.info(
-        '%s for %r/%r (%d/%d)%s',
+        '%s for %s%s',
         'Getting all picture folder pages/IDs' if checkpoint_size is None else
-        'Downloading all images in folder',
-        self.users[user_id], self.favorites[user_id][folder_id]['name'], user_id, folder_id,
+        'Downloading all images in folder', self.AlbumStr(user_id, folder_id),
         '' if checkpoint_size is None else
         ('; NO checkpoints (work may be lost)' if checkpoint_size == 0 else
          '; checkpoint DB every %d downloads' % checkpoint_size))
@@ -1100,13 +1124,11 @@ class FapDatabase:
       # remove the location entry from the blob
       for loc_key in self.blobs[sha]['loc']:
         if loc_key[0] == img_id and loc_key[3] == user_id and loc_key[4] == folder_id:
-          logging.info('Deleting image entry %d/%r/%s', img_id, loc_key[2], sha)
+          logging.info('Deleting image entry %s/%s', self.LocationStr(loc_key), sha)
           break  # found the entry, as expected
       else:
-        raise Error(
-            'Invalid image %d in folder %d/%r for user %d/%r; inconsistency should not happen!' % (
-                img_id, folder_id, self.favorites[user_id][folder_id]['name'],
-                user_id, self.users[user_id]))
+        raise Error('Invalid image %d in folder %s; inconsistency should not happen!' % (
+            img_id, self.AlbumStr(user_id, folder_id)))
       self.blobs[sha]['loc'].remove(loc_key)
       # now we either still have locations for this blob, or it is orphaned
       if self.blobs[sha]['loc']:

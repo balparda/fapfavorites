@@ -724,7 +724,7 @@ _USERS_CONTEXT: dict[str, Any] = {
     'total_sz': '1.23Mb',
     'total_thumbs': '909.36kb',
     'total_file_storage': '2.12Mb',
-    'warning_message': ('User 3/\'Yoda\' deleted, and with them 66 blobs (images) deleted, '
+    'warning_message': ('User Yoda (3) deleted, and with them 66 blobs (images) deleted, '
                         'together with their thumbnails, plus 22 duplicates groups abandoned'),
     'error_message': None,
 }
@@ -767,7 +767,7 @@ _FAVORITES_CONTEXT: dict[str, Any] = {
     'total_thumbs_sz': '514.80kb',
     'total_file_storage': '1.22Mb',
     'total_animated': '1 (12.5%)',
-    'warning_message': ('Favorites album 11/\'luke-folder-11\' deleted, and with it 66 '
+    'warning_message': ('Favorites album Luke/luke-folder-11 (1/11) deleted, and with it 66 '
                         'blobs (images) deleted, together with their thumbnails, '
                         'plus 22 duplicates groups abandoned'),
     'error_message': None,
@@ -813,6 +813,15 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': True,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/104/',
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Exact: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Exact: Luke/luke-folder-10/name-104.jpg (1/10/104) <= THIS\n'
+                                'Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
+                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104) <= THIS\n'
+                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
         },
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'name': 'name-101.jpg',
@@ -824,6 +833,9 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/101/',
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101) <= THIS\n'
+                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
         },
         '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
             'name':
@@ -836,6 +848,12 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
+                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -847,20 +865,21 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/103/',
+            'duplicate_hints': '',
         },
     },
     'tags': [
-        (0, 'plain', 'plain'),
-        (1, 'one', 'one'),
-        (11, 'one-one', 'one/one-one'),
-        (2, 'two', 'two'),
-        (22, 'two-two', 'two/two-two'),
-        (24, 'two-four', 'two/two-four'),
-        (246, 'deep', 'two/two-four/deep'),
-        (3, 'three', 'three'),
-        (33, 'three-three', 'three/three-three'),
+        (0, 'plain', 'plain (0)'),
+        (1, 'one', 'one (1)'),
+        (11, 'one-one', 'one/one-one (11)'),
+        (2, 'two', 'two (2)'),
+        (22, 'two-two', 'two/two-two (22)'),
+        (24, 'two-four', 'two/two-four (24)'),
+        (246, 'deep', 'two/two-four/deep (246)'),
+        (3, 'three', 'three (3)'),
+        (33, 'three-three', 'three/three-three (33)'),
     ],
-    'warning_message': '2 images tagged with \'two-four\'',
+    'warning_message': '2 images tagged with two/two-four (24)',
     'error_message': None,
 }
 
@@ -906,6 +925,12 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
+                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
         },
     },
     'tags': _FAVORITE_CONTEXT_ALL_ON['tags'],
@@ -930,7 +955,7 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'page_depth': 0,
     'page_depth_up': 0,
     'tag_name': None,
-    'warning_message': 'Tag 247/\'new-tag-foo\' created',
+    'warning_message': 'Tag 247/new-tag-foo created',
     'error_message': None,
 }
 
@@ -943,8 +968,9 @@ _TAG_LEAF_CONTEXT: dict[str, Any] = {
     'tag_id': 2,
     'page_depth': 1,
     'page_depth_up': 0,
-    'tag_name': 'two',
-    'warning_message': "Tag 33/'three-three' deleted and association removed from 3 blobs (images)",
+    'tag_name': 'two (2)',
+    'warning_message': (
+        'Tag three/three-three (33) deleted and association removed from 3 blobs (images)'),
     'error_message': None,
 }
 
@@ -988,7 +1014,7 @@ _DUPLICATES_CONTEXT: dict[str, Any] = {
 
 _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
     'digest': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-    'dup_key': '(9b162a339a3a6f9a&hellip;)',  # cspell:disable-line
+    'dup_key': '9b162a339a3a6f9a&hellip;',  # cspell:disable-line
     'current_index': -1,
     'previous_key': None,
     'next_key': None,
@@ -997,7 +1023,7 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
             'action': '',
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
-            'tags': 'one/one-one, three/three-three',
+            'tags': 'one/one-one (11), three/three-three (33)',
             'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'percept': 'd99ee32e586716c8',
             'average': '091b5f7761323000',
@@ -1049,7 +1075,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'action': 'keep',
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
-            'tags': 'three',
+            'tags': 'three (3)',
             'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'percept': 'cd4fc618316732e7',
             'average': '303830301a1c387f',
@@ -1101,7 +1127,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'action': 'false',
             'sz': '55.26kb',
             'dimensions': '200x246 (WxH)',
-            'tags': 'one, two',
+            'tags': 'one (1), two (2)',
             'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
             'percept': 'cc8fc37638703ee1',
             'average': '3838381810307078',
@@ -1141,8 +1167,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'name': 'AVERAGE',
             'scores': [
                 {
-                    # cspell:disable-next-line
-                    'key': '(321e59af9d70af77&hellip;, e221b76f55946176&hellip;)',
+                    'key1': '321e59af9d70af77&hellip;',  # cspell:disable-line
+                    'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
                     'value': '2',
                     'normalized_value': '3.3',
                     'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
@@ -1157,8 +1183,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'name': 'CNN',
             'scores': [
                 {
-                    # cspell:disable-next-line
-                    'key': '(0aaef1becbd966a2&hellip;, 321e59af9d70af77&hellip;)',
+                    'key1': '0aaef1becbd966a2&hellip;',  # cspell:disable-line
+                    'key2': '321e59af9d70af77&hellip;',  # cspell:disable-line
                     'value': '0.960',
                     'normalized_value': '4.3',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
@@ -1168,8 +1194,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'thumb2': (
                         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
                 }, {
-                    # cspell:disable-next-line
-                    'key': '(0aaef1becbd966a2&hellip;, e221b76f55946176&hellip;)',
+                    'key1': '0aaef1becbd966a2&hellip;',  # cspell:disable-line
+                    'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
                     'value': '0.950',
                     'normalized_value': '2.9',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
@@ -1179,8 +1205,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'thumb2': (
                         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 }, {
-                    # cspell:disable-next-line
-                    'key': '(321e59af9d70af77&hellip;, e221b76f55946176&hellip;)',
+                    'key1': '321e59af9d70af77&hellip;',  # cspell:disable-line
+                    'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
                     'value': '0.980',
                     'normalized_value': '7.1',
                     'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
@@ -1195,8 +1221,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'name': 'DIFF',
             'scores': [
                 {
-                    # cspell:disable-next-line
-                    'key': '(0aaef1becbd966a2&hellip;, 321e59af9d70af77&hellip;)',
+                    'key1': '0aaef1becbd966a2&hellip;',  # cspell:disable-line
+                    'key2': '321e59af9d70af77&hellip;',  # cspell:disable-line
                     'value': '9',
                     'normalized_value': '1.0',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
@@ -1211,8 +1237,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'name': 'PERCEPT',
             'scores': [
                 {
-                    # cspell:disable-next-line
-                    'key': '(0aaef1becbd966a2&hellip;, e221b76f55946176&hellip;)',
+                    'key1': '0aaef1becbd966a2&hellip;',  # cspell:disable-line
+                    'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
                     'value': '0',
                     'normalized_value': '10.0',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
@@ -1222,8 +1248,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'thumb2': (
                         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 }, {
-                    # cspell:disable-next-line
-                    'key': '(321e59af9d70af77&hellip;, e221b76f55946176&hellip;)',
+                    'key1': '321e59af9d70af77&hellip;',  # cspell:disable-line
+                    'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
                     'value': '10',
                     'normalized_value': '0.0',
                     'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
@@ -1238,8 +1264,8 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'name': 'WAVELET',
             'scores': [
                 {
-                    # cspell:disable-next-line
-                    'key': '(0aaef1becbd966a2&hellip;, e221b76f55946176&hellip;)',
+                    'key1': '0aaef1becbd966a2&hellip;',  # cspell:disable-line
+                    'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
                     'value': '1',
                     'normalized_value': '6.7',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',

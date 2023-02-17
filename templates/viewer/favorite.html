@@ -226,11 +226,14 @@
                     <img src='{% static blob.thumb %}'
                         onclick='javascript:switch_selection("{{ sha }}");'
                         title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}{% if blob.is_duplicate %} - has exact duplicate{% endif %}{% if blob.is_percept %} - has perceptual duplicate{% endif %}'/><br/>
-                    <small><small><small>
-                      <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>&#128444;</a>
-                      &nbsp;&nbsp;
-                      <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
-                    </small></small></small>
+                    <small><small>
+                      <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>&#128444;</a>&nbsp;&nbsp;
+                      <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>&nbsp;&nbsp;
+                    </small>
+                      {% if blob.album_duplicate or blob.has_duplicate or blob.has_percept %}
+                        <a href='{% url "duplicate" sha %}' class='external' title='{{ blob.duplicate_hints }}' target='_blank' rel='noopener noreferrer'>&#9802;</a>
+                      {% endif %}
+                    </small>
                   </td>
                 {% else %}
                   <td align='center' valign='center'
@@ -243,7 +246,7 @@
                       <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
                     </small></small>
                     {% if blob.album_duplicate or blob.has_duplicate or blob.has_percept %}
-                      <a href='{% url "duplicate" sha %}' class='external' title='open duplicate info' target='_blank' rel='noopener noreferrer'>&#9802;</a>
+                      <a href='{% url "duplicate" sha %}' class='external' title='{{ blob.duplicate_hints }}' target='_blank' rel='noopener noreferrer'>&#9802;</a>
                     {% endif %}
                     </small>
                   </td>
