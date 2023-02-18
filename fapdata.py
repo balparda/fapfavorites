@@ -912,7 +912,7 @@ class FapDatabase:
     sha = self.image_ids_index.get(img_id, None)
     if sha is None:
       # we don't know about this specific img_id yet: get image's full resolution URL + name
-      url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
+      url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)  # 404 bubble through
       # get actual binary data
       try:
         (image_bytes, sha, percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
@@ -954,7 +954,7 @@ class FapDatabase:
         return (None, sha, url, nm, self.blobs[sha]['ext'])
     # in this last case we know the img_id but it seems to be duplicated in another album,
     # so we have to get the img_id metadata (url, name) at least, and add to the database
-    url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
+    url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)  # 404 bubble through
     self.blobs[sha]['loc'].add(
         (img_id, url_path, sanitized_image_name, user_id, folder_id))
     return (None, sha, url_path, sanitized_image_name, extension)
@@ -1422,7 +1422,11 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   # get page with full image, to find (raw) image URL
   url: str = IMG_URL(img_id)
   logging.info('Fetching image page: %s', url)
-  img_html = _FapHTMLRead(url)
+  try:
+    img_html = _FapHTMLRead(url)
+  except Error404 as e:
+    e.image_id = img_id
+    raise
   full_res_urls: list[str] = _FULL_IMAGE.findall(img_html)
   if not full_res_urls:
     raise Error('No full resolution image in %s' % url)
