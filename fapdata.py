@@ -377,6 +377,8 @@ class FapDatabase:
     Raises:
       Error: not found or invalid
     """
+    if not tag_id:
+      raise Error('tag_id cannot be empty')
     hierarchy: list[tuple[int, str, TagObjType]] = []
 
     def _get_recursive(obj: _TagType) -> bool:
@@ -422,6 +424,98 @@ class FapDatabase:
         for o in self.TagsWalk(
             start_tag=start_tag[tag_id]['tags'], depth=(depth + 1)):  # type: ignore
           yield o
+
+  def _TagNameOKOrDie(self, new_tag_name: str) -> None:
+    """Check tag name is OK: does not clash and has no invalid chars. If not will raise exception.
+
+    Args:
+      new_tag_name: The proposed tag name to use
+
+    Raises:
+      Error: if tag name clashes with existing tags or if tag name has forbidden chars
+    """
+    # check for invalid chars
+    if '/' in new_tag_name or '\\' in new_tag_name:
+      raise Error('Don\'t use "/" or "\\" in tag name (tried to use %r as tag name)' % new_tag_name)
+    # check if name does not clash with any already existing tag
+    for tid, name, _, _ in self.TagsWalk():
+      if new_tag_name.lower() == name.lower():
+        raise Error(
+            'Proposed tag name %r clashes with existing tag %s' % (new_tag_name, self.TagStr(tid)))
+
+  def AddTag(self, parent_id: int, new_tag_name: str) -> int:
+    """Add new tag.
+
+    Args:
+      parent_id: The parent to add the tag under; zero (0) means root
+      new_tag_name: The proposed tag name to use
+
+    Returns:
+      the new tag ID
+
+    Raises:
+      Error: on failure
+    """
+    # check tag name and find the parent
+    self._TagNameOKOrDie(new_tag_name)
+    parent_obj = self.GetTag(parent_id)[-1][-1]['tags'] if parent_id else self.tags
+    # tag name is OK: find a free ID by incrementing until we hit one (inefficient but will do...)
+    all_tag_ids = {tid for tid, _, _, _ in self.TagsWalk()}
+    current_id = 1
+    while current_id in all_tag_ids:
+      current_id += 1
+    # we have a number, so insert the tag
+    parent_obj[current_id] = {'name': new_tag_name, 'tags': {}}  # type: ignore
+    return current_id
+
+  def RenameTag(self, tag_id: int, new_tag_name: str) -> None:
+    """Rename a tag.
+
+    Args:
+      tag_id: The tag ID to rename
+      new_tag_name: The proposed tag name to use
+
+    Raises:
+      Error: on failure
+    """
+    # check tag name and find the object
+    self._TagNameOKOrDie(new_tag_name)
+    obj = self.GetTag(tag_id)[-1][-1]  # will raise if tag_id==0 (which is correct behavior)
+    # tag name is OK: do the change
+    obj['name'] = new_tag_name
+
+  def DeleteTag(self, tag_id: int) -> set[str]:
+    """Delete tag and remove all usage of the tag from the blobs.
+
+    Args:
+      tag_id: Tag ID to delete
+
+    Returns:
+      set of all SHA256 (blob keys) that had the tag removed
+
+    Raises:
+      Error: on failure
+    """
+    tag_hierarchy = self.GetTag(tag_id)
+    # check tag does not have children
+    if tag_hierarchy[-1][-1]['tags']:
+      raise Error(
+          'Requested deletion of tag %s that is not empty (delete children first)' %
+          self.TagLineageStr(tag_id))
+    # everything OK: do deletion
+    if len(tag_hierarchy) < 2:
+      # in this case it is a child of root
+      del self.tags[tag_id]
+    else:
+      # in this case we have a non-root parent
+      del tag_hierarchy[-2][-1]['tags'][tag_id]
+    # we must remove the tags from any images that have it too!
+    tag_deletions: set[str] = set()
+    for sha, blob in self.blobs.items():
+      if tag_id in blob['tags']:
+        blob['tags'].remove(tag_id)
+        tag_deletions.add(sha)
+    return tag_deletions
 
   def PrintStats(self, actually_print=True) -> list[str]:
     """Print database stats.

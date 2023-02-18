@@ -122,12 +122,13 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
     if delete_user_id not in db.users:
       error_message = 'Requested deletion of unknown user %d' % delete_user_id
     else:
+      delete_user_name = db.UserStr(delete_user_id)
       delete_count, duplicates_count = db.DeleteUserAndAlbums(delete_user_id)
       # compose message and remember to save DB
       warning_message = (
           'User %s deleted, and with them %d blobs (images) deleted, '
           'together with their thumbnails, plus %d duplicates groups abandoned' % (
-              db.UserStr(delete_user_id), delete_count, duplicates_count))
+              delete_user_name, delete_count, duplicates_count))
       db.Save()
   # make user sums and data
   users: dict[int, dict[str, Any]] = {}
@@ -209,12 +210,13 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
     if delete_album_id not in user_favorites:
       error_message = 'Requested deletion of unknown favorites album %d' % delete_album_id
     else:
+      delete_album_name = db.AlbumStr(user_id, delete_album_id)
       delete_count, duplicates_count = db.DeleteAlbum(user_id, delete_album_id)
       # compose message and remember to save DB
       warning_message = (
           'Favorites album %s deleted, and with it %d blobs (images) deleted, '
           'together with their thumbnails, plus %d duplicates groups abandoned' % (
-              db.AlbumStr(user_id, delete_album_id), delete_count, duplicates_count))
+              delete_album_name, delete_count, duplicates_count))
       db.Save()
   # sort albums alphabetically and format data
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
@@ -468,10 +470,9 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
 
 
-def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
+def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
   # TODO: tags renaming
-  # TODO: move tag deletion/rename/creation to fapdata.py
   # check for errors in parameters
   db = _DBFactory()
   warning_message: Optional[str] = None
@@ -493,52 +494,26 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
   delete_tag = int(request.POST.get('delete_input', '0').strip())
   # do we have a new tag to create?
   if new_tag:
-    # check if name does not clash with any already existing tag
-    for _, n, p in all_tags:
-      if new_tag.lower() == n.lower():
-        error_message = 'Proposed tag name %r clashes with existing tag %r' % (new_tag, p)
-        break
+    try:
+      new_tag_id = db.AddTag(tag_id, new_tag)
+    except fapdata.Error as e:
+      error_message = str(e)
     else:
-      # check for invalid chars
-      if '/' in new_tag or '\\' in new_tag:
-        error_message = 'Don\'t use "/" or "\\" in tag name (tried to create %r)' % (new_tag)
-      else:
-        # everything OK: add tag
-        max_tag = max(i for i, _, _ in all_tags) if all_tags else 0
-        tag_obj['tags'][max_tag + 1] = {'name': new_tag, 'tags': {}}
-        # message and save DB
-        warning_message = 'Tag %d/%s created' % (max_tag + 1, new_tag)
-        db.Save()
+      # message and save DB
+      warning_message = 'Tag %s created' % db.TagLineageStr(new_tag_id)
+      db.Save()
   # do we have a tag to delete?
   elif delete_tag:
-    # check tag is known
-    if delete_tag not in {tid for tid, _, _ in all_tags}:
-      error_message = 'Requested deletion of unknown tag %d' % delete_tag
+    try:
+      delete_tag_name = db.TagLineageStr(delete_tag)
+      deleted_hashes = db.DeleteTag(delete_tag)
+    except fapdata.Error as e:
+      error_message = str(e)
     else:
-      delete_obj = db.GetTag(delete_tag)
-      delete_name = db.TagLineageStr(delete_tag)
-      # check tag does not have children
-      if delete_obj[-1][-1]['tags']:
-        error_message = ('Requested deletion of tag %s that is not empty '
-                         '(delete children first)' % delete_name)
-      else:
-        # everything OK: do deletion
-        if len(delete_obj) < 2:
-          # in this case it is a child of root
-          del db.tags[delete_tag]
-        else:
-          # in this case we have a non-root parent
-          del delete_obj[-2][-1]['tags'][delete_tag]
-        # we must remove the tags from any images that have it too!
-        count_tag_deletions: int = 0
-        for blob in db.blobs.values():
-          if delete_tag in blob['tags']:
-            blob['tags'].remove(delete_tag)
-            count_tag_deletions += 1
-        # compose message and remember to save DB
-        warning_message = 'Tag %s deleted and association removed from %d blobs (images)' % (
-            delete_name, count_tag_deletions)
-        db.Save()
+      # message and save DB
+      warning_message = 'Tag %s deleted and association removed from %d blobs (images)' % (
+          delete_tag_name, len(deleted_hashes))
+      db.Save()
   # send to page
   context: dict[str, Any] = {
       'tags': [(tid, name, db.TagLineageStr(tid, add_id=False), page_depth + depth)

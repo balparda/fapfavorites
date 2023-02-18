@@ -96,7 +96,7 @@ class TestFapDatabase(unittest.TestCase):
     mock_is_dir.return_value = True
     db = fapdata.FapDatabase('/xxx/')
     db._db['tags'] = _TEST_TAGS_1
-    self.assertListEqual(db.GetTag(0), [(0, 'plain', {'name': 'plain'})])
+    self.assertListEqual(db.GetTag(10), [(10, 'plain', {'name': 'plain'})])
     self.assertListEqual(db.GetTag(2), [(2, 'two', _TEST_TAGS_1[2])])
     self.assertEqual(db.TagLineageStr(2), 'two (2)')
     self.assertListEqual(
@@ -145,6 +145,52 @@ class TestFapDatabase(unittest.TestCase):
     db._db['blobs'] = {  # type: ignore
         'a': {'tags': {1, 2, 33}, 'sz': 10}, 'b': {'tags': {246, 33}, 'sz': 55}}
     self.assertListEqual(db.PrintTags(), _PRINTED_TAGS)
+
+  @mock.patch('fapdata.os.path.isdir')
+  def test_Tags_Add_Rename_Delete(self, mock_is_dir: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    # setup mock database
+    mock_is_dir.return_value = True
+    db = fapdata.FapDatabase('/xxx/')
+    db._db['tags'] = _TEST_TAGS_2
+    db._db['blobs'] = {  # type: ignore
+        'a': {'tags': {1, 2, 3, 33}, 'sz': 10}, 'b': {'tags': {246, 33}, 'sz': 55}}
+    # test a bunch of invalid operations
+    with self.assertRaisesRegex(fapdata.Error, 'not found'):
+      db.AddTag(4, 'foo')  # invalid parent
+    with self.assertRaisesRegex(fapdata.Error, 'Don\'t use'):
+      db.AddTag(1, 'fo/o')  # name with invalid chars
+    with self.assertRaisesRegex(fapdata.Error, 'clashes with'):
+      db.AddTag(1, 'Two')  # name clash
+    with self.assertRaisesRegex(fapdata.Error, 'not found'):
+      db.RenameTag(4, 'foo')  # invalid tag
+    with self.assertRaisesRegex(fapdata.Error, 'Don\'t use'):
+      db.RenameTag(1, 'fo/o')  # name with invalid chars
+    with self.assertRaisesRegex(fapdata.Error, 'clashes with'):
+      db.RenameTag(1, 'Two')  # name clash
+    with self.assertRaisesRegex(fapdata.Error, 'not found'):
+      db.DeleteTag(4)  # invalid tag
+    with self.assertRaisesRegex(fapdata.Error, 'is not empty'):
+      db.DeleteTag(3)  # tag not empty (has children)
+    with self.assertRaisesRegex(fapdata.Error, 'cannot be empty'):
+      db.DeleteTag(0)  # tries to delete root
+    # adds a few tags
+    self.assertEqual(db.AddTag(0, 'four'), 4)
+    self.assertEqual(db.AddTag(24, 'Foo'), 5)
+    self.assertEqual(db.AddTag(246, 'Bar'), 6)
+    # renames a few tags
+    db.RenameTag(1, 'TheOne')
+    db.RenameTag(2, 'Second')
+    db.RenameTag(246, 'The Deep One')
+    # deletes a few tags
+    self.assertSetEqual(db.DeleteTag(33), {'a', 'b'})
+    self.assertSetEqual(db.DeleteTag(3), {'a'})
+    self.assertSetEqual(db.DeleteTag(11), set())
+    # check our DB
+    self.assertDictEqual(db.tags, _TEST_TAGS_3)
+    self.assertDictEqual(
+        db.blobs, {'a': {'tags': {1, 2}, 'sz': 10}, 'b': {'tags': {246}, 'sz': 55}})
 
   @mock.patch('fapdata.urllib.request.urlopen')
   @mock.patch('fapdata.time.sleep')
@@ -779,7 +825,7 @@ _DUPLICATES_INDEX_TRIMMED: fapdata.duplicates.DuplicatesKeyIndexType = {
 }
 
 _TEST_TAGS_1 = {  # this has many places where there are missing keys
-    0: {
+    10: {
         'name': 'plain',
     },
     1: {
@@ -856,6 +902,48 @@ _TEST_TAGS_2: fapdata._TagType = {  # this is all valid tags structure
                 'tags': {},
             },
         },
+    },
+}
+
+_TEST_TAGS_3: fapdata._TagType = {
+    10: {
+        'name': 'plain',
+        'tags': {},
+    },
+    1: {
+        'name': 'TheOne',
+        'tags': {},
+    },
+    2: {
+        'name': 'Second',
+        'tags': {
+            22: {
+                'name': 'two-two',
+                'tags': {},
+            },
+            24: {
+                'name': 'two-four',
+                'tags': {
+                    5: {
+                        'name': 'Foo',
+                        'tags': {},
+                    },
+                    246: {
+                        'name': 'The Deep One',
+                        'tags': {
+                            6: {
+                                'name': 'Bar',
+                                'tags': {},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+    4: {
+        'name': 'four',
+        'tags': {},
     },
 }
 

@@ -996,7 +996,7 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
 
 _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'tags': [
-        (247, 'new-tag-foo', 'new-tag-foo', 0),
+        (4, 'new-tag-foo', 'new-tag-foo', 0),
         (1, 'one', 'one', 0),
         (11, 'one-one', 'one/one-one', 1),
         (10, 'plain', 'plain', 0),
@@ -1011,7 +1011,7 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'page_depth': 0,
     'page_depth_up': 0,
     'tag_name': None,
-    'warning_message': 'Tag 247/new-tag-foo created',
+    'warning_message': 'Tag new-tag-foo (4) created',
     'error_message': None,
 }
 
