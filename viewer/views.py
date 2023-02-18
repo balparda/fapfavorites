@@ -470,9 +470,8 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
 
 
-def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
+def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
   """Serve the `tag` page for one `tag_id`."""
-  # TODO: tags renaming
   # check for errors in parameters
   db = _DBFactory()
   warning_message: Optional[str] = None
@@ -491,6 +490,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
         'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data) # type: ignore
   # get POST data
   new_tag = request.POST.get('named_child', '').strip()
+  rename_tag = request.POST.get('rename_tag', '').strip()
   delete_tag = int(request.POST.get('delete_input', '0').strip())
   # do we have a new tag to create?
   if new_tag:
@@ -501,6 +501,17 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
     else:
       # message and save DB
       warning_message = 'Tag %s created' % db.TagLineageStr(new_tag_id)
+      db.Save()
+  # should we rename this tag?
+  elif rename_tag:
+    try:
+      old_name = db.TagLineageStr(tag_id)
+      db.RenameTag(tag_id, rename_tag)
+    except fapdata.Error as e:
+      error_message = str(e)
+    else:
+      # message and save DB
+      warning_message = 'Tag %s renamed to %s' % (old_name, db.TagLineageStr(tag_id))
       db.Save()
   # do we have a tag to delete?
   elif delete_tag:
@@ -521,7 +532,8 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
       'tag_id': tag_id,
       'page_depth': page_depth,
       'page_depth_up': tag_hierarchy[-2][0] if tag_id and page_depth > 1 else 0,
-      'tag_name': db.TagLineageStr(tag_id) if tag_id else None,
+      'tag_name': db.TagLineageStr(tag_id) if tag_id else None,                # could be renamed?
+      'tag_simple_name': db.TagStr(tag_id, add_id=False) if tag_id else None,  # could be renamed?
       'warning_message': warning_message,
       'error_message': error_message,
   }

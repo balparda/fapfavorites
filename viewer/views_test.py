@@ -242,8 +242,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    db = _TestDBFactory()
-    mock_db.return_value = db
+    mock_db.return_value = _TestDBFactory()
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'named_child': 'new-tag-foo'}
     request.GET = {}
@@ -268,7 +267,23 @@ class TestDjangoViews(unittest.TestCase):
     new_tags = {sha: db.blobs[sha]['tags'] for sha in db.blobs.keys()}
     self.assertDictEqual(new_tags, _TAG_NEW_TAGS)
     mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF_CONTEXT)
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF_CONTEXT_DELETE)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeTag_Leaf_And_Rename(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'rename_tag': 'The One'}
+    request.GET = {}
+    views.ServeTag(request, 1)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF_CONTEXT_RENAME)
 
   @mock.patch('viewer.views._DBFactory')
   def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
@@ -1011,11 +1026,12 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'page_depth': 0,
     'page_depth_up': 0,
     'tag_name': None,
+    'tag_simple_name': None,
     'warning_message': 'Tag new-tag-foo (4) created',
     'error_message': None,
 }
 
-_TAG_LEAF_CONTEXT: dict[str, Any] = {
+_TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
     'tags': [
         (24, 'two-four', 'two/two-four', 1),
         (246, 'deep', 'two/two-four/deep', 2),
@@ -1025,8 +1041,22 @@ _TAG_LEAF_CONTEXT: dict[str, Any] = {
     'page_depth': 1,
     'page_depth_up': 0,
     'tag_name': 'two (2)',
+    'tag_simple_name': 'two',
     'warning_message': (
         'Tag three/three-three (33) deleted and association removed from 3 blobs (images)'),
+    'error_message': None,
+}
+
+_TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
+    'tags': [
+        (11, 'one-one', 'The One/one-one', 1),
+    ],
+    'tag_id': 1,
+    'page_depth': 1,
+    'page_depth_up': 0,
+    'tag_name': 'The One (1)',
+    'tag_simple_name': 'The One',
+    'warning_message': 'Tag one (1) renamed to The One (1)',
     'error_message': None,
 }
 

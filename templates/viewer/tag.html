@@ -87,7 +87,6 @@
 
     <form id='create_form' action='{% url "tag" tag_id %}' method='post'>
       {% csrf_token %}
-
       <p>
         {% if tag_id %}
           Create a new child tag under <i>&quot;{{ tag_name|escape }}&quot;</i>
@@ -96,8 +95,16 @@
         {% endif %}
         named:&nbsp;&nbsp;<input type='text' name='named_child'/>&nbsp;&nbsp;<input type='submit' value='Create'/>
       </p>
-
     </form>
+
+    {% if tag_id and tag_simple_name %}
+      <form id='rename_form' action='{% url "tag" tag_id %}' method='post'>
+        {% csrf_token %}
+        <p>
+          Rename this tag to:&nbsp;&nbsp;<input type='text' name='rename_tag' value='{{ tag_simple_name|escape }}'/>&nbsp;&nbsp;<input type='submit' value='Rename'/>
+        </p>
+      </form>
+    {% endif %}
 
     <form id='delete_form' name='delete_form' action='{% url "tag" tag_id %}' method='post'>
       {% csrf_token %}
