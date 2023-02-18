@@ -18,6 +18,7 @@
 
 import hashlib
 import html
+import http.client
 import logging
 import math
 import os
@@ -60,6 +61,7 @@ FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 
 # internal types definitions
 LocationTupleType = tuple[int, str, str, int, int]
+FailedTupleType = tuple[int, int, Optional[str], Optional[str]]
 
 
 class _UserObjType(TypedDict):
@@ -78,6 +80,7 @@ class _FavoriteObjType(TypedDict):
   date_straight: int
   date_blobs: int
   images: list[int]
+  failed_images: set[FailedTupleType]
 
 
 class TagObjType(TypedDict):
@@ -157,6 +160,34 @@ _IMAGE_NAME = re.compile(
 
 class Error(base.Error):
   """Base fap exception."""
+
+
+class Error404(Error):
+  """Imagefap HTTP 404 exception."""
+
+  def __init__(self, url: str):
+    """Construct a 404 error."""
+    self.image_id: Optional[int] = None
+    self.timestamp: int = base.INT_TIME()
+    self.image_name: Optional[str] = None
+    self.url: str = url
+
+  def __str__(self) -> str:
+    """Get string representation."""
+    failure = self.FailureTuple()
+    return 'Error404(ID: %d, @%s, %r, %r)' % (
+        failure[0],
+        base.STD_TIME_STRING(failure[1]),
+        '-' if failure[2] is None else failure[2],
+        '-' if failure[3] is None else failure[3])
+
+  def FailureTuple(self) -> FailedTupleType:
+    """Get a failure tuple for this 404."""
+    return (
+        0 if self.image_id is None else self.image_id,
+        self.timestamp,
+        self.image_name,
+        self.url)
 
 
 class FapDatabase:
@@ -463,6 +494,11 @@ class FapDatabase:
         len(self.blobs),
         sum(len(b['loc']) for _, b in self.blobs.items()),
         sum(len(b['loc']) - 1 for _, b in self.blobs.items())))
+    unique_failed: set[int] = set()
+    for failed in (
+        fav['failed_images'] for user in self.favorites.values() for fav in user.values()):
+      unique_failed.update(img for img, _, _, _ in failed)
+    _PrintLine('%d unique failed images in all user albums' % len(unique_failed))
     _PrintLine('%d perceptual duplicates in %d groups' % (
         len(self.duplicates.index), len(self.duplicates.registry)))
     return all_lines
@@ -485,7 +521,7 @@ class FapDatabase:
 
     _PrintLine('ID: USER_NAME')
     _PrintLine('    FILE STATS FOR USER')
-    _PrintLine('    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)')
+    _PrintLine('    => ID: FAVORITE_NAME (IMAGE_COUNT / FAILED_COUNT / PAGE_COUNT / DATE DOWNLOAD)')
     _PrintLine('           FILE STATS FOR FAVORITES')
     for uid in sorted(self.users.keys()):
       _PrintLine()
@@ -506,8 +542,8 @@ class FapDatabase:
         file_sizes: list[int] = [
             self.blobs[self.image_ids_index[i]]['sz']
             for i in obj['images'] if i in self.image_ids_index]
-        _PrintLine('    => %d: %r (%d / %d / %s)' % (
-            fid, obj['name'], len(obj['images']), obj['pages'],
+        _PrintLine('    => %d: %r (%d / %d / %d / %s)' % (
+            fid, obj['name'], len(obj['images']), len(obj['failed_images']), obj['pages'],
             base.STD_TIME_STRING(max(obj['date_straight'], obj['date_blobs']))
             if obj['date_straight'] or obj['date_blobs'] else 'pending'))
         if file_sizes:
@@ -671,7 +707,7 @@ class FapDatabase:
       _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
       self.favorites.setdefault(user_id, {})[folder_id] = {
           'name': html.unescape(folder_names[0]), 'pages': 0,
-          'date_straight': 0, 'date_blobs': 0, 'images': []}
+          'date_straight': 0, 'date_blobs': 0, 'images': [], 'failed_images': set()}
     logging.info('%s folder %s added', status, self.AlbumStr(user_id, folder_id))
     return self.favorites[user_id][folder_id]['name']
 
@@ -709,7 +745,8 @@ class FapDatabase:
           # found it!
           _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
           self.favorites.setdefault(user_id, {})[i_f_id] = {
-              'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0, 'images': []}
+              'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0,
+              'images': [], 'failed_images': set()}
           logging.info('New folder %s added', self.AlbumStr(user_id, i_f_id))
           return (i_f_id, f_name)
       page_num += 1
@@ -765,7 +802,8 @@ class FapDatabase:
         # we seem to have a valid new favorite here
         found_folder_ids.add(i_f_id)
         self.favorites[user_id][i_f_id] = {
-            'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0, 'images': []}
+            'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0,
+            'images': [], 'failed_images': set()}
         logging.info('New picture folder %s added', self.AlbumStr(user_id, i_f_id))
       page_num += 1
     # mark the albums checking as done, log & return
@@ -866,6 +904,9 @@ class FapDatabase:
       (image_bytes, sha256_hexdigest, imagefap_full_res_url,
        file_name_sanitized, file_extension_sanitized)
       image_bytes can be None if the image's hash is known!
+
+    Raises:
+      Error404: with url and added image ID and name on a 404
     """
     # figure out if we have it in the index
     sha = self.image_ids_index.get(img_id, None)
@@ -873,9 +914,14 @@ class FapDatabase:
       # we don't know about this specific img_id yet: get image's full resolution URL + name
       url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
       # get actual binary data
-      (image_bytes, sha, percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
-       width, height, is_animated) = self._GetBinary(
-          url_path, extension)
+      try:
+        (image_bytes, sha, percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
+         width, height, is_animated) = self._GetBinary(
+            url_path, extension)
+      except Error404 as e:
+        e.image_id = img_id
+        e.image_name = sanitized_image_name
+        raise  # (let Error404 bubble through after adding the image ID and name...)
       # create DB entries and return
       self.image_ids_index[img_id] = sha
       sz = len(image_bytes)
@@ -974,7 +1020,7 @@ class FapDatabase:
     return self._DownloadAll(
         user_id, folder_id, checkpoint_size, force_download, self._blobs_dir, 'date_blobs')
 
-  def _DownloadAll(self, user_id: int, folder_id: int,
+  def _DownloadAll(self, user_id: int, folder_id: int,  # noqa: C901
                    checkpoint_size: int, force_download: bool, output_dir: str,
                    date_key: Literal['date_blobs', 'date_straight']) -> int:
     """Actually get the images in a picture folder.
@@ -1008,10 +1054,17 @@ class FapDatabase:
     saved_count: int = 0
     known_count: int = 0
     exists_count: int = 0
-    for img_id in self.favorites[user_id][folder_id]['images']:
+    for img_id in list(self.favorites[user_id][folder_id]['images']):  # copy b/c we might change it
       # add image to database
-      image_bytes, sha, url_path, sanitized_image_name, extension = (
-          self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id))
+      try:
+        image_bytes, sha, url_path, sanitized_image_name, extension = (
+            self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id))
+      except Error404 as e:
+        # we had a 404 error, but this already comes will all fields ready
+        self.favorites[user_id][folder_id]['images'].remove(img_id)
+        self.favorites[user_id][folder_id]['failed_images'].add(e.FailureTuple())
+        logging.error('FAILED IMAGE: %s' % e)
+        continue
       known_count += 1 if image_bytes is None else 0
       full_path = (os.path.join(output_dir, sanitized_image_name)
                    if date_key == 'date_straight' else self._BlobPath(sha))
@@ -1024,8 +1077,17 @@ class FapDatabase:
       if image_bytes is None and self.HasBlob(sha):
         image_bytes = self.GetBlob(sha)
       # save image and get data if we couldn't find it in DB yet
-      total_sz += _SaveImage(full_path, self._GetBinary(
-          url_path, extension)[0] if image_bytes is None else image_bytes)
+      try:
+        total_sz += _SaveImage(full_path, self._GetBinary(
+            url_path, extension)[0] if image_bytes is None else image_bytes)
+      except Error404 as e:
+        # we had a 404 error, and it needs extra fields
+        e.image_id = img_id
+        e.image_name = sanitized_image_name
+        self.favorites[user_id][folder_id]['images'].remove(img_id)
+        self.favorites[user_id][folder_id]['failed_images'].add(e.FailureTuple())
+        logging.error('FAILED IMAGE: %s' % e)
+        continue
       saved_count += 1
       # if we saved a blob, we should also generate a thumbnail
       if date_key == 'date_blobs':
@@ -1062,7 +1124,7 @@ class FapDatabase:
     """
     # get the full image binary
     logging.info('Fetching full-res image: %s', url)
-    img_data = _FapBinRead(url)
+    img_data = _FapBinRead(url)  # (let Error404 bubble through...)
     if not img_data:
       raise Error('Empty full-res URL: %s' % url)
     # do perceptual hashing
@@ -1258,42 +1320,44 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
     The bytes retrieved
 
   Raises:
-    Error: on error
+    Error404: on HTTP 404 errors that exceed the retry limit
+    Error: on all other errors that exceed the retry limit
   """
   # get a random wait
   if min_wait <= 0.0 or max_wait <= 0.0 or max_wait < min_wait:
     raise AttributeError('Invalid min/max wait times')
   tm = random.uniform(min_wait, max_wait)  # nosec
   n_retry: int = 0
+  last_error: Optional[str] = None
   while n_retry <= _MAX_RETRY:
+    # sleep to keep Imagefap happy
+    logging.debug('Sleep %0.2fs...', tm)
+    time.sleep(tm)
     try:
       # get the URL
-      url_data: bytes = urllib.request.urlopen(url, timeout=_URL_TIMEOUT).read()  # nosec
-      logging.debug('Sleep %0.2fs...', tm)
-      # sleep if succeeded
-      time.sleep(tm)
-      return url_data
-    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout) as e:
-      err_str = str(e).lower()
-      if ('timed out' in err_str or
-          'timeout' in err_str or
-          'error eof occurred in violation of protocol' in err_str or
-          'remote end closed connection' in err_str):
-        # these errors sometimes happen and can be a case for retry
-        n_retry += 1
-        logging.error('%r error on %r, RETRY # %d', e, url, n_retry)
-        continue
-      raise Error('Failed URL: %s (%s)' % (url, e)) from e
+      last_error = None
+      return urllib.request.urlopen(url, timeout=_URL_TIMEOUT).read()  # nosec
+    except (
+        urllib.error.URLError,
+        urllib.error.HTTPError,
+        http.client.RemoteDisconnected,
+        socket.timeout) as e:
+      # these errors sometimes happen and can be a case for retry
+      n_retry += 1
+      last_error = str(e)
+      logging.error('%r error for URL %r, RETRY # %d', last_error, url, n_retry)
   # only way to reach here is exceeding retries
+  if last_error is not None and 'http error 404' in last_error.lower():
+    raise Error404(url)
   raise Error('Max retries reached on URL %r' % url)
 
 
 def _FapHTMLRead(url: str) -> str:
-  return _LimpingURLRead(url).decode('utf-8', errors='ignore')
+  return _LimpingURLRead(url).decode('utf-8', errors='ignore')  # (let Error404 bubble through...)
 
 
 def _FapBinRead(url: str) -> bytes:
-  return _LimpingURLRead(url)
+  return _LimpingURLRead(url)  # (let Error404 bubble through...)
 
 
 def _CheckFolderIsForImages(user_id: int, folder_id: int) -> None:

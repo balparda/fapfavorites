@@ -307,6 +307,11 @@ from a structure like:
             # start as 0, meaning never finished yet, and we have one for straight image saves
             # (coming from `get` operation) and one for blobs (coming from `read` operation)
         'images': [imagefap_image_id-1, imagefap_image_id-2, ...],  # in order
+        'failed_images': {
+          (failed_image_id-1, failure_int_timestamp-1, Optional[file_name_sanitized-1], Optional[full_res_url-1]),
+          (failed_image_id-2, failure_int_timestamp-2, Optional[file_name_sanitized-2], Optional[full_res_url-2]),
+          ...
+        },
       }
     }
   }

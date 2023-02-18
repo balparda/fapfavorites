@@ -31,6 +31,19 @@ _TESTDATA_PATH = os.path.join(os.path.dirname(__file__), 'testdata/')
 class TestFapDatabase(unittest.TestCase):
   """Tests for fapdata.py."""
 
+  @mock.patch('fapdata.base.INT_TIME')
+  def test_Error404(self, mock_time: mock.MagicMock):
+    """Test."""
+    mock_time.return_value = 1675368670  # 02/feb/2023 20:11:10
+    err = fapdata.Error404('foo-url')
+    self.assertTupleEqual(err.FailureTuple(), (0, 1675368670, None, 'foo-url'))
+    self.assertEqual(str(err), 'Error404(ID: 0, @2023/Feb/02-20:11:10-UTC, \'-\', \'foo-url\')')
+    err.image_id = 999
+    err.image_name = 'foo-name'
+    self.assertTupleEqual(err.FailureTuple(), (999, 1675368670, 'foo-name', 'foo-url'))
+    self.assertEqual(
+        str(err), 'Error404(ID: 999, @2023/Feb/02-20:11:10-UTC, \'foo-name\', \'foo-url\')')
+
   @mock.patch('fapdata.os.path.isdir')
   @mock.patch('fapdata.os.mkdir')
   def test_Constructor(self, mock_mkdir: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
@@ -237,7 +250,7 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(db.AddFolderByID(10, 20), 'foo & folder')
     self.assertDictEqual(
         db.favorites,
-        {10: {20: {'date_blobs': 0, 'date_straight': 0, 'images': [],
+        {10: {20: {'date_blobs': 0, 'date_straight': 0, 'images': [], 'failed_images': set(),
                    'name': 'foo & folder', 'pages': 0}}})
     fapdata._FIND_NAME_IN_FOLDER = None  # make sure is not used again in next call
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
@@ -271,7 +284,7 @@ class TestFapDatabase(unittest.TestCase):
     self.assertTupleEqual(db.AddFolderByName(10, 'foo & folder'), (400, 'foo & folder'))
     self.assertDictEqual(
         db.favorites,
-        {10: {400: {'date_blobs': 0, 'date_straight': 0, 'images': [],
+        {10: {400: {'date_blobs': 0, 'date_straight': 0, 'images': [], 'failed_images': set(),
                     'name': 'foo & folder', 'pages': 0}}})
     fapdata._FIND_NAME_IN_FOLDER = None  # make sure is not used again in next call
     fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
@@ -290,10 +303,12 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapdata._FapHTMLRead')
   @mock.patch('fapdata._FapBinRead')
-  def test_Read(self, read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:  # noqa: C901
+  @mock.patch('fapdata.base.INT_TIME')
+  def test_Read(  # noqa: C901
+      self, mock_time: mock.MagicMock, read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    fapdata.base.INT_TIME = lambda: 1675368670  # 02/feb/2023 20:11
+    mock_time.return_value = 1675368670  # 02/feb/2023 20:11:10
     with tempfile.TemporaryDirectory() as db_path:
       # do the dance that does not depend on any mocking at all
       with self.assertRaises(fapdata.Error):
@@ -303,8 +318,8 @@ class TestFapDatabase(unittest.TestCase):
           1: {'name': 'Luke', 'date_albums': 1675360670, 'date_finished': 1675369670},
           2: {'name': 'Ben', 'date_albums': 0, 'date_finished': 0}}
       db._db['favorites'] = {1: {11: {
-          'name': 'known-folder-1', 'pages': 8,
-          'date_straight': 0, 'date_blobs': 1675360670, 'images': [103, 104]}}}
+          'name': 'known-folder-1', 'pages': 8, 'date_straight': 0, 'date_blobs': 1675360670,
+          'images': [103, 104], 'failed_images': {(123, 1675360070, 'failed.jpg', 'f-url')}}}}
       db.Save()
       self.assertTrue(fapdata.GetDatabaseTimestamp(db_path) > 1600000000)
       del db
@@ -341,10 +356,12 @@ class TestFapDatabase(unittest.TestCase):
            mock.call('https://www.imagefap.com/showfavorites.php?userid=1&page=2')])
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
       self.assertDictEqual(db.favorites, {1: {
-          10: {'name': 'new-f-0', 'date_blobs': 0, 'date_straight': 0, 'images': [], 'pages': 0},
-          11: {'name': 'known-folder-1', 'date_blobs': 1675360670, 'date_straight': 0,
-               'images': [103, 104], 'pages': 8},
-          13: {'name': 'new&f-3', 'date_blobs': 0, 'date_straight': 0, 'images': [], 'pages': 0}}})
+          10: {'name': 'new-f-0', 'date_blobs': 0, 'date_straight': 0,
+               'images': [], 'failed_images': set(), 'pages': 0},
+          11: {'name': 'known-folder-1', 'date_blobs': 1675360670, 'date_straight': 0, 'pages': 8,
+               'images': [103, 104], 'failed_images': {(123, 1675360070, 'failed.jpg', 'f-url')}},
+          13: {'name': 'new&f-3', 'date_blobs': 0, 'date_straight': 0,
+               'images': [], 'failed_images': set(), 'pages': 0}}})
       fapdata._FIND_FOLDERS = None  # set to None for safety
       fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
       fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = None
@@ -382,11 +399,11 @@ class TestFapDatabase(unittest.TestCase):
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
       self.assertDictEqual(db.favorites, {1: {
           10: {'name': 'new-f-0', 'date_blobs': 0, 'date_straight': 0,
-               'images': [100, 101, 102], 'pages': 9},
-          11: {'name': 'known-folder-1', 'date_blobs': 1675360670, 'date_straight': 0,
-               'images': [103, 104], 'pages': 8},
+               'images': [100, 101, 102], 'failed_images': set(), 'pages': 9},
+          11: {'name': 'known-folder-1', 'date_blobs': 1675360670, 'date_straight': 0, 'pages': 8,
+               'images': [103, 104], 'failed_images': {(123, 1675360070, 'failed.jpg', 'f-url')}},
           13: {'name': 'new&f-3', 'date_blobs': 0, 'date_straight': 0,
-               'images': [105, 106, 107, 108, 109], 'pages': 2}}})
+               'images': [105, 106, 107, 108, 109], 'failed_images': set(), 'pages': 2}}})
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       # ReadFavoritesIntoBlobs #####################################################################
       # prepare data by reading files, getting some CNN, etc
@@ -530,9 +547,10 @@ class _MockRegex:
 _FAVORITES_TRIMMED: fapdata._FavoriteType = {  # type: ignore
     1: {
         10: {'date_blobs': 1675368670, 'date_straight': 0, 'images': [100, 101, 102],
-             'name': 'new-f-0', 'pages': 9},
+             'name': 'new-f-0', 'pages': 9, 'failed_images': set()},
         11: {'date_blobs': 1675360670, 'date_straight': 0, 'images': [103, 104],
-             'name': 'known-folder-1', 'pages': 8},
+             'name': 'known-folder-1', 'pages': 8,
+             'failed_images': {(123, 1675360070, 'failed.jpg', 'f-url')}},
     },
     2: {20: {'images': [107, 801]}},
 }
@@ -854,24 +872,25 @@ TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)
 """.splitlines()[1:]
 
 _PRINTED_STATS_EMPTY = """
-Database is located in '%s/imagefap.database', and is 287b (28700.000%% of total images size)
+Database is located in '%s/imagefap.database', and is 320b (32000.000%% of total images size)
 0b total (unique) images size (- min, - max, - mean with - standard deviation, 0 are animated)
 
 2 users
 1 favorite galleries (oldest: 2023/Feb/02-17:57:50-UTC / newer: 2023/Feb/02-17:57:50-UTC)
 0 unique images (0 total, 0 exact duplicates)
+1 unique failed images in all user albums
 0 perceptual duplicates in 0 groups
 """.splitlines()[1:]
 
 _PRINTED_USERS_EMPTY = """
 ID: USER_NAME
     FILE STATS FOR USER
-    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)
+    => ID: FAVORITE_NAME (IMAGE_COUNT / FAILED_COUNT / PAGE_COUNT / DATE DOWNLOAD)
            FILE STATS FOR FAVORITES
 
 1: 'Luke'
     0b files size (- min, - max, - mean with - standard deviation)
-    => 11: 'known-folder-1' (2 / 8 / 2023/Feb/02-17:57:50-UTC)
+    => 11: 'known-folder-1' (2 / 1 / 8 / 2023/Feb/02-17:57:50-UTC)
 
 2: 'Ben'
     0b files size (- min, - max, - mean with - standard deviation)
@@ -892,21 +911,22 @@ Pixel size (width, height): 22.49k pixels min (130, 173), 114.49k pixels max (10
 2 users
 3 favorite galleries (oldest: 2023/Feb/02-17:57:50-UTC / newer: 2023/Feb/02-20:11:10-UTC)
 7 unique images (10 total, 3 exact duplicates)
+1 unique failed images in all user albums
 3 perceptual duplicates in 1 groups
 """.splitlines()[2:]  # noqa: E501
 
 _PRINTED_USERS_FULL = """
 ID: USER_NAME
     FILE STATS FOR USER
-    => ID: FAVORITE_NAME (IMAGE_COUNT / PAGE_COUNT / DATE DOWNLOAD)
+    => ID: FAVORITE_NAME (IMAGE_COUNT / FAILED_COUNT / PAGE_COUNT / DATE DOWNLOAD)
            FILE STATS FOR FAVORITES
 
 1: 'Luke'
     730.00kb files size (101b min, 434.54kb max, 91.25kb mean with 141.78kb standard deviation)
-    => 10: 'new-f-0' (3 / 9 / 2023/Feb/02-20:11:10-UTC)
+    => 10: 'new-f-0' (3 / 0 / 9 / 2023/Feb/02-20:11:10-UTC)
            108.72kb files size (101b min, 55.26kb max, 36.24kb mean with 31.31kb standard deviation)
-    => 11: 'known-folder-1' (2 / 8 / 2023/Feb/02-17:57:50-UTC)
-    => 13: 'new&f-3' (5 / 2 / 2023/Feb/02-20:11:10-UTC)
+    => 11: 'known-folder-1' (2 / 1 / 8 / 2023/Feb/02-17:57:50-UTC)
+    => 13: 'new&f-3' (5 / 0 / 2 / 2023/Feb/02-20:11:10-UTC)
            621.28kb files size (107b min, 434.54kb max, 124.25kb mean with 176.23kb standard deviation)
 
 2: 'Ben'

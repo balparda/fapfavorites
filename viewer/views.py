@@ -135,28 +135,30 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   total_img: int = 0
   total_animated: int = 0
   total_thumbs: int = 0
+  total_failed: int = 0
   for uid, user in db.users.items():
     file_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz']
-        for d, u in db.favorites.items() if d == uid
-        for f in u.values()
+        for f in db.favorites.get(uid, {}).values()
         for i in f['images'] if i in db.image_ids_index]
     thumbs_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz_thumb']
-        for d, u in db.favorites.items() if d == uid
-        for f in u.values()
+        for f in db.favorites.get(uid, {}).values()
         for i in f['images'] if i in db.image_ids_index]
     n_animated = sum(
         bool(db.blobs[db.image_ids_index[i]]['animated'])
-        for d, u in db.favorites.items() if d == uid
-        for f in u.values()
+        for f in db.favorites.get(uid, {}).values()
         for i in f['images'] if i in db.image_ids_index)
+    unique_failed: set[int] = set()
+    for failed in (f['failed_images'] for f in db.favorites.get(uid, {}).values()):
+      unique_failed.update(img for img, _, _, _ in failed)
     n_img = len(file_sizes)
     users[uid] = {
         'name': user['name'],
         'date_albums': base.STD_TIME_STRING(user['date_albums']),
         'date_finished': base.STD_TIME_STRING(user['date_finished']),
         'n_img': n_img,
+        'n_failed': len(unique_failed),
         'n_animated': '%d (%0.1f%%)' % (
             n_animated, (100.0 * n_animated / n_img) if n_img else 0.0),
         'files_sz': base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
@@ -168,6 +170,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
             int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-',
     }
     total_img += n_img
+    total_failed += len(unique_failed)
     total_animated += n_animated
     total_sz += sum(file_sizes) if file_sizes else 0
     total_thumbs += sum(thumbs_sizes) if file_sizes else 0
@@ -176,6 +179,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
       'users': users,
       'user_count': len(users),
       'total_img': total_img,
+      'total_failed': total_failed,
       'total_animated': '%d (%0.1f%%)' % (
           total_animated, (100.0 * total_animated / total_img) if total_img else 0.0),
       'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
@@ -215,12 +219,14 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   # sort albums alphabetically and format data
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
   favorites: dict[int, dict[str, Any]] = {}
+  total_failed: int = 0
   total_sz: int = 0
   total_thumbs_sz: int = 0
   total_animated: int = 0
   for fid, name in names:
     obj = db.favorites[user_id][fid]
     count_img = len(obj['images'])
+    count_failed = len(obj['failed_images'])
     file_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz']
         for i in obj['images'] if i in db.image_ids_index]
@@ -235,6 +241,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
         'pages': obj['pages'],
         'date': base.STD_TIME_STRING(obj['date_blobs']),
         'count': count_img,
+        'failed': count_failed,
         'files_sz': base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
         'min_sz': base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
         'max_sz': base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
@@ -245,6 +252,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
         'n_animated': '%d (%0.1f%%)' % (
             n_animated, (100.0 * n_animated / count_img) if count_img else 0.0),
     }
+    total_failed += count_failed
     total_sz += sum(file_sizes) if file_sizes else 0
     total_thumbs_sz += sum(thumbs_sizes) if thumbs_sizes else 0
     total_animated += n_animated
@@ -258,6 +266,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
       'favorites': favorites,
       'album_count': len(names),
       'img_count': all_img_count,
+      'failed_count': total_failed,
       'page_count': sum(f['pages'] for f in favorites.values()),
       'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
       'total_thumbs_sz': base.HumanizedBytes(total_thumbs_sz) if total_thumbs_sz else '-',
@@ -315,7 +324,8 @@ def ServeFavorite(  # noqa: C901
   # get images in album
   favorite = db.favorites[user_id][folder_id]
   images: list[int] = favorite['images']
-  sorted_blobs = [(i, db.image_ids_index[i]) for i in images]  # "sorted" here means original order!
+  sorted_blobs = [(i, db.image_ids_index[i])  # "sorted" here means original order!
+                  for i in images if i in db.image_ids_index]  # check existence: partial downloads
   # find images that have duplicates
   exact_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
   album_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
@@ -380,8 +390,9 @@ def ServeFavorite(  # noqa: C901
       if i == img and uid == user_id and fid == folder_id:
         break
     else:
-      raise fapdata.Error(
-          'Blob %r in %d/%d did not have a matching `loc` entry!' % (sha, user_id, folder_id))
+      logging.error('Blob %r in %s did not have a matching `loc` entry!',
+                    sha, db.AlbumStr(user_id, folder_id))
+      continue  # might raise an exception here, but this can happen in partially downloaded albums
     # fill in the other fields, make them readable
     blobs_data[sha] = {
         'name': name,
@@ -418,6 +429,16 @@ def ServeFavorite(  # noqa: C901
       'stacked_blobs': stacked_blobs,
       'blobs_data': blobs_data,
       'tags': [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()],
+      'failed_count': len(favorite['failed_images']),
+      'failed_data': [
+          {
+              'id': img,
+              'img_page': fapdata.IMG_URL(img),
+              'time': base.STD_TIME_STRING(tm),
+              'name': '-' if nm is None else nm,
+              'url': url,
+          } for img, tm, nm, url in sorted(favorite['failed_images'])
+      ] if favorite['failed_images'] else None,
       'warning_message': warning_message,
       'error_message': error_message,
   }

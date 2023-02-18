@@ -264,6 +264,39 @@
 
     <p>&nbsp;</p>
 
+    {% if failed_data %}
+      <table border='2'>
+        <tr>
+          <th colspan='4'><i>{{ failed_count }} failed images in this album</i></th>
+        </tr>
+        <tr>
+          <th>ID&nbsp;(&amp;&nbsp;link)</th>
+          <th>Failure&nbsp;Time</th>
+          <th>Image&nbsp;Name</th>
+          <th>Full-Resolution&nbsp;Link</th>
+        </tr>
+        {% for failed in failed_data %}
+          <tr>
+            <td>
+              {{ failed.id }}&nbsp;<small><a href='{{ failed.img_page }}' class='external' title='Image page in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a></small>
+            </td>
+            <td>{{ failed.time }}</td>
+            <td>{{ failed.name }}</td>
+            <td align='center'>
+              {% if failed.url %}
+                <small><a href='{{ failed.url }}' class='external' title='Image full-res in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a></small>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <p><i>(No failed images in this album.)</i></p>
+      <p>&nbsp;</p>
+    {% endif %}
+
     <form id='selected_form' name='selected_form'
         action='{% url "favorite" user_id folder_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'
         method='post'>
