@@ -390,9 +390,11 @@ def ServeFavorite(  # noqa: C901
       if i == img and uid == user_id and fid == folder_id:
         break
     else:
+      # we might have raised an exception here, but this can happen in partially downloaded albums
       logging.error('Blob %r in %s did not have a matching `loc` entry!',
                     sha, db.AlbumStr(user_id, folder_id))
-      continue  # might raise an exception here, but this can happen in partially downloaded albums
+      blobs_data[sha] = {}
+      continue
     # fill in the other fields, make them readable
     blobs_data[sha] = {
         'name': name,
