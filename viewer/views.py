@@ -470,6 +470,8 @@ def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
 
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
   """Serve the `tag` page for one `tag_id`."""
+  # TODO: tags renaming
+  # TODO: move tag deletion/rename/creation to fapdata.py
   # check for errors in parameters
   db = _DBFactory()
   warning_message: Optional[str] = None
@@ -482,6 +484,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
     page_depth: int = len(tag_hierarchy)
     tag_obj: fapdata.TagObjType = db.GetTag(tag_id)[-1][-1]
   else:
+    tag_hierarchy: list[tuple[int, str, fapdata.TagObjType]] = []
     page_depth: int = 0
     tag_obj: fapdata.TagObjType = {
         'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data) # type: ignore
@@ -542,7 +545,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
                for tid, name, depth, _ in db.TagsWalk(start_tag=tag_obj['tags'])],  # type: ignore
       'tag_id': tag_id,
       'page_depth': page_depth,
-      'page_depth_up': (page_depth - 1) if page_depth else 0,
+      'page_depth_up': tag_hierarchy[-2][0] if tag_id and page_depth > 1 else 0,
       'tag_name': db.TagLineageStr(tag_id) if tag_id else None,
       'warning_message': warning_message,
       'error_message': error_message,

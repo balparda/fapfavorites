@@ -77,9 +77,10 @@ the `--folder` flag. Example:
 
 Read as many users and folders as you want. They will be in the
 database, thumbnails will be automatically generated, duplicates will
-be found, etc. We search for duplicates using a hybrid intersection of
-perceptual, average, differential and wavelet hashes, plus a
-convolutional neural network. Duplicate images picked up by these
+be found, many error conditions will be handled and corrected for, etc.
+After the download, we search for duplicates using a hybrid intersection
+of perceptual, average, differential and wavelet hashes, plus a
+convolutional neural network (CNN). Duplicate images picked up by these
 methods will be consolidated for the user, who can later decide which
 images to keep. By default it will skip any album recently downloaded
 in the previous 3 days (72h). This is usually very helpful to save
@@ -105,10 +106,10 @@ You can see all users, all favorite albums, images, duplicates,
 and in the image list you can apply some filters.
 To stop the web app go to `./process.py` and use `CTRL-C` to stop it.
 
-The web app is not meant to be safe or to serve outside your
-local computer, so please don't do that. ___Do NOT simultaneously
-run the web app and other concurrent calls
-to `favorites.py` or `process.py`! You might lose data!___
+The web app is ___not___ meant to be safe or to serve outside your
+local computer, so please don't do that! Also, ___do NOT simultaneously
+run the web app and other concurrent calls to `favorites.py` or `process.py`
+or you might lose data!___
 
 ## Usage of `favorites.py`
 
@@ -203,6 +204,9 @@ This example will print stats for a database in `~/some-dir/`:
 ```
 ./process.py stats --dir "~/some-dir/"
 ```
+
+The exact same stats are showed in the home page at
+http://127.0.0.1:8000/viewer/ (see `process.py RUN` command).
 
 ### `process.py PRINT` command - _See All The Things!_
 

@@ -132,14 +132,16 @@ class TestFapDatabase(unittest.TestCase):
     db._db['tags'] = _TEST_TAGS_2
     self.assertListEqual(
         list((i, n, d) for i, n, d, _ in db.TagsWalk()),
-        [(0, 'plain', 0),
-         (1, 'one', 0), (11, 'one-one', 1),
-         (2, 'two', 0), (22, 'two-two', 1), (24, 'two-four', 1), (246, 'deep', 2),
-         (3, 'three', 0), (33, 'three-three', 1)])
+        [
+            (1, 'one', 0), (11, 'one-one', 1),
+            (10, 'plain', 0),
+            (3, 'three', 0), (33, 'three-three', 1),
+            (2, 'two', 0), (24, 'two-four', 1), (246, 'deep', 2), (22, 'two-two', 1),
+        ])
     self.assertListEqual(
         list((i, n, d) for i, n, d, _ in db.TagsWalk(
             start_tag=_TEST_TAGS_2[2]['tags'])),  # type: ignore
-        [(22, 'two-two', 0), (24, 'two-four', 0), (246, 'deep', 1)])
+        [(24, 'two-four', 0), (246, 'deep', 1), (22, 'two-two', 0)])
     db._db['blobs'] = {  # type: ignore
         'a': {'tags': {1, 2, 33}, 'sz': 10}, 'b': {'tags': {246, 33}, 'sz': 55}}
     self.assertListEqual(db.PrintTags(), _PRINTED_TAGS)
@@ -815,7 +817,7 @@ _TEST_TAGS_1 = {  # this has many places where there are missing keys
 }
 
 _TEST_TAGS_2: fapdata._TagType = {  # this is all valid tags structure
-    0: {
+    10: {
         'name': 'plain',
         'tags': {},
     },
@@ -860,15 +862,15 @@ _TEST_TAGS_2: fapdata._TagType = {  # this is all valid tags structure
 _PRINTED_TAGS = """
 TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)
 
-0: 'plain' (0 / 0b)
 1: 'one' (1 / 10b)
     11: 'one-one' (0 / 0b)
-2: 'two' (1 / 10b)
-    22: 'two-two' (0 / 0b)
-    24: 'two-four' (0 / 0b)
-        246: 'deep' (1 / 55b)
+10: 'plain' (0 / 0b)
 3: 'three' (0 / 0b)
     33: 'three-three' (2 / 65b)
+2: 'two' (1 / 10b)
+    24: 'two-four' (0 / 0b)
+        246: 'deep' (1 / 55b)
+    22: 'two-two' (0 / 0b)
 """.splitlines()[1:]
 
 _PRINTED_STATS_EMPTY = """

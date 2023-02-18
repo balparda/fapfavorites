@@ -281,7 +281,7 @@
               {{ failed.id }}&nbsp;<small><a href='{{ failed.img_page }}' class='external' title='Image page in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a></small>
             </td>
             <td>{{ failed.time }}</td>
-            <td>{{ failed.name }}</td>
+            <td>{{ failed.name|escape }}</td>
             <td align='center'>
               {% if failed.url %}
                 <small><a href='{{ failed.url }}' class='external' title='Image full-res in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a></small>

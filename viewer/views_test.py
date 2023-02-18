@@ -636,7 +636,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
     },
     'tags': {
-        0: {  # unused tag!
+        10: {  # unused tag!
             'name': 'plain',
             'tags': {},
         },
@@ -905,15 +905,15 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
         },
     },
     'tags': [
-        (0, 'plain', 'plain (0)'),
         (1, 'one', 'one (1)'),
         (11, 'one-one', 'one/one-one (11)'),
-        (2, 'two', 'two (2)'),
-        (22, 'two-two', 'two/two-two (22)'),
-        (24, 'two-four', 'two/two-four (24)'),
-        (246, 'deep', 'two/two-four/deep (246)'),
+        (10, 'plain', 'plain (10)'),
         (3, 'three', 'three (3)'),
         (33, 'three-three', 'three/three-three (33)'),
+        (2, 'two', 'two (2)'),
+        (24, 'two-four', 'two/two-four (24)'),
+        (246, 'deep', 'two/two-four/deep (246)'),
+        (22, 'two-two', 'two/two-two (22)'),
     ],
     'failed_count': 1,
     'failed_data': [
@@ -996,16 +996,16 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
 
 _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'tags': [
-        (0, 'plain', 'plain', 0),
+        (247, 'new-tag-foo', 'new-tag-foo', 0),
         (1, 'one', 'one', 0),
         (11, 'one-one', 'one/one-one', 1),
-        (2, 'two', 'two', 0),
-        (22, 'two-two', 'two/two-two', 1),
-        (24, 'two-four', 'two/two-four', 1),
-        (246, 'deep', 'two/two-four/deep', 2),
+        (10, 'plain', 'plain', 0),
         (3, 'three', 'three', 0),
         (33, 'three-three', 'three/three-three', 1),
-        (247, 'new-tag-foo', 'new-tag-foo', 0),
+        (2, 'two', 'two', 0),
+        (24, 'two-four', 'two/two-four', 1),
+        (246, 'deep', 'two/two-four/deep', 2),
+        (22, 'two-two', 'two/two-two', 1),
     ],
     'tag_id': 0,
     'page_depth': 0,
@@ -1017,9 +1017,9 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
 
 _TAG_LEAF_CONTEXT: dict[str, Any] = {
     'tags': [
-        (22, 'two-two', 'two/two-two', 1),
         (24, 'two-four', 'two/two-four', 1),
         (246, 'deep', 'two/two-four/deep', 2),
+        (22, 'two-two', 'two/two-two', 1),
     ],
     'tag_id': 2,
     'page_depth': 1,

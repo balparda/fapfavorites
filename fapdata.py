@@ -415,8 +415,9 @@ class FapDatabase:
     """
     if start_tag is None:
       start_tag = self.tags
-    for tag_id in sorted(start_tag.keys()):
-      yield (tag_id, start_tag[tag_id]['name'], depth, start_tag[tag_id]['tags'])  # type: ignore
+    for tag_name, tag_id, tag_tags in sorted(
+        (t['name'], k, t['tags']) for k, t in start_tag.items()):  # will sort by name in this level
+      yield (tag_id, tag_name, depth, tag_tags)  # type: ignore
       if start_tag[tag_id]['tags']:
         for o in self.TagsWalk(
             start_tag=start_tag[tag_id]['tags'], depth=(depth + 1)):  # type: ignore
