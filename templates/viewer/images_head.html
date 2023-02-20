@@ -1,0 +1,109 @@
+<style>
+
+  a.filter_show {color: green;}
+  a.filter_show:visited {color: green;}
+  a.filter_show:hover {color: green;}
+  a.filter_show:active {color: green;}
+
+  a.filter_hide {color: red;}
+  a.filter_hide:visited {color: red;}
+  a.filter_hide:hover {color: red;}
+  a.filter_hide:active {color: red;}
+
+  a.external {text-decoration: none;}
+
+  a.delete {text-decoration: none;}
+
+  th, td {padding: 5px;}
+
+  td.album_duplicate {
+    border-color: red;
+    background-color: red;
+  }
+  td.has_duplicate {
+    border-color: fuchsia;
+    background-color: fuchsia;
+  }
+  td.has_perceptual {
+    border-color: purple;
+    background-color: purple;
+  }
+
+  td.selected {
+    border-color: peru;
+    background-color: peru;
+    padding: 4px;
+  }
+  td.unselected {
+    padding: 4px;
+  }
+
+</style>
+<script type='text/javascript' language='javascript'>
+
+  function switch_selection(sha) {
+    if (document.getElementById(sha).className == 'selected') {
+      document.getElementById(sha).className = 'unselected';
+    } else {
+      document.getElementById(sha).className = 'selected';
+    }
+  };
+
+  function select_all() {
+    for (i in ALL_SHA) {
+      sha = ALL_SHA[i];
+      document.getElementById(sha).className = 'selected';
+    }
+  };
+
+  function select_none() {
+    for (i in ALL_SHA) {
+      sha = ALL_SHA[i];
+      document.getElementById(sha).className = 'unselected';
+    }
+  };
+
+  function get_selected() {
+    sel = [];
+    for (i in ALL_SHA) {
+      sha = ALL_SHA[i];
+      if (document.getElementById(sha).className == 'selected') {
+        sel.push(sha);
+      }
+    }
+    return sel;
+  }
+
+  function tag_form_submit() {
+    sel = get_selected();
+    if (parseInt(document.forms['selected_form']['tag_select'].value) > 0) {
+      if (sel.length > 0) {
+        document.forms['selected_form']['selected_blobs'].value = sel.join(',');
+        return true;  // we can submit the form
+      } else {
+        alert('No images selected!');
+      }
+    } else {
+      alert('No tag selected!');
+    }
+    return false;  // don't submit the form
+  }
+
+  function delete_tag(id, name) {
+    if (confirm('Permanently delete tag "' + name + '" and wipe all its associations in the database?') == true) {
+      document.forms['delete_form']['delete_input'].value = id;
+      document.forms['delete_form'].submit();
+    }
+  };
+
+  var ALL_SHA = [
+      {% for sha_group in stacked_blobs %}
+        {% for _, sha in sha_group %}
+          {% if sha %}
+            "{{ sha }}",
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+  ];
+
+</script>

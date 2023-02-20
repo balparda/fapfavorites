@@ -282,17 +282,31 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   return shortcuts.render(request, 'viewer/favorites.html', context)
 
 
-def ServeFavorite(  # noqa: C901
-    request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
-  """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
-  # check for errors in parameters
-  db = _DBFactory()
+def _ServeImages(  # noqa: C901
+    request: http.HttpRequest,
+    db: fapdata.FapDatabase,
+    image_list: list[tuple[int, str]],
+    user_id: int,
+    folder_id: int) -> dict[str, Any]:
+  """Create context for page that serves a group of images and can set tags to them.
+
+  The objective here is to be able to serve both the favorite.html & tag.html pages.
+  Will *not* save the DB, for safety: will rely on caller to do so if 'warning_message'
+  is not None.
+
+  Args:
+    request: HttpRequest object
+    db: initialized fapdata.FapDatabase object
+    image_list: ordered list of (img_id, sha), where img_id will be the album image ID for
+        favorite pages and will be zero (0) for tag pages
+    user_id: User ID if in album, or zero (0) if in tag
+    folder_id: Folder ID if in album, or zero (0) if in tag
+
+  Returns:
+    context dict
+  """
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
-  if user_id not in db.users or user_id not in db.favorites:
-    raise http.Http404('Unknown user %d' % user_id)
-  if folder_id not in db.favorites[user_id]:
-    raise http.Http404('Unknown folder %d (in known user %d)' % (folder_id, user_id))
   # do we have to save tags?
   selected_tag = int(request.POST.get('tag_select', '0'))
   selected_images = {
@@ -316,29 +330,25 @@ def ServeFavorite(  # noqa: C901
         db.blobs[sha]['tags'].add(selected_tag)
         tag_count += 1
       else:
+        # setting this message should trigger a DB Save() in the calling page
         warning_message = '%d images tagged with %s' % (tag_count, tag_name)
-        db.Save()
   # retrieve the `GET` data
   show_duplicates = bool(int(request.GET.get('dup', '0')))        # default: False
   show_portraits = bool(int(request.GET.get('portrait', '1')))    # default: True
   show_landscapes = bool(int(request.GET.get('landscape', '1')))  # default: True
   locked_for_tagging = bool(int(request.GET.get('lock', '0')))    # default: False
-  # get images in album
-  favorite = db.favorites[user_id][folder_id]
-  images: list[int] = favorite['images']
-  sorted_blobs = [(i, db.image_ids_index[i])  # "sorted" here means original order!
-                  for i in images if i in db.image_ids_index]  # check existence: partial downloads
   # find images that have duplicates
   exact_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
   album_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
   percept_verdicts: dict[tuple[int, str], duplicates.DuplicatesVerdictType] = {}
   percept_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
   dup_hints: dict[tuple[int, str], list[str]] = {}  # the hints (mouse-over text) for the duplicates
-  for img, sha in sorted_blobs:
+  for img, sha in image_list:
     # collect images with identical twins
     if len(db.blobs[sha]['loc']) > 1:
       exact_duplicates[(img, sha)] = db.blobs[sha]['loc']
       hits: set[fapdata.LocationTupleType] = {
+          # reminder: user_id/folder_id can be 0 for tag page
           loc for loc in db.blobs[sha]['loc'] if loc[3] == user_id and loc[4] == folder_id}
       if len(hits) > 1:
         # this image has twins in this same album
@@ -355,10 +365,12 @@ def ServeFavorite(  # noqa: C901
           percept_duplicates.setdefault((img, sha), set()).update(db.blobs[dup_key]['loc'])
     # make the hints
     for loc in exact_duplicates.get((img, sha), set()):
+      # reminder: user_id/folder_id can be 0 for tag page
       is_current = loc[0] == img and loc[3] == user_id and loc[4] == folder_id
       dup_hints.setdefault((img, sha), []).append(
           'Exact: %s%s' % (db.LocationStr(loc), ' <= THIS' if is_current else ''))
     for loc in percept_duplicates.get((img, sha), set()):
+      # reminder: user_id/folder_id can be 0 for tag page
       is_current = loc[0] == img and loc[3] == user_id and loc[4] == folder_id
       dup_hints.setdefault((img, sha), []).append(
           'Visual: %s%s' % (db.LocationStr(loc), ' <= THIS' if is_current else ''))
@@ -366,29 +378,31 @@ def ServeFavorite(  # noqa: C901
       dup_hints[(img, sha)].sort()
   # apply filters
   if not show_duplicates:
-    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
-                    if not ((img, sha) in album_duplicates and
-                            img != min(n[0] for n in album_duplicates[(img, sha)]))]
-    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
-                    if not ((img, sha) in percept_verdicts and
-                            percept_verdicts[(img, sha)] == 'skip')]
+    image_list = [(img, sha) for img, sha in image_list
+                  if not ((img, sha) in album_duplicates and
+                          img != min(n[0] for n in album_duplicates[(img, sha)]))]
+    image_list = [(img, sha) for img, sha in image_list
+                  if not ((img, sha) in percept_verdicts and
+                          percept_verdicts[(img, sha)] == 'skip')]
   if not show_portraits:
-    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
-                    if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]
+    image_list = [(img, sha) for img, sha in image_list
+                  if not (db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1)]
   if not show_landscapes:
-    sorted_blobs = [(img, sha) for img, sha in sorted_blobs
-                    if not (db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1)]
+    image_list = [(img, sha) for img, sha in image_list
+                  if not (db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1)]
   # stack the hashes in rows of _IMG_COLUMNS columns
-  stacked_blobs = [sorted_blobs[i:(i + _IMG_COLUMNS)]
-                   for i in range(0, len(sorted_blobs), _IMG_COLUMNS)]
+  stacked_blobs = [image_list[i:(i + _IMG_COLUMNS)]
+                   for i in range(0, len(image_list), _IMG_COLUMNS)]
   if stacked_blobs:
     stacked_blobs[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_blobs[-1]))]
   # format blob data to be included as auxiliary data
   blobs_data: dict[str, dict[str, Any]] = {}
-  for img, sha in sorted_blobs:
+  for img, sha in image_list:
     blob = db.blobs[sha]
     # find the correct 'loc' entry (to get the name)
-    for i, _, name, uid, fid in blob['loc']:
+    for i, _, name, uid, fid in sorted(blob['loc']):
+      if not user_id or not folder_id:  # reminder: user_id/folder_id can be 0 for tag page
+        break  # we're in the tag page: use the first name we find
       if i == img and uid == user_id and fid == folder_id:
         break
     else:
@@ -413,12 +427,8 @@ def ServeFavorite(  # noqa: C901
             '\n'.join(dup_hints[(img, sha)])
             if (img, sha) in dup_hints and dup_hints[(img, sha)] else ''),
     }
-  # send to page
-  context: dict[str, Any] = {
-      'user_id': user_id,
-      'user_name': db.users[user_id]['name'],
-      'folder_id': folder_id,
-      'name': favorite['name'],
+  # create context
+  return {
       'show_duplicates': show_duplicates,
       'dup_url': 'dup=%d' % int(show_duplicates),
       'show_portraits': show_portraits,
@@ -427,12 +437,43 @@ def ServeFavorite(  # noqa: C901
       'landscape_url': 'landscape=%d' % int(show_landscapes),
       'locked_for_tagging': locked_for_tagging,
       'tagging_url': 'lock=%d' % int(locked_for_tagging),
-      'pages': favorite['pages'],
-      'date': base.STD_TIME_STRING(favorite['date_blobs']),
-      'count': len(sorted_blobs),
+      'count': len(image_list),
       'stacked_blobs': stacked_blobs,
       'blobs_data': blobs_data,
-      'tags': [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()],
+      'form_tags': [(tid, name, db.TagLineageStr(tid, add_id=False))
+                    for tid, name, _, _ in db.TagsWalk()],
+      'warning_message': warning_message,
+      'error_message': error_message,
+  }
+
+
+def ServeFavorite(
+    request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
+  """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
+  # check for errors in parameters
+  db = _DBFactory()
+  if user_id not in db.users or user_id not in db.favorites:
+    raise http.Http404('Unknown user %d' % user_id)
+  if folder_id not in db.favorites[user_id]:
+    raise http.Http404('Unknown folder %d (in known user %d)' % (folder_id, user_id))
+  # get images in album
+  favorite = db.favorites[user_id][folder_id]
+  images: list[int] = favorite['images']
+  sorted_blobs = [(i, db.image_ids_index[i])  # "sorted" here means original order!
+                  for i in images if i in db.image_ids_index]  # check existence: partial downloads
+  # get the context for the images
+  context = _ServeImages(request, db, sorted_blobs, user_id, folder_id)
+  # save database, if needed: having a 'warning_message' means a successful operation somewhere
+  if context['warning_message'] is not None:
+    db.Save()
+  # update with page-specific context and return
+  context.update({
+      'user_id': user_id,
+      'user_name': db.users[user_id]['name'],
+      'folder_id': folder_id,
+      'name': favorite['name'],
+      'pages': favorite['pages'],
+      'date': base.STD_TIME_STRING(favorite['date_blobs']),
       'failed_count': len(favorite['failed_images']),
       'failed_data': [
           {
@@ -443,90 +484,68 @@ def ServeFavorite(  # noqa: C901
               'url': url,
           } for img, tm, nm, url in sorted(favorite['failed_images'])
       ] if favorite['failed_images'] else None,
-      'warning_message': warning_message,
-      'error_message': error_message,
-  }
+  })
   return shortcuts.render(request, 'viewer/favorite.html', context)
 
 
-# this page seems to be executing TWICE when called, and blobs' binary representations never ever
-# change, so it is perfectly acceptable to cache the hell out of this particular page
-@cache.cache_page(60 * 60)
-def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
-  """Serve the `blob` page, one image, given one SHA256 `digest`."""
-  # check for errors in parameters
-  db = _DBFactory()
-  if not digest or digest not in db.blobs:
-    raise http.Http404('Unknown blob %r' % digest)
-  if not db.HasBlob(digest):
-    raise http.Http404('Known blob %r could not be found on disk' % digest)
-  # get blob and check for content type (extension)
-  blob = db.blobs[digest]
-  ext = blob['ext'].lower()
-  if ext not in _IMAGE_TYPES:
-    raise http.Http404('Blob %r image type (file extension) %r not one of %r' % (
-        digest, ext, sorted(_IMAGE_TYPES.keys())))
-  # send to page
-  return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
-
-
-def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
+def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
   # check for errors in parameters
   db = _DBFactory()
-  warning_message: Optional[str] = None
-  error_message: Optional[str] = None
   all_tags = [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()]
+  tag_hierarchy: list[tuple[int, str, fapdata.TagObjType]] = []
+  sorted_blobs: list[tuple[int, str]] = []
+  page_depth: int = 0
   if tag_id:
+    # some leaf tag node, check if we know this tag and get it
     if tag_id not in {tid for tid, _, _ in all_tags}:
       raise http.Http404('Unknown tag %d' % tag_id)
     tag_hierarchy = db.GetTag(tag_id)
     page_depth: int = len(tag_hierarchy)
     tag_obj: fapdata.TagObjType = db.GetTag(tag_id)[-1][-1]
+    # get the images for this tag and all below it
+    tag_child_ids = {i for i, _, _, _ in db.TagsWalk(start_tag=tag_obj['tags'])}  # type: ignore
+    tag_child_ids.add(tag_id)
+    sorted_blobs = [(0, k) for k in sorted({  # create intermediary set to de-dup hashed before sort
+        sha for sha, blob in db.blobs.items() if tag_child_ids.intersection(blob['tags'])})]
   else:
-    tag_hierarchy: list[tuple[int, str, fapdata.TagObjType]] = []
-    page_depth: int = 0
+    # root page, just build a mock object
     tag_obj: fapdata.TagObjType = {
         'name': 'root', 'tags': db.tags}  # "dummy" root tag (has real data) # type: ignore
+  # fill in the images context
+  context = _ServeImages(request, db, sorted_blobs, 0, 0)
   # get POST data
   new_tag = request.POST.get('named_child', '').strip()
   rename_tag = request.POST.get('rename_tag', '').strip()
   delete_tag = int(request.POST.get('delete_input', '0').strip())
-  # do we have a new tag to create?
-  if new_tag:
-    try:
+  if ((new_tag or rename_tag or delete_tag) and
+      (context['warning_message'] is not None or context['error_message'] is not None)):
+    raise fapdata.Error('Multiple POST operations attempted at once!')
+  # do the POST operation
+  try:
+    # do we have a new tag to create?
+    if new_tag:
       new_tag_id = db.AddTag(tag_id, new_tag)
-    except fapdata.Error as e:
-      error_message = str(e)
-    else:
-      # message and save DB
-      warning_message = 'Tag %s created' % db.TagLineageStr(new_tag_id)
-      db.Save()
-  # should we rename this tag?
-  elif rename_tag:
-    try:
+      context['warning_message'] = 'Tag %s created' % db.TagLineageStr(new_tag_id)
+    # should we rename this tag?
+    elif rename_tag:
       old_name = db.TagLineageStr(tag_id)
       db.RenameTag(tag_id, rename_tag)
-    except fapdata.Error as e:
-      error_message = str(e)
-    else:
-      # message and save DB
-      warning_message = 'Tag %s renamed to %s' % (old_name, db.TagLineageStr(tag_id))
-      db.Save()
-  # do we have a tag to delete?
-  elif delete_tag:
-    try:
+      context['warning_message'] = 'Tag %s renamed to %s' % (old_name, db.TagLineageStr(tag_id))
+    # do we have a tag to delete?
+    elif delete_tag:
       delete_tag_name = db.TagLineageStr(delete_tag)
       deleted_hashes = db.DeleteTag(delete_tag)
-    except fapdata.Error as e:
-      error_message = str(e)
-    else:
-      # message and save DB
-      warning_message = 'Tag %s deleted and association removed from %d blobs (images)' % (
-          delete_tag_name, len(deleted_hashes))
-      db.Save()
-  # send to page
-  context: dict[str, Any] = {
+      context['warning_message'] = (
+          'Tag %s deleted and association removed from %d blobs (images)' % (
+              delete_tag_name, len(deleted_hashes)))
+  except fapdata.Error as e:
+    context['error_message'] = str(e)
+  # save database, if needed: having a 'warning_message' means a successful operation somewhere
+  if context['warning_message'] is not None:
+    db.Save()
+  # update with page-specific context and return
+  context.update({
       'tags': [(tid, name, db.TagLineageStr(tid, add_id=False), page_depth + depth)
                for tid, name, depth, _ in db.TagsWalk(start_tag=tag_obj['tags'])],  # type: ignore
       'tag_id': tag_id,
@@ -534,9 +553,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
       'page_depth_up': tag_hierarchy[-2][0] if tag_id and page_depth > 1 else 0,
       'tag_name': db.TagLineageStr(tag_id) if tag_id else None,                # could be renamed?
       'tag_simple_name': db.TagStr(tag_id, add_id=False) if tag_id else None,  # could be renamed?
-      'warning_message': warning_message,
-      'error_message': error_message,
-  }
+  })
   return shortcuts.render(request, 'viewer/tag.html', context)
 
 
@@ -711,3 +728,24 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
       'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/duplicate.html', context)
+
+
+# this page seems to be executing TWICE when called, and blobs' binary representations never ever
+# change, so it is perfectly acceptable to cache the hell out of this particular page
+@cache.cache_page(60 * 60)
+def ServeBlob(request: http.HttpRequest, digest: str) -> http.HttpResponse:
+  """Serve the `blob` page, one image, given one SHA256 `digest`."""
+  # check for errors in parameters
+  db = _DBFactory()
+  if not digest or digest not in db.blobs:
+    raise http.Http404('Unknown blob %r' % digest)
+  if not db.HasBlob(digest):
+    raise http.Http404('Known blob %r could not be found on disk' % digest)
+  # get blob and check for content type (extension)
+  blob = db.blobs[digest]
+  ext = blob['ext'].lower()
+  if ext not in _IMAGE_TYPES:
+    raise http.Http404('Blob %r image type (file extension) %r not one of %r' % (
+        digest, ext, sorted(_IMAGE_TYPES.keys())))
+  # send to page
+  return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])

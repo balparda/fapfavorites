@@ -74,7 +74,8 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {}
     request.GET = {}
     views.ServeIndex(request)
-    mock_render.assert_called_once_with(request, 'viewer/index.html', _INDEX_CONTEXT)
+    mock_render.assert_called_once_with(request, 'viewer/index.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _INDEX_CONTEXT)
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -93,7 +94,8 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeUsers(request)
     mock_delete.assert_called_once_with(3)
     mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/users.html', _USERS_CONTEXT)
+    mock_render.assert_called_once_with(request, 'viewer/users.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _USERS_CONTEXT)
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -112,7 +114,8 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeFavorites(request, 1)
     mock_delete.assert_called_once_with(1, 11)
     mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/favorites.html', _FAVORITES_CONTEXT)
+    mock_render.assert_called_once_with(request, 'viewer/favorites.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _FAVORITES_CONTEXT)
 
   @mock.patch('viewer.views._DBFactory')
   def test_ServeFavorites_User_404(self, mock_db: mock.MagicMock) -> None:
@@ -144,7 +147,8 @@ class TestDjangoViews(unittest.TestCase):
     new_tags = {sha: db.blobs[sha]['tags'] for sha in _FAVORITE_CONTEXT_ALL_ON['blobs_data'].keys()}
     self.assertDictEqual(new_tags, _FAVORITE_NEW_TAGS)
     mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/favorite.html', _FAVORITE_CONTEXT_ALL_ON)
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _FAVORITE_CONTEXT_ALL_ON)
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -164,7 +168,8 @@ class TestDjangoViews(unittest.TestCase):
     }
     views.ServeFavorite(request, 1, 10)
     mock_save.assert_not_called()
-    mock_render.assert_called_once_with(request, 'viewer/favorite.html', _FAVORITE_CONTEXT_ALL_OFF)
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _FAVORITE_CONTEXT_ALL_OFF)
 
   @mock.patch('viewer.views._DBFactory')
   def test_ServeFavorite_User_404(self, mock_db: mock.MagicMock) -> None:
@@ -179,6 +184,149 @@ class TestDjangoViews(unittest.TestCase):
     mock_db.return_value = _TestDBFactory()
     with self.assertRaises(views.http.Http404):
       views.ServeFavorite(mock.Mock(views.http.HttpRequest), 1, 50)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeTag_Root_And_Create(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'named_child': 'new-tag-foo'}
+    request.GET = {}
+    views.ServeTag(request, 0)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _TAG_ROOT_CONTEXT)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeTag_Leaf_And_Delete(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'delete_input': '33'}
+    request.GET = {}
+    views.ServeTag(request, 2)
+    new_tags = {sha: db.blobs[sha]['tags'] for sha in db.blobs.keys()}
+    self.assertDictEqual(new_tags, _TAG_NEW_TAGS)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CONTEXT_DELETE)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeTag_Leaf_And_Rename(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'rename_tag': 'The One'}
+    request.GET = {}
+    views.ServeTag(request, 1)
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CONTEXT_RENAME)
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeTag(mock.Mock(views.http.HttpRequest), 666)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  def test_ServeDuplicates(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {}
+    views.ServeDuplicates(request)
+    mock_render.assert_called_once_with(request, 'viewer/duplicates.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  def test_ServeDuplicate_Blob(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {}
+    views.ServeDuplicate(
+        # this is a blob-only (hash collision) duplicate
+        request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATE_BLOB_CONTEXT)
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeDuplicate_Set(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'keep',
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'false',
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': 'false',
+    }
+    request.GET = {}
+    views.ServeDuplicate(
+        request, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e')
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATE_SET_CONTEXT)
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeDuplicate_Blob_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeDuplicate(mock.Mock(views.http.HttpRequest), 'not-a-valid-blob-hash')
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeDuplicate_Singleton_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    with self.assertRaises(views.http.Http404):
+      views.ServeDuplicate(
+          mock.Mock(views.http.HttpRequest),
+          # this hash has no duplicate set nor hash collision
+          'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180')
+
+  @mock.patch('viewer.views._DBFactory')
+  def test_ServeDuplicate_Update_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        # this is a blob-only (hash collision) duplicate, and should not support POST
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'keep',
+    }
+    request.GET = {}
+    with self.assertRaises(views.http.Http404):
+      views.ServeDuplicate(
+          request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.http.HttpResponse')
@@ -233,143 +381,6 @@ class TestDjangoViews(unittest.TestCase):
       views.ServeBlob(
           mock.Mock(views.http.HttpRequest),
           '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
-
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
-  def test_ServeTag_Root_And_Create(
-      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
-      mock_db: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
-    request = mock.Mock(views.http.HttpRequest)
-    request.POST = {'named_child': 'new-tag-foo'}
-    request.GET = {}
-    views.ServeTag(request, 0)
-    mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_ROOT_CONTEXT)
-
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
-  def test_ServeTag_Leaf_And_Delete(
-      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
-      mock_db: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    db = _TestDBFactory()
-    mock_db.return_value = db
-    request = mock.Mock(views.http.HttpRequest)
-    request.POST = {'delete_input': '33'}
-    request.GET = {}
-    views.ServeTag(request, 2)
-    new_tags = {sha: db.blobs[sha]['tags'] for sha in db.blobs.keys()}
-    self.assertDictEqual(new_tags, _TAG_NEW_TAGS)
-    mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF_CONTEXT_DELETE)
-
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
-  def test_ServeTag_Leaf_And_Rename(
-      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
-      mock_db: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
-    request = mock.Mock(views.http.HttpRequest)
-    request.POST = {'rename_tag': 'The One'}
-    request.GET = {}
-    views.ServeTag(request, 1)
-    mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/tag.html', _TAG_LEAF_CONTEXT_RENAME)
-
-  @mock.patch('viewer.views._DBFactory')
-  def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
-    """Test."""
-    mock_db.return_value = _TestDBFactory()
-    with self.assertRaises(views.http.Http404):
-      views.ServeTag(mock.Mock(views.http.HttpRequest), 666)
-
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('django.shortcuts.render')
-  def test_ServeDuplicates(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
-    request = mock.Mock(views.http.HttpRequest)
-    request.POST = {}
-    request.GET = {}
-    views.ServeDuplicates(request)
-    mock_render.assert_called_once_with(request, 'viewer/duplicates.html', _DUPLICATES_CONTEXT)
-
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('django.shortcuts.render')
-  def test_ServeDuplicate_Blob(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
-    request = mock.Mock(views.http.HttpRequest)
-    request.POST = {}
-    request.GET = {}
-    views.ServeDuplicate(
-        # this is a blob-only (hash collision) duplicate
-        request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
-    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', _DUPLICATE_BLOB_CONTEXT)
-
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
-  def test_ServeDuplicate_Set(
-      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
-      mock_db: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    db = _TestDBFactory()
-    mock_db.return_value = db
-    request = mock.Mock(views.http.HttpRequest)
-    request.POST = {
-        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'keep',
-        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'false',
-        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': 'false',
-    }
-    request.GET = {}
-    views.ServeDuplicate(
-        request, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e')
-    mock_save.assert_called_once_with()
-    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', _DUPLICATE_SET_CONTEXT)
-
-  @mock.patch('viewer.views._DBFactory')
-  def test_ServeDuplicate_Blob_404(self, mock_db: mock.MagicMock) -> None:
-    """Test."""
-    mock_db.return_value = _TestDBFactory()
-    with self.assertRaises(views.http.Http404):
-      views.ServeDuplicate(mock.Mock(views.http.HttpRequest), 'not-a-valid-blob-hash')
-
-  @mock.patch('viewer.views._DBFactory')
-  def test_ServeDuplicate_Singleton_404(self, mock_db: mock.MagicMock) -> None:
-    """Test."""
-    mock_db.return_value = _TestDBFactory()
-    with self.assertRaises(views.http.Http404):
-      views.ServeDuplicate(
-          mock.Mock(views.http.HttpRequest),
-          # this hash has no duplicate set nor hash collision
-          'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180')
-
-  @mock.patch('viewer.views._DBFactory')
-  def test_ServeDuplicate_Update_404(self, mock_db: mock.MagicMock) -> None:
-    """Test."""
-    mock_db.return_value = _TestDBFactory()
-    request = mock.Mock(views.http.HttpRequest)
-    request.POST = {
-        # this is a blob-only (hash collision) duplicate, and should not support POST
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'keep',
-    }
-    request.GET = {}
-    with self.assertRaises(views.http.Http404):
-      views.ServeDuplicate(
-          request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
 
 
 @mock.patch('fapdata.os.path.isdir')
@@ -449,7 +460,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'cnn': np.array([1, 2, 3]),
             'sz': 54643,
             'sz_thumb': 54643,
-            'tags': {3},
+            'tags': {2, 3},
             'width': 198,  # image will be considered "square" aspect
         },
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
@@ -503,7 +514,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'cnn': np.array([1, 2, 3]),
             'sz': 101,
             'sz_thumb': 0,
-            'tags': {11, 33},
+            'tags': {2, 11, 33},
             'width': 160,
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
@@ -878,7 +889,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'name': 'name-101.jpg',
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
-            'tags': 'one/one-one, three/three-three',
+            'tags': 'one/one-one, three/three-three, two',
             'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'has_duplicate': True,
             'album_duplicate': False,
@@ -893,7 +904,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'name-102.jpg',
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
-            'tags': 'three, two/two-four',
+            'tags': 'three, two, two/two-four',
             'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'has_duplicate': False,
             'album_duplicate': False,
@@ -919,16 +930,16 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'duplicate_hints': '',
         },
     },
-    'tags': [
-        (1, 'one', 'one (1)'),
-        (11, 'one-one', 'one/one-one (11)'),
-        (10, 'plain', 'plain (10)'),
-        (3, 'three', 'three (3)'),
-        (33, 'three-three', 'three/three-three (33)'),
-        (2, 'two', 'two (2)'),
-        (24, 'two-four', 'two/two-four (24)'),
-        (246, 'deep', 'two/two-four/deep (246)'),
-        (22, 'two-two', 'two/two-two (22)'),
+    'form_tags': [
+        (1, 'one', 'one'),
+        (11, 'one-one', 'one/one-one'),
+        (10, 'plain', 'plain'),
+        (3, 'three', 'three'),
+        (33, 'three-three', 'three/three-three'),
+        (2, 'two', 'two'),
+        (24, 'two-four', 'two/two-four'),
+        (246, 'deep', 'two/two-four/deep'),
+        (22, 'two-two', 'two/two-two'),
     ],
     'failed_count': 1,
     'failed_data': [
@@ -945,8 +956,8 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
 }
 
 _FAVORITE_NEW_TAGS: dict[str, set[int]] = {
-    '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {3, 24},
-    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {11, 33},
+    '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {2, 3, 24},
+    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {2, 11, 33},
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {1, 2, 24},
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {1, 24, 33},
 }
@@ -980,7 +991,7 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
             'name': 'name-102.jpg',
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
-            'tags': 'three',
+            'tags': 'three, two',
             'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'has_duplicate': False,
             'album_duplicate': False,
@@ -994,7 +1005,7 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
         },
     },
-    'tags': _FAVORITE_CONTEXT_ALL_ON['tags'],
+    'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
     'failed_count': 1,
     'failed_data': [
         {
@@ -1022,6 +1033,18 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
         (246, 'deep', 'two/two-four/deep', 2),
         (22, 'two-two', 'two/two-two', 1),
     ],
+    'show_duplicates': False,
+    'dup_url': 'dup=0',
+    'show_portraits': True,
+    'portrait_url': 'portrait=1',
+    'show_landscapes': True,
+    'landscape_url': 'landscape=1',
+    'locked_for_tagging': False,
+    'tagging_url': 'lock=0',
+    'count': 0,
+    'stacked_blobs': [],
+    'blobs_data': {},
+    'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
     'tag_id': 0,
     'page_depth': 0,
     'page_depth_up': 0,
@@ -1037,6 +1060,98 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
         (246, 'deep', 'two/two-four/deep', 2),
         (22, 'two-two', 'two/two-two', 1),
     ],
+    'show_duplicates': False,
+    'dup_url': 'dup=0',
+    'show_portraits': True,
+    'portrait_url': 'portrait=1',
+    'show_landscapes': True,
+    'landscape_url': 'landscape=1',
+    'locked_for_tagging': False,
+    'tagging_url': 'lock=0',
+    'count': 5,
+    'stacked_blobs': [
+        [
+            (0, '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+            (0, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8'),
+            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
+            (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
+        ], [
+            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, ''),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
+    'blobs_data': {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
+            'name': 'name-102.jpg',
+            'sz': '53.36kb',
+            'dimensions': '198x200 (WxH)',
+            'tags': 'three, two',
+            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': True,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
+                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+        },
+        '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {
+            'name': 'name-200.gif',
+            'sz': '434.54kb',
+            'dimensions': '100x500 (WxH)',
+            'tags': 'three/three-three, two/two-four/deep',
+            'thumb': '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8.gif',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': '',
+        },
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'name': 'name-101.jpg',
+            'sz': '101b',
+            'dimensions': '160x200 (WxH)',
+            'tags': 'one/one-one, three/three-three, two',
+            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
+            'has_duplicate': True,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
+                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+        },
+        'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
+            'name': 'name-112.jpg',
+            'sz': '87.12kb',
+            'dimensions': '300x222 (WxH)',
+            'tags': 'two/two-four/deep',
+            'thumb': 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180.jpg',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': '',
+        },
+        'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
+            'name': 'name-103.gif',
+            'sz': '434.54kb',
+            'dimensions': '500x100 (WxH)',
+            'tags': 'one, three/three-three, two/two-four',
+            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': '',
+        },
+    },
+    'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
     'tag_id': 2,
     'page_depth': 1,
     'page_depth_up': 0,
@@ -1051,6 +1166,52 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
     'tags': [
         (11, 'one-one', 'The One/one-one', 1),
     ],
+    'show_duplicates': False,
+    'dup_url': 'dup=0',
+    'show_portraits': True,
+    'portrait_url': 'portrait=1',
+    'show_landscapes': True,
+    'landscape_url': 'landscape=1',
+    'locked_for_tagging': False,
+    'tagging_url': 'lock=0',
+    'count': 2,
+    'stacked_blobs': [
+        [
+            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
+            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
+    'blobs_data': {
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'name': 'name-101.jpg',
+            'sz': '101b',
+            'dimensions': '160x200 (WxH)',
+            'tags': 'one/one-one, three/three-three, two',
+            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
+            'has_duplicate': True,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
+                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+        },
+        'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
+            'name': 'name-103.gif',
+            'sz': '434.54kb',
+            'dimensions': '500x100 (WxH)',
+            'tags': 'one, three/three-three, two/two-four',
+            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': '',
+        },
+    },
+    'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
     'tag_id': 1,
     'page_depth': 1,
     'page_depth_up': 0,
@@ -1061,10 +1222,10 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
 }
 
 _TAG_NEW_TAGS: dict[str, set[int]] = {
-    '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {3},
+    '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {2, 3},
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': set(),
     '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {246},
-    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {11},
+    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {2, 11},
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {246},
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {1, 2},
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {1, 24},
@@ -1109,7 +1270,7 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
             'action': '',
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
-            'tags': 'one/one-one (11), three/three-three (33)',
+            'tags': 'one/one-one (11), three/three-three (33), two (2)',
             'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'percept': 'd99ee32e586716c8',
             'average': '091b5f7761323000',
@@ -1161,7 +1322,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'action': 'keep',
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
-            'tags': 'three (3)',
+            'tags': 'three (3), two (2)',
             'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'percept': 'cd4fc618316732e7',
             'average': '303830301a1c387f',

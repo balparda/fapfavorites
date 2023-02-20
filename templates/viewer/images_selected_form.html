@@ -1,0 +1,24 @@
+<form id='selected_form' name='selected_form'
+    action='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'
+    method='post'>
+  {% csrf_token %}
+
+  <input id='selected_blobs' name='selected_blobs' type='hidden' value=''/>
+
+  {% if locked_for_tagging and form_tags %}
+
+    <p>
+      <label for='tag_select'>Tag selected images with:</label>
+      <select name='tag_select' id='tag_select'>
+        <option value=''>-- Please choose a tag --</option>
+        {% for id, _, parents in form_tags %}
+          <option value='{{ id }}'>{{ parents|escape }}</option>
+        {% endfor %}
+      </select>&nbsp;&nbsp;&nbsp;
+      <input type='submit' value='Save Tag' onClick="return tag_form_submit();">
+    </p>
+    <p>&nbsp;</p>
+
+  {% endif %}
+
+</form>

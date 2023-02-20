@@ -1421,13 +1421,11 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
   # get a random wait
   if min_wait <= 0.0 or max_wait <= 0.0 or max_wait < min_wait:
     raise AttributeError('Invalid min/max wait times')
-  tm = random.uniform(min_wait, max_wait)  # nosec
   n_retry: int = 0
   last_error: Optional[str] = None
   while n_retry <= _MAX_RETRY:
     # sleep to keep Imagefap happy
-    logging.debug('Sleep %0.2fs...', tm)
-    time.sleep(tm)
+    time.sleep(random.uniform(min_wait, max_wait))  # nosec
     try:
       # get the URL
       last_error = None
