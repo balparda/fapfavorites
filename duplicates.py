@@ -51,7 +51,7 @@ class _SensitivitiesType(TypedDict):
 
 
 METHOD_SENSITIVITY_DEFAULTS: _SensitivitiesType = {
-    # if you change the defaults here, remember to change them in duplicates.html
+    # if you change the defaults here, remember to change them in duplicates.html & README.md
     'percept': 4,  # max hamming distance considered a duplicate (library default =10)
     'diff': 4,     # max hamming distance considered a duplicate (library default =10)
     'average': 1,  # max hamming distance considered a duplicate (library default =10)
@@ -59,7 +59,7 @@ METHOD_SENSITIVITY_DEFAULTS: _SensitivitiesType = {
     'cnn': 0.95,   # min cosine similarity threshold considered a duplicate (library default =0.9)
 }
 ANIMATED_SENSITIVITY_DEFAULTS: _SensitivitiesType = {
-    # if you change the defaults here, remember to change them in duplicates.html
+    # if you change the defaults here, remember to change them in duplicates.html & README.md
     'percept': 3,
     'diff': 1,
     'average': -1,  # deactivated

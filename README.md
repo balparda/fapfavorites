@@ -304,11 +304,11 @@ from a structure like:
       # criteria for duplicate selection, per method, for animated images
       # all values here *MUST* be stricter than in 'duplicates_sensitivity_regular'!
       # a value of -1 will deactivate the method
-      'percept': int_max_hamming_distance,   # our default =[same_as_regular]
+      'percept': int_max_hamming_distance,   # our default =3
       'diff': int_max_hamming_distance,      # our default =1
-      'average': int_max_hamming_distance,   # our default =-1
-      'wavelet': int_max_hamming_distance1,  # our default =-1
-      'cnn': float_min_cosine_similarity,    # our default =[same_as_regular]
+      'average': int_max_hamming_distance,   # our default =-1 (disabled)
+      'wavelet': int_max_hamming_distance1,  # our default =-1 (disabled)
+      'cnn': float_min_cosine_similarity,    # our default =0.97
     },
   },
 
