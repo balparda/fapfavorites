@@ -570,6 +570,7 @@ def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeTex
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:  # noqa: C901
   """Serve the `duplicates` page."""
+  # TODO: add a delete pending only button (see TODO in duplicates.py)
   db = _DBFactory()
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
