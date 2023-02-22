@@ -451,6 +451,7 @@ def _ServeImages(  # noqa: C901
 def ServeFavorite(
     request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
+  # TODO: filter by tags
   # check for errors in parameters
   db = _DBFactory()
   if user_id not in db.users or user_id not in db.favorites:
@@ -492,6 +493,7 @@ def ServeFavorite(
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
   # TODO: tag exporter
+  # TODO: how can we clear tags from an image?
   # check for errors in parameters
   db = _DBFactory()
   all_tags = [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()]
