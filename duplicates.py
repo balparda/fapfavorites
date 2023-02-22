@@ -232,6 +232,10 @@ class Duplicates:
     Returns:
       (number of deleted groups, number of deleted image entries)
     """
+    # TODO: implement a "delete pending duplicates" that will delete only the "new"; the idea
+    #     is that a user can recompute the duplicates (maybe with different parameters) without
+    #     losing the skip/keep work that was done; this also implies that the groups won't get
+    #     so aggressively reset like they are today
     # first delete the registry
     n_dup = len(self.registry)
     n_img: int = 0
