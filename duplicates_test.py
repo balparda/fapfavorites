@@ -4,6 +4,7 @@
 #
 """duplicated.py unittest."""
 
+import copy
 import os.path
 # import pdb
 import unittest
@@ -65,7 +66,8 @@ class TestDuplicates(unittest.TestCase):
     mock_d.return_value = _NEW_DUPLICATES['diff']
     mock_w.return_value = _NEW_DUPLICATES['wavelet']
     mock_cnn.return_value = _NEW_DUPLICATES['cnn']
-    dup = duplicates.Duplicates(_DUPLICATES_DICT_BEFORE, _DUPLICATES_INDEX_BEFORE)
+    dup = duplicates.Duplicates(
+        copy.deepcopy(_DUPLICATES_DICT_BEFORE), copy.deepcopy(_DUPLICATES_INDEX_BEFORE))
     mock_encoding: duplicates.HashEncodingMapType = {
         'percept': {'foo': 'p_bar'},
         'average': {'foo': 'a_bar'},
@@ -73,42 +75,66 @@ class TestDuplicates(unittest.TestCase):
         'wavelet': {'foo': 'w_bar'},
         'cnn': {'foo': np.array([[1, 2, 3]])},
     }
-    self.assertEqual(dup.FindDuplicates(mock_encoding), 5)
+    # test error cases, with invalid animated configs
+    bogus_animated = copy.deepcopy(duplicates.ANIMATED_SENSITIVITY_DEFAULTS)
+    with self.assertRaisesRegex(duplicates.Error, r'PERCEPT.*must be stricter'):
+      bogus_animated['percept'] = duplicates.METHOD_SENSITIVITY_DEFAULTS['percept'] + 2
+      dup.FindDuplicates(
+          mock_encoding, set(), duplicates.METHOD_SENSITIVITY_DEFAULTS, bogus_animated)
+    bogus_animated = copy.deepcopy(duplicates.ANIMATED_SENSITIVITY_DEFAULTS)
+    with self.assertRaisesRegex(duplicates.Error, r'CNN.*must be stricter'):
+      bogus_animated['cnn'] = duplicates.METHOD_SENSITIVITY_DEFAULTS['cnn'] - 0.02
+      dup.FindDuplicates(
+          mock_encoding, set(), duplicates.METHOD_SENSITIVITY_DEFAULTS, bogus_animated)
+    # test success case
+    self.assertEqual(
+        dup.FindDuplicates(
+            mock_encoding, {'yyy'},
+            duplicates.METHOD_SENSITIVITY_DEFAULTS, duplicates.ANIMATED_SENSITIVITY_DEFAULTS), 4)
     mock_p.assert_called_once_with(
-        encoding_map=mock_encoding['percept'], max_distance_threshold=10, scores=True)
+        encoding_map=mock_encoding['percept'], max_distance_threshold=4, scores=True)
     mock_a.assert_called_once_with(
-        encoding_map=mock_encoding['average'], max_distance_threshold=3, scores=True)
+        encoding_map=mock_encoding['average'], max_distance_threshold=1, scores=True)
     mock_d.assert_called_once_with(
-        encoding_map=mock_encoding['diff'], max_distance_threshold=10, scores=True)
+        encoding_map=mock_encoding['diff'], max_distance_threshold=4, scores=True)
     mock_w.assert_called_once_with(
-        encoding_map=mock_encoding['wavelet'], max_distance_threshold=3, scores=True)
+        encoding_map=mock_encoding['wavelet'], max_distance_threshold=1, scores=True)
     mock_cnn.assert_called_once_with(
-        encoding_map=mock_encoding['cnn'], min_similarity_threshold=0.93, scores=True)
+        encoding_map=mock_encoding['cnn'], min_similarity_threshold=0.95, scores=True)
     self.assertDictEqual(dup.registry, _DUPLICATES_DICT_AFTER)
     self.assertDictEqual(dup.index, _DUPLICATES_INDEX_AFTER)
 
   def test_TrimDeletedBlob(self) -> None:
     """Test."""
     self.maxDiff = None
-    dup = duplicates.Duplicates(_DUPLICATES_DICT_AFTER, _DUPLICATES_INDEX_AFTER)
+    dup = duplicates.Duplicates(
+        copy.deepcopy(_DUPLICATES_DICT_AFTER), copy.deepcopy(_DUPLICATES_INDEX_AFTER))
     dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['verdicts']['fff'] = 'keep'
     dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['verdicts']['ggg'] = 'skip'
     dup.registry[('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh')]['verdicts']['hhh'] = 'false'
     self.assertTrue(dup.TrimDeletedBlob('bbb'))
     self.assertFalse(dup.TrimDeletedBlob('eee'))
     self.assertFalse(dup.TrimDeletedBlob('jjj'))
-    self.assertFalse(dup.TrimDeletedBlob('zzz'))
     self.assertTrue(dup.TrimDeletedBlob('xxx'))
     self.assertFalse(dup.TrimDeletedBlob('mmm'))  # key not in index
     self.assertDictEqual(dup.registry, _DUPLICATES_DICT_TRIMMED)
     self.assertDictEqual(dup.index, _DUPLICATES_INDEX_TRIMMED)
+
+  def test_DeleteAllDuplicates(self) -> None:
+    """Test."""
+    self.maxDiff = None
+    dup = duplicates.Duplicates(
+        copy.deepcopy(_DUPLICATES_DICT_AFTER), copy.deepcopy(_DUPLICATES_INDEX_AFTER))
+    self.assertTupleEqual(dup.DeleteAllDuplicates(), (4, 13))
+    self.assertDictEqual(dup.registry, {})
+    self.assertDictEqual(dup.index, {})
 
 
 _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
     ('aaa', 'bbb'): {
         'sources': {
             'wavelet': {
-                ('aaa', 'bbb'): 0.9,
+                ('aaa', 'bbb'): 4,
             },
         },
         'verdicts': {
@@ -119,8 +145,8 @@ _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
     ('ccc', 'ddd', 'eee'): {
         'sources': {
             'percept': {
-                ('ccc', 'ddd'): 0.7,
-                ('ddd', 'eee'): 0.8,
+                ('ccc', 'ddd'): 2,
+                ('ddd', 'eee'): 3,
             },
         },
         'verdicts': {
@@ -132,7 +158,7 @@ _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
     ('ggg', 'hhh'): {
         'sources': {
             'cnn': {
-                ('ggg', 'hhh'): 0.5,
+                ('ggg', 'hhh'): 0.94,
             },
         },
         'verdicts': {
@@ -143,10 +169,10 @@ _DUPLICATES_DICT_BEFORE: duplicates.DuplicatesType = {
     ('iii', 'jjj'): {
         'sources': {
             'average': {
-                ('iii', 'jjj'): 0.4,
+                ('iii', 'jjj'): 0,
             },
             'diff': {
-                ('iii', 'jjj'): 0.3,
+                ('iii', 'jjj'): 1,
             },
         },
         'verdicts': {
@@ -170,25 +196,25 @@ _DUPLICATES_INDEX_BEFORE: duplicates.DuplicatesKeyIndexType = {
 
 _NEW_DUPLICATES = {
     'percept': {
-        'aaa': [('bbb', 0.1)],  # no new info
-        'bbb': [('aaa', 0.1)],
+        'aaa': [('bbb', 4)],  # no new info
+        'bbb': [('aaa', 4)],
     },
     'average': {
-        'kkk': [('iii', 0.5), ('jjj', 0.6)],  # new hash for existing group
-        'iii': [('jjj', 0.4), ('kkk', 0.5)],
-        'jjj': [('iii', 0.4), ('kkk', 0.6)],
+        'kkk': [('iii', 2), ('jjj', 1)],  # new hash for existing group
+        'iii': [('jjj', 0), ('kkk', 2)],
+        'jjj': [('iii', 0), ('kkk', 1)],
     },
     'diff': {
-        'xxx': [('yyy', 0.5), ('zzz', 0.6)],  # all new group
-        'yyy': [('zzz', 0.4), ('xxx', 0.5)],
-        'zzz': [('yyy', 0.4), ('xxx', 0.6)],
+        'xxx': [('yyy', 2), ('zzz', 1)],  # all new group
+        'yyy': [('zzz', 2), ('xxx', 2)],  # 'yyy' will be marked as animated and not enough score
+        'zzz': [('yyy', 2), ('xxx', 1)],
     },
     'wavelet': {
     },
     'cnn': {
-        'ddd': [('eee', 0.1), ('fff', 0.2), ('ggg', 0.3), ('hhh', 0.4)],  # new hash & needs merging
-        'eee': [('ddd', 0.1), ('fff', 0.5), ('ggg', 0.6), ('hhh', 0.7)],
-        'ggg': [('eee', 0.6), ('fff', 0.8), ('ddd', 0.3), ('hhh', 0.4)],
+        'ddd': [('eee', 0.91), ('fff', 0.92), ('ggg', 0.93), ('hhh', 0.94)],  # new hash -> merge
+        'eee': [('ddd', 0.91), ('fff', 0.95), ('ggg', 0.96), ('hhh', 0.97)],
+        'ggg': [('eee', 0.96), ('fff', 0.98), ('ddd', 0.93), ('hhh', 0.94)],
     },
 }
 
@@ -196,10 +222,10 @@ _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
     ('aaa', 'bbb'): {
         'sources': {
             'percept': {
-                ('aaa', 'bbb'): 0.1,
+                ('aaa', 'bbb'): 4,
             },
             'wavelet': {
-                ('aaa', 'bbb'): 0.9,
+                ('aaa', 'bbb'): 4,
             },
         },
         'verdicts': {
@@ -210,19 +236,19 @@ _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
     ('ccc', 'ddd', 'eee', 'fff', 'ggg', 'hhh'): {
         'sources': {
             'cnn': {
-                ('ddd', 'eee'): 0.1,
-                ('ddd', 'fff'): 0.2,
-                ('ddd', 'ggg'): 0.3,
-                ('ddd', 'hhh'): 0.4,
-                ('eee', 'fff'): 0.5,
-                ('eee', 'ggg'): 0.6,
-                ('eee', 'hhh'): 0.7,
-                ('fff', 'ggg'): 0.8,
-                ('ggg', 'hhh'): 0.4,
+                ('ddd', 'eee'): 0.91,
+                ('ddd', 'fff'): 0.92,
+                ('ddd', 'ggg'): 0.93,
+                ('ddd', 'hhh'): 0.94,
+                ('eee', 'fff'): 0.95,
+                ('eee', 'ggg'): 0.96,
+                ('eee', 'hhh'): 0.97,
+                ('fff', 'ggg'): 0.98,
+                ('ggg', 'hhh'): 0.94,
             },
             'percept': {
-                ('ccc', 'ddd'): 0.7,
-                ('ddd', 'eee'): 0.8,
+                ('ccc', 'ddd'): 2,
+                ('ddd', 'eee'): 3,
             },
         },
         'verdicts': {
@@ -237,12 +263,12 @@ _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
     ('iii', 'jjj', 'kkk'): {
         'sources': {
             'average': {
-                ('iii', 'jjj'): 0.4,
-                ('iii', 'kkk'): 0.5,
-                ('jjj', 'kkk'): 0.6,
+                ('iii', 'jjj'): 0,
+                ('iii', 'kkk'): 2,
+                ('jjj', 'kkk'): 1,
             },
             'diff': {
-                ('iii', 'jjj'): 0.3,
+                ('iii', 'jjj'): 1,
             },
         },
         'verdicts': {
@@ -251,17 +277,14 @@ _DUPLICATES_DICT_AFTER: duplicates.DuplicatesType = {
             'kkk': 'new',
         },
     },
-    ('xxx', 'yyy', 'zzz'): {
+    ('xxx', 'zzz'): {
         'sources': {
             'diff': {
-                ('xxx', 'yyy'): 0.5,
-                ('xxx', 'zzz'): 0.6,
-                ('yyy', 'zzz'): 0.4,
+                ('xxx', 'zzz'): 1,
             },
         },
         'verdicts': {
             'xxx': 'new',
-            'yyy': 'new',
             'zzz': 'new',
         },
     },
@@ -279,23 +302,22 @@ _DUPLICATES_INDEX_AFTER: duplicates.DuplicatesKeyIndexType = {
     'iii': ('iii', 'jjj', 'kkk'),
     'jjj': ('iii', 'jjj', 'kkk'),
     'kkk': ('iii', 'jjj', 'kkk'),
-    'xxx': ('xxx', 'yyy', 'zzz'),
-    'yyy': ('xxx', 'yyy', 'zzz'),
-    'zzz': ('xxx', 'yyy', 'zzz'),
+    'xxx': ('xxx', 'zzz'),
+    'zzz': ('xxx', 'zzz'),
 }
 
 _DUPLICATES_DICT_TRIMMED: duplicates.DuplicatesType = {
     ('ccc', 'ddd', 'fff', 'ggg', 'hhh'): {
         'sources': {
             'cnn': {
-                ('ddd', 'fff'): 0.2,
-                ('ddd', 'ggg'): 0.3,
-                ('ddd', 'hhh'): 0.4,
-                ('fff', 'ggg'): 0.8,
-                ('ggg', 'hhh'): 0.4,
+                ('ddd', 'fff'): 0.92,
+                ('ddd', 'ggg'): 0.93,
+                ('ddd', 'hhh'): 0.94,
+                ('fff', 'ggg'): 0.98,
+                ('ggg', 'hhh'): 0.94,
             },
             'percept': {
-                ('ccc', 'ddd'): 0.7,
+                ('ccc', 'ddd'): 2,
             },
         },
         'verdicts': {
@@ -309,7 +331,7 @@ _DUPLICATES_DICT_TRIMMED: duplicates.DuplicatesType = {
     ('iii', 'kkk'): {
         'sources': {
             'average': {
-                ('iii', 'kkk'): 0.5,
+                ('iii', 'kkk'): 2,
             },
         },
         'verdicts': {

@@ -290,14 +290,36 @@ from a structure like:
 ```
 {
 
+  'configs' {
+    'duplicates_sensitivity_regular': {
+      # criteria for duplicate selection, per method, for regular images;
+      # a value of -1 will deactivate the method
+      'percept': int_max_hamming_distance,   # our default =4 (library default =10)
+      'diff': int_max_hamming_distance,      # our default =4 (library default =10)
+      'average': int_max_hamming_distance,   # our default =1 (library default =10)
+      'wavelet': int_max_hamming_distance1,  # our default =1 (library default =10)
+      'cnn': float_min_cosine_similarity,    # our default =0.95 (library default =0.90)
+    },
+    'duplicates_sensitivity_animated': {
+      # criteria for duplicate selection, per method, for animated images
+      # all values here *MUST* be stricter than in 'duplicates_sensitivity_regular'!
+      # a value of -1 will deactivate the method
+      'percept': int_max_hamming_distance,   # our default =[same_as_regular]
+      'diff': int_max_hamming_distance,      # our default =1
+      'average': int_max_hamming_distance,   # our default =-1
+      'wavelet': int_max_hamming_distance1,  # our default =-1
+      'cnn': float_min_cosine_similarity,    # our default =[same_as_regular]
+    },
+  },
+
   'users': {
     # stores the seen users
     user_id: {
       'name': user_name,
       'date_albums': int_time_last_success_list_all_albums,
       'date_finished': int_time_last_success_finish,
-    }
-  }
+    },
+  },
 
   'favorites': {
     # stores the downloaded picture folders metadata
@@ -316,17 +338,17 @@ from a structure like:
           (failed_image_id-2, failure_int_timestamp-2, Optional[file_name_sanitized-2], Optional[full_res_url-2]),
           ...
         },
-      }
-    }
-  }
+      },
+    },
+  },
 
   'tags': {
     # stores the user-defined tags for later image re-shuffle
     tag_id: {
       'name': tag_name,
       'tags': {},  # None, or a nested dict of sub-tags, just like the top one
-    }
-  }
+    },
+  },
 
   'blobs': {
     # stored blob metadata: where has each blob been seen and what tags have been attached
@@ -348,13 +370,13 @@ from a structure like:
       'width': int,      # image width
       'height': int,     # image height
       'animated': bool,  # True if image is animated (gif), False otherwise
-    }
-  }
+    },
+  },
 
   'image_ids_index': {
     # this is a reverse index for `blobs`, so we can easily search by imagefap_image_id
     imagefap_image_id: file_sha_256_hex_digest,
-  }
+  },
 
   'duplicates_registry': {
     tuple(sorted({sha1, sha2, ...})): {  # the key is the set of duplicates
@@ -375,15 +397,15 @@ from a structure like:
             # 'keep': this is "ignore", meaning image will not be affected, will be kept
             # 'skip': this image will be skipped, meaning disappear/delete
         ...
-      }
-    }
-  }
+      },
+    },
+  },
 
   'duplicates_key_index': {
     # this is key index for `duplicates`, so we can easily find a `sha` in duplicates, and also
     # to guarantee that every `sha` will grouped in a *single* duplicate set
     file_sha_256_hex_digest: tuple(sorted({sha1, sha2, ...})),  # `blob` key -> `duplicates` key
-  }
+  },
 
 }
 ```

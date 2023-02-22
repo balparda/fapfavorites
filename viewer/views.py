@@ -305,6 +305,7 @@ def _ServeImages(  # noqa: C901
   Returns:
     context dict
   """
+  # TODO: better filtering with tri-state for options: only/allow/filter, i.e., yes/don't-care/no
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
   # do we have to save tags?
@@ -490,6 +491,7 @@ def ServeFavorite(
 
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
+  # TODO: tag exporter
   # check for errors in parameters
   db = _DBFactory()
   all_tags = [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()]
@@ -566,11 +568,86 @@ def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeTex
         '(%s)' % ', '.join('%s&hellip;' % sha[:16] for sha in dup_key))  # cspell:disable-line
 
 
-def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
+def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:  # noqa: C901
   """Serve the `duplicates` page."""
   db = _DBFactory()
+  warning_message: Optional[str] = None
+  error_message: Optional[str] = None
+  # get POST data (not the parameters POST data: these ones we do below, if needed)
+  re_run = request.POST.get('re_run', '').strip()
+  delete_all = request.POST.get('delete_all', '').strip()
+  parameters_form = bool(request.POST.get('parameters_form_used', '').strip())
+  # do the POST operation
+  try:
+    # should we re-run the duplicate find operation?
+    if re_run:
+      warning_message = (
+          'Duplicate operation run, and found %d new duplicate images' % db.FindDuplicates())
+    # should we completely delete all duplicates?
+    elif delete_all:
+      n_dup, n_img = db.DeleteAllDuplicates()
+      warning_message = (
+          'Deleted %d duplicate groups containing %d duplicate images' % (n_dup, n_img))
+    # should we update the configs?
+    elif parameters_form:
+      # get everybody
+      regular_config_post: duplicates._SensitivitiesType = {
+          'percept': (int(request.POST.get('regular_percept', '').strip())
+                      if request.POST.get('enabled_regular_percept', '').strip() else -1),
+          'diff': (int(request.POST.get('regular_diff', '').strip())
+                   if request.POST.get('enabled_regular_diff', '').strip() else -1),
+          'average': (int(request.POST.get('regular_average', '').strip())
+                      if request.POST.get('enabled_regular_average', '').strip() else -1),
+          'wavelet': (int(request.POST.get('regular_wavelet', '').strip())
+                      if request.POST.get('enabled_regular_wavelet', '').strip() else -1),
+          'cnn': (float(request.POST.get('regular_cnn', '').strip())
+                  if request.POST.get('enabled_regular_cnn', '').strip() else -1.0),
+      }
+      animated_config_post: duplicates._SensitivitiesType = {
+          'percept': (int(request.POST.get('animated_percept', '').strip())
+                      if request.POST.get('enabled_animated_percept', '').strip() else -1),
+          'diff': (int(request.POST.get('animated_diff', '').strip())
+                   if request.POST.get('enabled_animated_diff', '').strip() else -1),
+          'average': (int(request.POST.get('animated_average', '').strip())
+                      if request.POST.get('enabled_animated_average', '').strip() else -1),
+          'wavelet': (int(request.POST.get('animated_wavelet', '').strip())
+                      if request.POST.get('enabled_animated_wavelet', '').strip() else -1),
+          'cnn': (float(request.POST.get('animated_cnn', '').strip())
+                  if request.POST.get('enabled_animated_cnn', '').strip() else -1.0),
+      }
+      # check basic validity
+      for method in duplicates.DUPLICATE_HASHES:
+        if method == 'cnn':
+          if regular_config_post['cnn'] != -1.0:
+            if regular_config_post['cnn'] < 0.9 or regular_config_post['cnn'] >= 1.0:
+              raise fapdata.Error('\'CNN\' method regular value out of bounds: %d' % (
+                  regular_config_post['cnn']))
+          if animated_config_post['cnn'] != -1.0:
+            if (animated_config_post['cnn'] < 0.9 or animated_config_post['cnn'] >= 1.0 or
+                animated_config_post['cnn'] < regular_config_post['cnn']):
+              raise fapdata.Error('\'CNN\' method regular value out of bounds: %d' % (
+                  animated_config_post['cnn']))
+        else:
+          if regular_config_post[method] != -1:
+            if regular_config_post[method] < 0 or regular_config_post[method] > 15:
+              raise fapdata.Error('%r method regular value out of bounds: %d' % (
+                  method.upper(), regular_config_post[method]))
+          if animated_config_post[method] != -1:
+            if (animated_config_post[method] < 0 or animated_config_post[method] > 15 or
+                animated_config_post[method] > regular_config_post[method]):
+              raise fapdata.Error('%r method regular value out of bounds: %d' % (
+                  method.upper(), animated_config_post[method]))
+      # everything looks good, so just assign
+      db.configs['duplicates_sensitivity_regular'] = regular_config_post
+      db.configs['duplicates_sensitivity_animated'] = animated_config_post
+      warning_message = ('Updated duplicate search parameters')
+  except (fapdata.Error, ValueError) as e:
+    error_message = str(e)
+  # save database, if needed: having a 'warning_message' means a successful operation somewhere
+  if warning_message is not None:
+    db.Save()
+  # build stats
   sorted_keys = sorted(db.duplicates.registry.keys())
-  # send to page
   img_count = sum(len(dup_key) for dup_key in sorted_keys)
   new_count = sum(
       1 for dup_obj in db.duplicates.registry.values()
@@ -584,6 +661,7 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
   skip_count = sum(
       1 for dup_obj in db.duplicates.registry.values()
       for st in dup_obj['verdicts'].values() if st == 'skip')
+  # send to page
   context: dict[str, Any] = {
       'duplicates': {
           dup_key: {
@@ -609,23 +687,17 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:
           keep_count, (100.0 * keep_count) / img_count) if img_count else '-',
       'skip_count': '%d (%0.1f%%)' % (
           skip_count, (100.0 * skip_count) / img_count) if img_count else '-',
+      'configs': {
+          'duplicates_sensitivity_regular': db.configs['duplicates_sensitivity_regular'],
+          'duplicates_sensitivity_animated': db.configs['duplicates_sensitivity_animated'],
+      },
+      'warning_message': warning_message,
+      'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/duplicates.html', context)
 
 
-def _NormalizeHashScore(method: duplicates.DuplicatesHashType, value: int) -> float:
-  """Return score as a 0.0 to 10.0 range."""
-  max_value: int = duplicates.METHOD_SENSITIVITY[method]  # type: ignore
-  return (max_value - value) * (10.0 / max_value)
-
-
-def _NormalizeCosineScore(method: duplicates.DuplicatesHashType, value: float) -> float:
-  """Return score as a 0.0 to 10.0 range."""
-  min_value: float = duplicates.METHOD_SENSITIVITY[method]
-  return (value - min_value) * (10.0 / (1.0 - min_value))
-
-
-def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
+def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:  # noqa: C901
   """Serve the `duplicate` page, with a set of duplicates, by giving one of the SHA256 `digest`."""
   # check for errors in parameters
   db = _DBFactory()
@@ -666,6 +738,17 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
       # everything went smoothly (no break action above), so save the data
       db.Save()
   # send to page
+
+  def _NormalizeHashScore(method: duplicates.DuplicatesHashType, value: int) -> float:
+    """Return score as a 0.0 to 10.0 range."""
+    max_value: int = db.configs['duplicates_sensitivity_regular'][method]  # type: ignore
+    return (max_value - value) * (10.0 / max_value)
+
+  def _NormalizeCosineScore(method: duplicates.DuplicatesHashType, value: float) -> float:
+    """Return score as a 0.0 to 10.0 range."""
+    min_value: float = db.configs['duplicates_sensitivity_regular'][method]
+    return (value - min_value) * (10.0 / (1.0 - min_value))
+
   context: dict[str, Any] = {
       'digest': digest,
       'dup_key': _AbbreviatedKey(dup_key),

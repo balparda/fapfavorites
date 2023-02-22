@@ -40,6 +40,34 @@ DuplicatesHashType = Literal['percept', 'average', 'diff', 'wavelet', 'cnn']
 DUPLICATE_HASHES: tuple[DuplicatesHashType, ...] = ('percept', 'average', 'diff', 'wavelet', 'cnn')
 
 
+class _SensitivitiesType(TypedDict):
+  """Image dup hasher objects type."""
+
+  percept: int
+  average: int
+  diff: int
+  wavelet: int
+  cnn: float
+
+
+METHOD_SENSITIVITY_DEFAULTS: _SensitivitiesType = {
+    # if you change the defaults here, remember to change them in duplicates.html
+    'percept': 4,  # max hamming distance considered a duplicate (library default =10)
+    'diff': 4,     # max hamming distance considered a duplicate (library default =10)
+    'average': 1,  # max hamming distance considered a duplicate (library default =10)
+    'wavelet': 1,  # max hamming distance considered a duplicate (library default =10)
+    'cnn': 0.95,   # min cosine similarity threshold considered a duplicate (library default =0.9)
+}
+ANIMATED_SENSITIVITY_DEFAULTS: _SensitivitiesType = {
+    # if you change the defaults here, remember to change them in duplicates.html
+    'percept': 3,
+    'diff': 1,
+    'average': -1,  # deactivated
+    'wavelet': -1,  # deactivated
+    'cnn': 0.97,
+}
+
+
 class DuplicateObjType(TypedDict):
   """Duplicate object type."""
 
@@ -69,16 +97,6 @@ class HashEncodingMapType(TypedDict):
 
 DuplicatesType = dict[DuplicatesKeyType, DuplicateObjType]
 DuplicatesKeyIndexType = dict[str, DuplicatesKeyType]
-
-
-METHOD_SENSITIVITY: dict[DuplicatesHashType, Union[int, float]] = {
-    # TODO: another round of tuning these parameters
-    'percept': 10,  # max hamming distance considered a duplicate (library default =10)
-    'diff': 10,     # max hamming distance considered a duplicate (library default =10)
-    'average': 3,   # max hamming distance considered a duplicate (library default =10)
-    'wavelet': 3,   # max hamming distance considered a duplicate (library default =10)
-    'cnn': 0.93,    # min cosine similarity threshold considered a duplicate (library default =0.9)
-}
 
 
 class Error(base.Error):
@@ -208,50 +226,107 @@ class Duplicates:
       self.index[sha] = new_key
     return added_count
 
-  def FindDuplicates(self, hash_encodings_map: HashEncodingMapType) -> int:
+  def DeleteAllDuplicates(self) -> tuple[int, int]:
+    """Delete all duplicate groups, including all evaluations, verdicts, and indexes.
+
+    Returns:
+      (number of deleted groups, number of deleted image entries)
+    """
+    # first delete the registry
+    n_dup = len(self.registry)
+    n_img: int = 0
+    for dup_keys in list(self.registry.keys()):
+      n_img += len(dup_keys)
+      del self.registry[dup_keys]
+    # then delete the index
+    for sha in list(self.index.keys()):
+      del self.index[sha]
+    return (n_dup, n_img)
+
+  def FindDuplicates(  # noqa: C901
+      self,
+      hash_encodings_map: HashEncodingMapType,
+      animated_keys: set[str],
+      regular_sensitivities: _SensitivitiesType,
+      animated_sensitivities: _SensitivitiesType) -> int:
     """Find (perceptual) duplicates and add them to the DB.
 
     Args:
       hash_encodings_map: dict like {method: {sha: encoding}}, see:
           https://idealo.github.io/imagededup/user_guide/finding_duplicates/
+      regular_sensitivities: dict (like _SensitivitiesType) with values to use for the sensitivities
+          targeted to regular images
+      animated_sensitivities: dict (like _SensitivitiesType) with values to use for the
+          sensitivities targeted to animated images
 
     Returns:
       int count of new individual duplicate images found
     """
+    # double check that animated criteria is strictly stricter than regular,
+    # or the algorithm used below won't work correctly
+    for method in DUPLICATE_HASHES:
+      if method == 'cnn':
+        if (animated_sensitivities['cnn'] < regular_sensitivities['cnn'] and
+            animated_sensitivities['cnn'] != -1.0):
+          raise Error(
+              'Animated sensitivity (method \'CNN\') must be stricter than regular one (%f < %f)' %
+              (animated_sensitivities['cnn'], regular_sensitivities['cnn']))
+      else:
+        if animated_sensitivities[method] > regular_sensitivities[method]:
+          raise Error(
+              'Animated sensitivity (method %r) must be stricter than regular one (%d > %d)' %
+              (method.upper(), animated_sensitivities[method], regular_sensitivities[method]))
+    # do the scoring by method
     logging.info('Searching for perceptual duplicates in database...')
     new_duplicates: int = 0
     for method in DUPLICATE_HASHES:
       # for each method, we get all the duplicates and scores
       if method == 'cnn':
+        if regular_sensitivities['cnn'] < 0.0:
+          logging.warning('Duplicate method \'CNN\' disabled: SKIP')
+          continue
         logging.info(
-            'Computing diffs using \'CNN\', with threshold >= %0.2f', METHOD_SENSITIVITY['cnn'])
+            'Computing diffs using \'CNN\', with threshold >=%0.2f and animated>=%0.2f',
+            regular_sensitivities['cnn'], animated_sensitivities['cnn'])
         method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
             self.perceptual_hashers[method].find_duplicates(
                 encoding_map=hash_encodings_map[method],  # type: ignore
-                min_similarity_threshold=METHOD_SENSITIVITY['cnn'],
+                min_similarity_threshold=regular_sensitivities['cnn'],
                 scores=True))
       else:
+        if regular_sensitivities[method] < 0:
+          logging.warning('Duplicate method %r disabled: SKIP', method.upper())
+          continue
         logging.info(
-            'Computing diffs using %r, with threshold <= %d',
-            method.upper(), METHOD_SENSITIVITY[method])
+            'Computing diffs using %r, with regular threshold <=%d and animated <=%d',
+            method.upper(), regular_sensitivities[method], animated_sensitivities[method])
         method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
             self.perceptual_hashers[method].find_duplicates(
                 encoding_map=hash_encodings_map[method],
-                max_distance_threshold=METHOD_SENSITIVITY[method],  # type: ignore
+                max_distance_threshold=regular_sensitivities[method],
                 scores=True))
       # we filter them into pairs of duplicates and a score, eliminating symmetric relationships
       scored_duplicates: dict[DuplicatesKeyType, Union[int, float]] = {}
       for sha1, dup in method_dup.items():
         if dup:
           for sha2, score in dup:
+            # if these are animated images we use alternate scoring that *MUST* be stricter than
+            # the regular scores
+            if sha1 in animated_keys or sha2 in animated_keys:
+              if method == 'cnn':
+                if score < animated_sensitivities['cnn']:
+                  continue
+              else:
+                if score > animated_sensitivities[method]:
+                  continue
+            # still here? this is a valid pair, so store it
             dup_key: DuplicatesKeyType = tuple(sorted({sha1, sha2}))
             if dup_key in scored_duplicates and scored_duplicates[dup_key] != score:
               raise Error('Duplicate collision, method %r, key %r, new score %d versus %d' % (
                   method, dup_key, score, scored_duplicates[dup_key]))
             scored_duplicates[dup_key] = score
-      # now we add each pair to the database
+      # now we add each de-duplicated pair to the database
       for (sha1, sha2), score in scored_duplicates.items():
-        # TODO: some groups start growing more than is comfortable; how can we tame that behavior?
         new_duplicates += self.AddDuplicatePair(sha1, sha2, score, method)
     # finished, log and return all new duplicates found
     logging.info(

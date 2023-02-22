@@ -48,6 +48,7 @@ class TestFapDatabase(unittest.TestCase):
   @mock.patch('fapdata.os.mkdir')
   def test_Constructor(self, mock_mkdir: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
+    self.maxDiff = None
     mock_is_dir.return_value = False
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
     db = fapdata.FapDatabase('~/Downloads/some-dir/')
@@ -57,7 +58,7 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(db._db_dir, os.path.expanduser('~/Downloads/some-dir/'))
     self.assertEqual(db._db_path, os.path.expanduser('~/Downloads/some-dir/imagefap.database'))
     self.assertEqual(db._blobs_dir, os.path.expanduser('~/Downloads/some-dir/blobs/'))
-    self.assertDictEqual(db._db, {k: {} for k in fapdata._DB_MAIN_KEYS})
+    self.assertTrue(all(k in db._db for k in fapdata._DB_MAIN_KEYS))
     self.assertDictEqual(db.duplicates.registry, {})
     db.users[1] = {'name': 'Luke'}   # type: ignore
     db.favorites[1] = {2: {}}        # type: ignore
@@ -68,6 +69,10 @@ class TestFapDatabase(unittest.TestCase):
     db._duplicates_key_index['a'] = ('a', 'b')
     db._duplicates_key_index['b'] = ('a', 'b')
     self.assertDictEqual(db._db, {
+        'configs': {
+            'duplicates_sensitivity_regular': fapdata.duplicates.METHOD_SENSITIVITY_DEFAULTS,
+            'duplicates_sensitivity_animated': fapdata.duplicates.ANIMATED_SENSITIVITY_DEFAULTS,
+        },
         'users': {1: {'name': 'Luke'}},
         'favorites': {1: {2: {}}},
         'tags': {3: {'name': 'three', 'tags': {}}},
@@ -157,23 +162,23 @@ class TestFapDatabase(unittest.TestCase):
     db._db['blobs'] = {  # type: ignore
         'a': {'tags': {1, 2, 3, 33}, 'sz': 10}, 'b': {'tags': {246, 33}, 'sz': 55}}
     # test a bunch of invalid operations
-    with self.assertRaisesRegex(fapdata.Error, 'not found'):
+    with self.assertRaisesRegex(fapdata.Error, r'not found'):
       db.AddTag(4, 'foo')  # invalid parent
-    with self.assertRaisesRegex(fapdata.Error, 'Don\'t use'):
+    with self.assertRaisesRegex(fapdata.Error, r'Don\'t use'):
       db.AddTag(1, 'fo/o')  # name with invalid chars
-    with self.assertRaisesRegex(fapdata.Error, 'clashes with'):
+    with self.assertRaisesRegex(fapdata.Error, r'clashes with'):
       db.AddTag(1, 'Two')  # name clash
-    with self.assertRaisesRegex(fapdata.Error, 'not found'):
+    with self.assertRaisesRegex(fapdata.Error, r'not found'):
       db.RenameTag(4, 'foo')  # invalid tag
-    with self.assertRaisesRegex(fapdata.Error, 'Don\'t use'):
+    with self.assertRaisesRegex(fapdata.Error, r'Don\'t use'):
       db.RenameTag(1, 'fo/o')  # name with invalid chars
-    with self.assertRaisesRegex(fapdata.Error, 'clashes with'):
+    with self.assertRaisesRegex(fapdata.Error, r'clashes with'):
       db.RenameTag(1, 'Two')  # name clash
-    with self.assertRaisesRegex(fapdata.Error, 'not found'):
+    with self.assertRaisesRegex(fapdata.Error, r'not found'):
       db.DeleteTag(4)  # invalid tag
-    with self.assertRaisesRegex(fapdata.Error, 'is not empty'):
+    with self.assertRaisesRegex(fapdata.Error, r'is not empty'):
       db.DeleteTag(3)  # tag not empty (has children)
-    with self.assertRaisesRegex(fapdata.Error, 'cannot be empty'):
+    with self.assertRaisesRegex(fapdata.Error, r'cannot be empty'):
       db.DeleteTag(0)  # tries to delete root
     # adds a few tags
     self.assertEqual(db.AddTag(0, 'four'), 4)
@@ -502,7 +507,7 @@ class TestFapDatabase(unittest.TestCase):
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 10, 2, False), 111226)
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 11, 2, False), 0)
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 13, 2, False), 652075)
-      db.FindDuplicates()
+      self.assertEqual(db.FindDuplicates(), 3)
       self.assertListEqual(
           read_html.call_args_list,
           [mock.call('https://www.imagefap.com/photo/100/'),
@@ -556,7 +561,7 @@ class TestFapDatabase(unittest.TestCase):
       self.assertListEqual(db.PrintUsersAndFavorites(actually_print=False), _PRINTED_USERS_FULL)
       db.favorites[2] = {20: {'name': 'foo-bar'}}  # type: ignore
       self.assertListEqual(db.PrintBlobs(actually_print=False), _PRINTED_BLOBS_FULL)
-      # DeleteUserAndAlbums & DeleteAlbum ##########################################################
+      # DeleteUserAndAlbums & DeleteAlbum & DeleteAllDuplicates ####################################
       db.favorites[2] = {20: {'images': [107, 801]}}  # type: ignore
       db.image_ids_index[103] = 'sha-103'
       db.image_ids_index[104] = 'sha-104'
@@ -581,6 +586,7 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.image_ids_index, _INDEX_NO_LUKE)
       self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
       self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
+      self.assertTupleEqual(db.DeleteAllDuplicates(), (1, 2))
 
 
 class _MockRegex:
@@ -962,7 +968,7 @@ TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)
 """.splitlines()[1:]
 
 _PRINTED_STATS_EMPTY = """
-Database is located in '%s/imagefap.database', and is 320b (32000.000%% of total images size)
+Database is located in '%s/imagefap.database', and is 449b (44900.000%% of total images size)
 0b total (unique) images size (- min, - max, - mean with - standard deviation, 0 are animated)
 
 2 users

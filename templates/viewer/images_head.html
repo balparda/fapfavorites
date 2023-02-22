@@ -72,7 +72,7 @@
       }
     }
     return sel;
-  }
+  };
 
   function tag_form_submit() {
     sel = get_selected();
@@ -87,7 +87,7 @@
       alert('No tag selected!');
     }
     return false;  // don't submit the form
-  }
+  };
 
   function delete_tag(id, name) {
     if (confirm('Permanently delete tag "' + name + '" and wipe all its associations in the database?') == true) {

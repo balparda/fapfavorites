@@ -2,7 +2,7 @@
 <html lang='en-US'>
   <head>
     <meta charset='utf-8'/>
-    <title>Imagefap-Favorites: Duplicates</title>
+    <title>Imagefap-Favorites: Visual Duplicates</title>
     <style>
 
       th, td {padding: 5px;}
@@ -24,10 +24,78 @@
       b.red {color: red;}
 
     </style>
+    <script type='text/javascript' language='javascript'>
+
+      function delete_all_duplicates() {
+        if (confirm('Delete ALL duplicates and verdicts in the database?') == true) {
+          return true;
+        }
+        return false;
+      };
+
+      function input_sync(checkbox_object, target_id, disabled_value) {
+        var target_object = document.getElementById(target_id);
+        if (checkbox_object.checked) {
+          target_object.disabled = false;
+        } else {
+          target_object.disabled = true;
+          target_object.value = disabled_value;
+        }
+      };
+
+      function parameters_form_submit() {
+        if (!document.forms['parameters_form'].checkValidity()) {
+          alert('Invalid parameters!');
+          return false;  // don't submit the form
+        }
+        // the integer hashes
+        var methods = ['percept', 'diff', 'average', 'wavelet'];
+        for (i in methods) {
+          var method = methods[i];
+          var enable_regular = document.forms['parameters_form']['enabled_regular_' + method].checked;
+          var regular_value = enable_regular ? parseInt(document.forms['parameters_form']['regular_' + method].value) : 0;
+          var enable_animated = document.forms['parameters_form']['enabled_animated_' + method].checked;
+          var animated_value = enable_animated ? parseInt(document.forms['parameters_form']['animated_' + method].value) : 0;
+          if (enable_regular) {
+            if (regular_value < 0 || regular_value > 15) {
+              alert(method + ' method "regular" value out of bounds: ' + regular_value);
+              return false;  // don't submit the form
+            }
+          }
+          if (enable_animated) {
+            if (animated_value < 0 || animated_value > 15 || animated_value > regular_value) {
+              alert(method + ' method "animated" value out of bounds or greater than "regular": ' + animated_value);
+              return false;  // don't submit the form
+            }
+          }
+        }
+        // the CNN
+        var enable_regular = document.forms['parameters_form']['enabled_regular_cnn'].checked;
+        var regular_value = enable_regular ? parseFloat(document.forms['parameters_form']['regular_cnn'].value) : 0;
+        var enable_animated = document.forms['parameters_form']['enabled_animated_cnn'].checked;
+        var animated_value = enable_animated ? parseFloat(document.forms['parameters_form']['animated_cnn'].value) : 0;
+        if (enable_regular) {
+          if (regular_value < 0.9 || regular_value >= 1.0) {
+            alert('cnn method "regular" value out of bounds: ' + regular_value);
+            return false;  // don't submit the form
+          }
+        }
+        if (enable_animated) {
+          if (animated_value < 0.9 || animated_value >= 1.0 || animated_value < regular_value) {
+            alert('cnn method "animated" value out of bounds or smaller than "regular": ' + animated_value);
+            return false;  // don't submit the form
+          }
+        }
+        // we can submit the form
+        document.forms['parameters_form'].submit();
+        return true;
+      };
+
+    </script>
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Perceptual Duplicates</h1>
+    <h1>Visual Duplicates</h1>
 
     <p><b>{{ dup_count }}</b> total duplicate groups, <b>{{ dup_action }}</b> need user action.</p>
 
@@ -79,6 +147,185 @@
         </tr>
       {% endif %}
     </table>
+
+    <p>&nbsp;</p>
+
+    <form id='parameters_form' action='{% url "duplicates" %}' method='post'>
+      {% csrf_token %}
+      <input id='parameters_form_used' name='parameters_form_used' type='hidden' value='1'/>
+      <table border='0'>
+        <tr>
+          <th>Method</th>
+          <th><i>MIN,</i><br/>Focused,<br/>Fewer&nbsp;False&nbsp;Positives</th>
+          <th>&nbsp;</th>
+          <th>Enabled?</th>
+          <th>Animated<br/>GIFs</th>
+          <th>&nbsp;</th>
+          <th>Enabled?</th>
+          <th>Regular<br/>Images</th>
+          <th>&nbsp;</th>
+          <th><i>MAX,</i><br/>Inclusive<br/>More&nbsp;False&nbsp;Positives</th>
+        </tr>
+        <tr>
+          <td align='center' valign='top'><i>PERCEPTUAL</i></td>
+          <td align='right' valign='top'><b>0</b>&nbsp;&nbsp;</td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_animated_percept' id='enabled_animated_percept' onclick='input_sync(this, "animated_percept", "0")' {% if configs.duplicates_sensitivity_animated.percept != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='animated_percept' id='animated_percept' value='{% if configs.duplicates_sensitivity_animated.percept != -1 %}{{ configs.duplicates_sensitivity_animated.percept }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_animated.percept == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;3)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_regular_percept' id='enabled_regular_percept' onclick='input_sync(this, "regular_percept", "0")' {% if configs.duplicates_sensitivity_regular.percept != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='regular_percept' id='regular_percept' value='{% if configs.duplicates_sensitivity_regular.percept != -1 %}{{ configs.duplicates_sensitivity_regular.percept }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_regular.percept == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;4)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='left' valign='top'>&nbsp;&nbsp;<b>15</b></td>
+        </tr>
+        <tr>
+          <td align='center' valign='top'><i>DIFF</i></td>
+          <td align='right' valign='top'><b>0</b>&nbsp;&nbsp;</td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_animated_diff' id='enabled_animated_diff' onclick='input_sync(this, "animated_diff", "0")' {% if configs.duplicates_sensitivity_animated.diff != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='animated_diff' id='animated_diff' value='{% if configs.duplicates_sensitivity_animated.diff != -1 %}{{ configs.duplicates_sensitivity_animated.diff }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_animated.diff == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;1)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_regular_diff' id='enabled_regular_diff' onclick='input_sync(this, "regular_diff", "0")' {% if configs.duplicates_sensitivity_regular.diff != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='regular_diff' id='regular_diff' value='{% if configs.duplicates_sensitivity_regular.diff != -1 %}{{ configs.duplicates_sensitivity_regular.diff }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_regular.diff == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;4)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='left' valign='top'>&nbsp;&nbsp;<b>15</b></td>
+        </tr>
+        <tr>
+          <td align='center' valign='top'><i>AVERAGE</i></td>
+          <td align='right' valign='top'><b>0</b>&nbsp;&nbsp;</td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_animated_average' id='enabled_animated_average' onclick='input_sync(this, "animated_average", "0")' {% if configs.duplicates_sensitivity_animated.average != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='animated_average' id='animated_average' value='{% if configs.duplicates_sensitivity_animated.average != -1 %}{{ configs.duplicates_sensitivity_animated.average }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_animated.average == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;<i>disable</i>)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_regular_average' id='enabled_regular_average' onclick='input_sync(this, "regular_average", "0")' {% if configs.duplicates_sensitivity_regular.average != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='regular_average' id='regular_average' value='{% if configs.duplicates_sensitivity_regular.average != -1 %}{{ configs.duplicates_sensitivity_regular.average }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_regular.average == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;1)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='left' valign='top'>&nbsp;&nbsp;<b>15</b></td>
+        </tr>
+        <tr>
+          <td align='center' valign='top'><i>WAVELET</i></td>
+          <td align='right' valign='top'><b>0</b>&nbsp;&nbsp;</td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_animated_wavelet' id='enabled_animated_wavelet' onclick='input_sync(this, "animated_wavelet", "0")' {% if configs.duplicates_sensitivity_animated.wavelet != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='animated_wavelet' id='animated_wavelet' value='{% if configs.duplicates_sensitivity_animated.wavelet != -1 %}{{ configs.duplicates_sensitivity_animated.wavelet }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_animated.wavelet == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;<i>disable</i>)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_regular_wavelet' id='enabled_regular_wavelet' onclick='input_sync(this, "regular_wavelet", "0")' {% if configs.duplicates_sensitivity_regular.wavelet != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='regular_wavelet' id='regular_wavelet' value='{% if configs.duplicates_sensitivity_regular.wavelet != -1 %}{{ configs.duplicates_sensitivity_regular.wavelet }}{% else %}0{% endif %}' minlength='1' maxlength='2' pattern='[0-9]{1,2}' size='2' required {% if configs.duplicates_sensitivity_regular.wavelet == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;1)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='left' valign='top'>&nbsp;&nbsp;<b>15</b></td>
+        </tr>
+        <tr>
+          <th>Method</th>
+          <th><i>MIN,</i><br/>Inclusive<br/>More&nbsp;False&nbsp;Positives</th>
+          <th>&nbsp;</th>
+          <th>Enabled?</th>
+          <th>Regular<br/>Images</th>
+          <th>&nbsp;</th>
+          <th>Enabled?</th>
+          <th>Animated<br/>GIFs</th>
+          <th>&nbsp;</th>
+          <th><i>MAX,</i><br/>Focused,<br/>Fewer&nbsp;False&nbsp;Positives</th>
+        </tr>
+        <tr>
+          <td align='center' valign='top'><i>Convolutional<br/>Neural Network<br/>(CNN)</i></td>
+          <td align='right' valign='top'><b>0.9</b>&nbsp;&nbsp;</td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_regular_cnn' id='enabled_regular_cnn' onclick='input_sync(this, "regular_cnn", "0.99999")' {% if configs.duplicates_sensitivity_regular.cnn != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='regular_cnn' id='regular_cnn' value='{% if configs.duplicates_sensitivity_regular.cnn != -1 %}{{ configs.duplicates_sensitivity_regular.cnn }}{% else %}0.99999{% endif %}' minlength='2' maxlength='8' pattern='0?\.9[0-9]*' size='2' required {% if configs.duplicates_sensitivity_regular.cnn == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;0.95)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&#8804;</b></td>
+          <td align='center' valign='top'>
+            <input type='checkbox' name='enabled_animated_cnn' id='enabled_animated_cnn' onclick='input_sync(this, "animated_cnn", "0.99999")' {% if configs.duplicates_sensitivity_animated.cnn != -1 %}checked{% endif %}/>
+          </td>
+          <td align='center' valign='top'>
+            <input type='text' name='animated_cnn' id='animated_cnn' value='{% if configs.duplicates_sensitivity_animated.cnn != -1 %}{{ configs.duplicates_sensitivity_animated.cnn }}{% else %}0.99999{% endif %}' minlength='2' maxlength='8' pattern='0?\.9[0-9]*' size='2' required {% if configs.duplicates_sensitivity_animated.cnn == -1 %}disabled{% endif %}/><br/>
+            <small><small>(Suggested:&nbsp;0.97)</small></small>
+          </td>
+          <td align='center' valign='top'><b>&lt;</b></td>
+          <td align='left' valign='top'>&nbsp;&nbsp;<b>1.0</b></td>
+        </tr>
+        <tr>
+          <td colspan='10' align='center'>
+            <input type='button' value='Save Parameters' onClick='parameters_form_submit();'/><br/>
+            <i>(Save parameters before re-running duplicate finding operation!)</i>
+          </td>
+        </tr>
+      </table>
+    </form>
+
+    <p>&nbsp;</p>
+    <form id='re_run_form' action='{% url "duplicates" %}' method='post' onSubmit='document.getElementById("re_run_button").disabled=true;'>
+      {% csrf_token %}
+      <p>
+        Re-Run duplicates computation:&nbsp;&nbsp;<input id='re_run_button' name='re_run_button' type='submit' value='RUN'/><br/>
+        <i>(If you changed the parameters make sure to save them first!
+          May take quite a few minutes to run, depending on the size of your database.
+          Do not reload or click on the button again: Wait patiently.
+          You can navigate while you wait, starting at <a href='{% url "index" %}'>index</a>,
+          but don't do any operations that may change the database while you are waiting.
+          If the page times-out, use <a href='{% url "duplicates" %}'>this link</a> to come back to it.
+          Your results will be here when the operation ends.)</i>
+      </p>
+      <input id='re_run' name='re_run' type='hidden' value='1'/>
+    </form>
+
+    {% if duplicates.items %}
+      <p>&nbsp;</p>
+      <form id='delete_all_form' action='{% url "duplicates" %}' method='post'>
+        {% csrf_token %}
+        <p>
+          Delete <b><i>ALL</i></b> duplicates and <b><i>ALL</i></b> verdicts from
+          database:&nbsp;&nbsp;<input type='submit' value='Delete ALL Duplicates' onClick='return delete_all_duplicates();'/>
+        </p>
+        <input id='delete_all' name='delete_all' type='hidden' value='1'/>
+      </form>
+    {% endif %}
+
+    <p>&nbsp;</p>
 
     <p><a href='{% url "index" %}'>(Go To: Home Page)</a></p>
 

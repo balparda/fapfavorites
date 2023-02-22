@@ -64,6 +64,13 @@ LocationTupleType = tuple[int, str, str, int, int]
 FailedTupleType = tuple[int, int, Optional[str], Optional[str]]
 
 
+class _ConfigsType(TypedDict):
+  """Configurations type."""
+
+  duplicates_sensitivity_regular: duplicates._SensitivitiesType
+  duplicates_sensitivity_animated: duplicates._SensitivitiesType
+
+
 class _UserObjType(TypedDict):
   """User object type."""
 
@@ -113,13 +120,14 @@ _FavoriteType = dict[int, dict[int, _FavoriteObjType]]
 _TagType = dict[int, TagObjType]
 _BlobType = dict[str, _BlobObjType]
 _ImagesIdIndexType = dict[int, str]
-_DB_MAIN_KEYS = {'users', 'favorites', 'tags', 'blobs', 'image_ids_index',
+_DB_MAIN_KEYS = {'configs', 'users', 'favorites', 'tags', 'blobs', 'image_ids_index',
                  'duplicates_registry', 'duplicates_key_index'}
 
 
 class _DatabaseType(TypedDict):
   """Database type."""
 
+  configs: _ConfigsType
   users: _UserType
   favorites: _FavoriteType
   tags: _TagType
@@ -217,6 +225,10 @@ class FapDatabase:
     self._blobs_dir = os.path.join(self._db_dir, _DEFAULT_BLOB_DIR_NAME)     # where to put blobs
     self._thumbs_dir = os.path.join(self._db_dir, DEFAULT_THUMBS_DIR_NAME)   # thumbnails dir
     self._db: _DatabaseType = {  # creates empty DB
+        'configs': {
+            'duplicates_sensitivity_regular': duplicates.METHOD_SENSITIVITY_DEFAULTS.copy(),
+            'duplicates_sensitivity_animated': duplicates.ANIMATED_SENSITIVITY_DEFAULTS.copy(),
+        },
         'users': {},
         'favorites': {},
         'tags': {},
@@ -234,6 +246,11 @@ class FapDatabase:
       os.mkdir(self._db_dir)
     # save to environment
     os.environ['IMAGEFAP_FAVORITES_DB_PATH'] = self._original_dir
+
+  @property
+  def configs(self) -> _ConfigsType:
+    """Configurations dictionary."""
+    return self._db['configs']
 
   @property
   def users(self) -> _UserType:
@@ -1394,13 +1411,25 @@ class FapDatabase:
      return {method: {sha: obj[method] for sha, obj in self.blobs.items()}  # type: ignore
              for method in duplicates.DUPLICATE_HASHES}
 
-  def FindDuplicates(self) -> None:
+  def DeleteAllDuplicates(self) -> tuple[int, int]:
+    """Delete all duplicate groups, including all evaluations, verdicts, and indexes.
+
+    Returns:
+      (number of deleted groups, number of deleted image entries)
+    """
+    return self.duplicates.DeleteAllDuplicates()
+
+  def FindDuplicates(self) -> int:
     """Find (perceptual) duplicates.
 
     Returns:
-      dict of {sha: set_of_other_sha_duplicates}
+      int count of new individual duplicate images found
     """
-    self.duplicates.FindDuplicates(self._hashes_encodings_map)
+    return self.duplicates.FindDuplicates(
+        self._hashes_encodings_map,
+        {sha for sha, blob in self.blobs.items() if blob['animated']},
+        self.configs['duplicates_sensitivity_regular'],
+        self.configs['duplicates_sensitivity_animated'])
 
 
 def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> bytes:

@@ -248,16 +248,75 @@ class TestDjangoViews(unittest.TestCase):
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  def test_ServeDuplicates(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+  @mock.patch('fapdata.FapDatabase.FindDuplicates')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeDuplicates_And_ReRun(
+      self, mock_save: mock.MagicMock, mock_find: mock.MagicMock,
+      mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    mock_find.return_value = 88
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'re_run': '1'}
+    request.GET = {}
+    views.ServeDuplicates(request)
+    mock_render.assert_called_once_with(request, 'viewer/duplicates.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT_RE_RUN)
+    mock_find.assert_called_once_with()
+    mock_save.assert_called_once_with()
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeDuplicates_And_Delete_All(
+      self, mock_save: mock.MagicMock,
+      mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
     mock_db.return_value = _TestDBFactory()
     request = mock.Mock(views.http.HttpRequest)
-    request.POST = {}
+    request.POST = {'delete_all': '1'}
     request.GET = {}
     views.ServeDuplicates(request)
     mock_render.assert_called_once_with(request, 'viewer/duplicates.html', mock.ANY)
-    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT_DELETE_ALL)
+    mock_save.assert_called_once_with()
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeDuplicates_And_Edit_Parameters(
+      self, mock_save: mock.MagicMock,
+      mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()
+    db.DeleteAllDuplicates()  # work with no duplicates here, just for simplicity
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        'parameters_form_used': '1',
+        'enabled_regular_percept': 'on',
+        'regular_percept': '7',
+        'enabled_animated_diff': 'on',
+        'animated_diff': '2',
+        'enabled_regular_diff': 'on',
+        'regular_diff': '5',
+        'enabled_animated_average': 'on',
+        'animated_average': '0',
+        'enabled_regular_average': 'on',
+        'regular_average': '1',
+        'enabled_regular_cnn': 'on',
+        'regular_cnn': '0.91',
+        'enabled_animated_cnn': 'on',
+        'animated_cnn': '0.99',
+    }
+    request.GET = {}
+    views.ServeDuplicates(request)
+    mock_render.assert_called_once_with(request, 'viewer/duplicates.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT_EDIT_PARAMETERS)
+    mock_save.assert_called_once_with()
 
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -393,6 +452,22 @@ def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
 
 
 _MOCK_DATABASE: views.fapdata._DatabaseType = {
+    'configs': {
+        'duplicates_sensitivity_regular': {
+            'percept': 10,
+            'diff': 10,
+            'average': 3,
+            'wavelet': 3,
+            'cnn': 0.93,
+        },
+        'duplicates_sensitivity_animated': {
+            'percept': 3,
+            'diff': 4,
+            'average': -1,
+            'wavelet': -1,
+            'cnn': 0.98,
+        },
+    },
     'users': {
         1: {
             'name': 'Luke',  # has 2 albums
@@ -1231,7 +1306,7 @@ _TAG_NEW_TAGS: dict[str, set[int]] = {
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {1, 24},
 }
 
-_DUPLICATES_CONTEXT: dict[str, Any] = {
+_DUPLICATES_CONTEXT_RE_RUN: dict[str, Any] = {
     'duplicates': {
         ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
          '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
@@ -1257,6 +1332,67 @@ _DUPLICATES_CONTEXT: dict[str, Any] = {
     'false_count': '2 (40.0%)',
     'keep_count': '1 (20.0%)',
     'skip_count': '1 (20.0%)',
+    'configs': {
+        'duplicates_sensitivity_animated': {
+            'average': -1,
+            'cnn': 0.98,
+            'diff': 4,
+            'percept': 3,
+            'wavelet': -1,
+        },
+        'duplicates_sensitivity_regular': {
+            'average': 3,
+            'cnn': 0.93,
+            'diff': 10,
+            'percept': 10,
+            'wavelet': 3,
+        },
+    },
+    'warning_message': 'Duplicate operation run, and found 88 new duplicate images',
+    'error_message': None,
+}
+
+_DUPLICATES_CONTEXT_DELETE_ALL: dict[str, Any] = {
+    'dup_action': 0,
+    'dup_count': 0,
+    'duplicates': {},
+    'false_count': '-',
+    'img_count': 0,
+    'keep_count': '-',
+    'new_count': '-',
+    'skip_count': '-',
+    'configs': _DUPLICATES_CONTEXT_RE_RUN['configs'],
+    'warning_message': 'Deleted 2 duplicate groups containing 5 duplicate images',
+    'error_message': None,
+}
+
+_DUPLICATES_CONTEXT_EDIT_PARAMETERS: dict[str, Any] = {
+    'dup_action': 0,
+    'dup_count': 0,
+    'duplicates': {},
+    'false_count': '-',
+    'img_count': 0,
+    'keep_count': '-',
+    'new_count': '-',
+    'skip_count': '-',
+    'configs': {
+        'duplicates_sensitivity_animated': {
+            'average': 0,
+            'cnn': 0.99,
+            'diff': 2,
+            'percept': -1,
+            'wavelet': -1,
+        },
+        'duplicates_sensitivity_regular': {
+            'average': 1,
+            'cnn': 0.91,
+            'diff': 5,
+            'percept': 7,
+            'wavelet': -1,
+        },
+    },
+    'warning_message': 'Updated duplicate search parameters',
+    'error_message': None,
 }
 
 _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
