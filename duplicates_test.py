@@ -120,6 +120,15 @@ class TestDuplicates(unittest.TestCase):
     self.assertDictEqual(dup.registry, _DUPLICATES_DICT_TRIMMED)
     self.assertDictEqual(dup.index, _DUPLICATES_INDEX_TRIMMED)
 
+  def test_DeletePendingDuplicates(self) -> None:
+    """Test."""
+    self.maxDiff = None
+    dup = duplicates.Duplicates(
+        copy.deepcopy(_DUPLICATES_DICT_AFTER), copy.deepcopy(_DUPLICATES_INDEX_AFTER))
+    self.assertTupleEqual(dup.DeletePendingDuplicates(), (2, 9))
+    self.assertDictEqual(dup.registry, _DUPLICATES_DICT_NO_PENDING)
+    self.assertDictEqual(dup.index, _DUPLICATES_INDEX_NO_PENDING)
+
   def test_DeleteAllDuplicates(self) -> None:
     """Test."""
     self.maxDiff = None
@@ -323,8 +332,8 @@ _DUPLICATES_DICT_TRIMMED: duplicates.DuplicatesType = {
         'verdicts': {
             'ccc': 'new',
             'ddd': 'new',
-            'fff': 'new',
-            'ggg': 'new',
+            'fff': 'keep',
+            'ggg': 'skip',
             'hhh': 'false',
         },
     },
@@ -349,6 +358,44 @@ _DUPLICATES_INDEX_TRIMMED: duplicates.DuplicatesKeyIndexType = {
     'hhh': ('ccc', 'ddd', 'fff', 'ggg', 'hhh'),
     'iii': ('iii', 'kkk'),
     'kkk': ('iii', 'kkk'),
+}
+
+_DUPLICATES_DICT_NO_PENDING: duplicates.DuplicatesType = {
+    ('aaa', 'bbb'): {
+        'sources': {
+            'percept': {
+                ('aaa', 'bbb'): 4,
+            },
+            'wavelet': {
+                ('aaa', 'bbb'): 4,
+            },
+        },
+        'verdicts': {
+            'aaa': 'keep',
+            'bbb': 'skip',
+        },
+    },
+    ('iii', 'jjj'): {
+        'sources': {
+            'average': {
+                ('iii', 'jjj'): 0,
+            },
+            'diff': {
+                ('iii', 'jjj'): 1,
+            },
+        },
+        'verdicts': {
+            'iii': 'keep',
+            'jjj': 'skip',
+        },
+    },
+}
+
+_DUPLICATES_INDEX_NO_PENDING: duplicates.DuplicatesKeyIndexType = {
+    'aaa': ('aaa', 'bbb'),
+    'bbb': ('aaa', 'bbb'),
+    'iii': ('iii', 'jjj'),
+    'jjj': ('iii', 'jjj'),
 }
 
 

@@ -269,6 +269,23 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
   @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeDuplicates_And_Delete_Pending(
+      self, mock_save: mock.MagicMock,
+      mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {'delete_pending': '1'}
+    request.GET = {}
+    views.ServeDuplicates(request)
+    mock_render.assert_called_once_with(request, 'viewer/duplicates.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT_DELETE_PENDING)
+    mock_save.assert_called_once_with()
+
+  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
   def test_ServeDuplicates_And_Delete_All(
       self, mock_save: mock.MagicMock,
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -1349,6 +1366,35 @@ _DUPLICATES_CONTEXT_RE_RUN: dict[str, Any] = {
         },
     },
     'warning_message': 'Duplicate operation run, and found 88 new duplicate images',
+    'error_message': None,
+}
+
+_DUPLICATES_CONTEXT_DELETE_PENDING: dict[str, Any] = {
+    'duplicates': {
+        ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): {
+            'name': '(321e59af9d70af77&hellip;, e221b76f55946176&hellip;)',  # cspell:disable-line
+            'size': 2,
+            'action': False,
+            'verdicts': 'K / S',
+        },
+        ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
+         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'): {
+            'name': '(5b1d83a7317f2bb1&hellip;, ed1441656a734052&hellip;)',  # cspell:disable-line
+            'size': 2,
+            'action': False,
+            'verdicts': 'F / F',
+        },
+    },
+    'dup_action': 0,
+    'dup_count': 2,
+    'img_count': 4,
+    'new_count': '0 (0.0%)',
+    'false_count': '2 (50.0%)',
+    'keep_count': '1 (25.0%)',
+    'skip_count': '1 (25.0%)',
+    'configs': _DUPLICATES_CONTEXT_RE_RUN['configs'],
+    'warning_message': 'Deleted 0 duplicate groups containing 1 duplicate images',
     'error_message': None,
 }
 

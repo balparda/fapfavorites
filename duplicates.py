@@ -226,16 +226,30 @@ class Duplicates:
       self.index[sha] = new_key
     return added_count
 
+  def DeletePendingDuplicates(self) -> tuple[int, int]:
+    """Delete pending duplicate images, including all evaluations, verdicts, and indexes.
+
+    Returns:
+      (number of deleted groups, number of deleted image entries)
+    """
+    # collect images to delete
+    pending_imgs: set[str] = {
+        sha for dup_keys, dup_obj in self.registry.items()
+        for sha in dup_keys if dup_obj['verdicts'][sha] == 'new'}
+    # then delete them, counting deleted groups
+    groups_count: int = 0
+    for sha in pending_imgs:
+      groups_count += int(self.TrimDeletedBlob(sha))
+      # since we know we are removing a 'new' verdict here, then we know the other
+      # verdicts will be left alone
+    return (groups_count, len(pending_imgs))
+
   def DeleteAllDuplicates(self) -> tuple[int, int]:
     """Delete all duplicate groups, including all evaluations, verdicts, and indexes.
 
     Returns:
       (number of deleted groups, number of deleted image entries)
     """
-    # TODO: implement a "delete pending duplicates" that will delete only the "new"; the idea
-    #     is that a user can recompute the duplicates (maybe with different parameters) without
-    #     losing the skip/keep work that was done; this also implies that the groups won't get
-    #     so aggressively reset like they are today
     # first delete the registry
     n_dup = len(self.registry)
     n_img: int = 0
@@ -339,14 +353,18 @@ class Duplicates:
         new_duplicates, len(self.index), len(self.registry))
     return new_duplicates
 
-  def TrimDeletedBlob(self, sha: str) -> bool:
+  def TrimDeletedBlob(self, sha: str) -> bool:  # noqa: C901
     """Find duplicates depending a (newly deleted) blob and remove them from database.
 
-    Note that if a key was removed from a duplicate set but the group still remained, based
+    Can also be used to remove a single (non-deleted) image from the duplicates records,
+    like is done in DeletePendingDuplicates().
+
+    Note that if a S/K key was removed from a duplicate set but the group still remained, based
     on images that were not deleted, we have (for safety/consistency's sake) to reset that
-    duplicate group to all 'new'. The only exception is for false positives ('false') as
-    those can presumably be left alone. Any other action/assumption would risk horrible bugs.
-    In summary 'new'|'false'-> left alone ; 'keep'|'skip' -> reset to 'new'.
+    duplicate group to all 'new'. False positives ('false') can presumably be left alone.
+
+    In summary, if removed verdict in 'skip'|'keep', then:
+        'new'|'false'-> left alone ; 'keep'|'skip' -> reset to 'new'.
 
     Args:
       sha: The recently deleted sha256 to trim from duplicates database
@@ -372,7 +390,7 @@ class Duplicates:
       logging.info('Deleted duplicate entry %r', old_key)
       return True
     # this is a group that had more than 2 keys; first delete the `sha` entry inside the object
-    del self.registry[old_key]['verdicts'][sha]
+    old_verdict = self.registry[old_key]['verdicts'].pop(sha)
     # traverse the scores and delete all that contained `sha`
     for method in set(self.registry[old_key]['sources'].keys()):
       scores = self.registry[old_key]['sources'][method]
@@ -382,9 +400,10 @@ class Duplicates:
       # remember to wipe out empty method entries
       if not scores:
         del self.registry[old_key]['sources'][method]
-    # now reset the status of the remaining keys that are not 'new' or 'false'
-    for k in {k for k, d in self.registry[old_key]['verdicts'].items() if d in {'keep', 'skip'}}:
-      self.registry[old_key]['verdicts'][k] = 'new'
+    # now reset the status of the remaining keys that are not 'new' or 'false' if we removed K/S
+    if old_verdict in {'keep', 'skip'}:
+      for k in {k for k, d in self.registry[old_key]['verdicts'].items() if d in {'keep', 'skip'}}:
+        self.registry[old_key]['verdicts'][k] = 'new'
     # finally move the entry to a new clean key entry with only the remaining digests
     new_key: DuplicatesKeyType = tuple(sorted(remaining_digests))
     self.registry[new_key] = self.registry[old_key]

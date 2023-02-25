@@ -572,12 +572,12 @@ def _AbbreviatedKey(dup_key: duplicates.DuplicatesKeyType) -> safestring.SafeTex
 
 def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:  # noqa: C901
   """Serve the `duplicates` page."""
-  # TODO: add a delete pending only button (see TODO in duplicates.py)
   db = _DBFactory()
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
   # get POST data (not the parameters POST data: these ones we do below, if needed)
   re_run = request.POST.get('re_run', '').strip()
+  delete_pending = request.POST.get('delete_pending', '').strip()
   delete_all = request.POST.get('delete_all', '').strip()
   parameters_form = bool(request.POST.get('parameters_form_used', '').strip())
   # do the POST operation
@@ -586,6 +586,11 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:  # noqa: C9
     if re_run:
       warning_message = (
           'Duplicate operation run, and found %d new duplicate images' % db.FindDuplicates())
+    # should we clean the duplicates?
+    elif delete_pending:
+      n_dup, n_img = db.DeletePendingDuplicates()
+      warning_message = (
+          'Deleted %d duplicate groups containing %d duplicate images' % (n_dup, n_img))
     # should we completely delete all duplicates?
     elif delete_all:
       n_dup, n_img = db.DeleteAllDuplicates()

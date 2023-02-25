@@ -26,8 +26,8 @@
     </style>
     <script type='text/javascript' language='javascript'>
 
-      function delete_all_duplicates() {
-        if (confirm('Delete ALL duplicates and verdicts in the database?') == true) {
+      function delete_duplicates_confirm(msg) {
+        if (confirm('Delete ' + msg + ' duplicates and verdicts in the database?') == true) {
           return true;
         }
         return false;
@@ -314,15 +314,30 @@
     </form>
 
     {% if duplicates.items %}
+
       <p>&nbsp;</p>
+
+      <form id='delete_pending_form' action='{% url "duplicates" %}' method='post'>
+        {% csrf_token %}
+        <p>
+          Delete <b><i>pending</i></b> duplicates and verdicts (<i>&quot;New&quot;</i>) from
+          database:&nbsp;&nbsp;<input type='submit' value='Delete Pending Duplicates' onClick='return delete_duplicates_confirm("pending");'/>
+        </p>
+        <input id='delete_pending' name='delete_pending' type='hidden' value='1'/>
+      </form>
+
+      <p>&nbsp;</p>
+
       <form id='delete_all_form' action='{% url "duplicates" %}' method='post'>
         {% csrf_token %}
         <p>
-          Delete <b><i>ALL</i></b> duplicates and <b><i>ALL</i></b> verdicts from
-          database:&nbsp;&nbsp;<input type='submit' value='Delete ALL Duplicates' onClick='return delete_all_duplicates();'/>
+          Delete <span style='color: red;'><b><i>ALL</i></b></span> duplicates and <span style='color: red;'><b><i>ALL</i></b></span> verdicts from
+          database:&nbsp;&nbsp;<input type='submit' value='Delete ALL Duplicates' onClick='return delete_duplicates_confirm("ALL");'/>
+          <span style='color: red;'><b><i>(beware!)</i></b></span>
         </p>
         <input id='delete_all' name='delete_all' type='hidden' value='1'/>
       </form>
+
     {% endif %}
 
     <p>&nbsp;</p>

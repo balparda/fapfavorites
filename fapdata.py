@@ -1411,6 +1411,14 @@ class FapDatabase:
      return {method: {sha: obj[method] for sha, obj in self.blobs.items()}  # type: ignore
              for method in duplicates.DUPLICATE_HASHES}
 
+  def DeletePendingDuplicates(self) -> tuple[int, int]:
+    """Delete pending duplicate images, including all evaluations, verdicts, and indexes.
+
+    Returns:
+      (number of deleted groups, number of deleted image entries)
+    """
+    return self.duplicates.DeletePendingDuplicates()
+
   def DeleteAllDuplicates(self) -> tuple[int, int]:
     """Delete all duplicate groups, including all evaluations, verdicts, and indexes.
 

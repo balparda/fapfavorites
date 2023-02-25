@@ -586,7 +586,8 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.image_ids_index, _INDEX_NO_LUKE)
       self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
       self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
-      self.assertTupleEqual(db.DeleteAllDuplicates(), (1, 2))
+      self.assertTupleEqual(db.DeletePendingDuplicates(), (1, 2))
+      self.assertTupleEqual(db.DeleteAllDuplicates(), (0, 0))
 
 
 class _MockRegex:
