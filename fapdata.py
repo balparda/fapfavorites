@@ -307,21 +307,23 @@ class FapDatabase:
       Error: if found DB does not check out
     """
     if os.path.exists(self._db_path):
-      self._db: _DatabaseType = base.BinDeSerialize(file_path=self._db_path)
-      # just a quick dirty check that we got what we expected
-      if any(k not in self._db for k in _DB_MAIN_KEYS):
-        raise Error('Loaded DB is invalid!')
-      self.duplicates = duplicates.Duplicates(  # has to be reloaded!
-          self._duplicates_registry, self._duplicates_key_index)
-      logging.info('Loaded DB from %r', self._db_path)
+      with base.Timer() as tm_load:
+        self._db: _DatabaseType = base.BinDeSerialize(file_path=self._db_path, compress=False)
+        # just a quick dirty check that we got what we expected
+        if any(k not in self._db for k in _DB_MAIN_KEYS):
+          raise Error('Loaded DB is invalid!')
+        self.duplicates = duplicates.Duplicates(  # has to be reloaded!
+            self._duplicates_registry, self._duplicates_key_index)
+      logging.info('Loaded DB from %r (%s)', self._db_path, tm_load.readable)
       return True
     logging.warning('No DB found in %r', self._db_path)
     return False
 
   def Save(self) -> None:
     """Save DB to file."""
-    base.BinSerialize(self._db, self._db_path)
-    logging.info('Saved DB to %r', self._db_path)
+    with base.Timer() as tm_save:
+      base.BinSerialize(self._db, file_path=self._db_path, compress=False)
+    logging.info('Saved DB to %r (%s)', self._db_path, tm_save.readable)
 
   def UserStr(self, user_id: int) -> str:
     """Produce standard user representation, like 'UserName (id)'."""

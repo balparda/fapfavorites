@@ -969,7 +969,7 @@ TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)
 """.splitlines()[1:]
 
 _PRINTED_STATS_EMPTY = """
-Database is located in '%s/imagefap.database', and is 449b (44900.000%% of total images size)
+Database is located in '%s/imagefap.database', and is 539b (53900.000%% of total images size)
 0b total (unique) images size (- min, - max, - mean with - standard deviation, 0 are animated)
 
 2 users
