@@ -501,8 +501,8 @@ class TestFapDatabase(unittest.TestCase):
           'img-106': ['url-106'], 'img-107': ['url-107'], 'img-108': ['url-108'],
           'img-109': ['url-109']})
       fapdata._IMAGE_NAME = _MockRegex({
-          'img-100': ['name-100.jpg'], 'img-102': ['name-102.jpg'], 'img-105': ['name-105.jpeg'],
-          'img-106': ['name-106.jpeg'], 'img-107': ['name-107.png'], 'img-108': ['name-108.png'],
+          'img-100': ['name-100.jpg'], 'img-102': ['name-102.jpg'], 'img-105': ['name/105.jpeg'],
+          'img-106': ['name-106.jpeg'], 'img-107': ['name-107.png'], 'img-108': ['na/me-108.png'],
           'img-109': ['name-109.gif']})
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 10, 2, False), 111226)
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 11, 2, False), 0)
@@ -621,7 +621,7 @@ _BLOBS: fapdata._BlobType = {
     },
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
         'animated': False, 'ext': 'png', 'height': 173,
-        'loc': {(108, 'url-108', 'name-108.png', 1, 13)},
+        'loc': {(108, 'url-108', 'na-me-108.png', 1, 13)},
         'percept': 'd99ee32e586716c8', 'average': 'ffffff9a180060c8', 'diff': '6854541633d5c991',
         'wavelet': 'ffffbf88180060c8', 'cnn': np.array([1, 2, 3]),
         'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130,
@@ -1035,7 +1035,7 @@ SHA256_HASH: ID1/'NAME1' or ID2/'NAME2' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED
     => {'TAG1', 'TAG2', ...}
 
 0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19: Luke/new-f-0/name-102.jpg (1/10/102), 33.60k (168, 200)
-321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6: Luke/new&f-3/name-108.png (1/13/108), 22.49k (130, 173)
+321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6: Luke/new&f-3/na-me-108.png (1/13/108), 22.49k (130, 173)
     => {tag13 (13), tag22 (22)}
 9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf: Luke/new-f-0/name-to-use.jpg (1/10/101) or Ben/foo-bar/some-name.jpg (2/20/801), 32.00k (160, 200)
     => {tag12 (12), tag23 (23)}

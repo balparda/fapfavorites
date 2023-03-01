@@ -1572,7 +1572,7 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   if not img_name:
     raise Error('No image name path in %s' % url)
   # sanitize image name before returning
-  new_name: str = sanitize_filename.sanitize(html.unescape(img_name[0]))
+  new_name: str = sanitize_filename.sanitize(html.unescape(img_name[0]).replace('/', '-'))
   if new_name != img_name[0]:
     logging.warning('Filename sanitization necessary %r ==> %r', img_name[0], new_name)
   # figure out the file name, sanitize extension
