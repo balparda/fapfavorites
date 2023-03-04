@@ -310,6 +310,7 @@ def _ServeImages(  # noqa: C901
   error_message: Optional[str] = None
   # do we have to save tags?
   selected_tag = int(request.POST.get('tag_select', '0'))
+  clear_tag = int(request.POST.get('clear_tag', '0'))
   selected_images = {
       sha.strip().lower()
       for sha in request.POST.get('selected_blobs', '').split(',') if sha.strip()}
@@ -318,21 +319,50 @@ def _ServeImages(  # noqa: C901
     try:
       tag_name = db.TagLineageStr(selected_tag)
     except fapdata.Error:
-      error_message = 'Unknown tag %d requested' % selected_tag
+      error_message = 'Unknown tag %d addition requested' % selected_tag
     else:
       # tag is OK; add the tags
-      tag_count: int = 0
       for sha in selected_images:
         # check if image is valid
         if sha not in db.blobs:
-          error_message = 'Unknown image %r requested' % sha
+          error_message = 'Unknown image %r tagging requested' % sha
           break
         # add tag to image
         db.blobs[sha]['tags'].add(selected_tag)
-        tag_count += 1
       else:
         # setting this message should trigger a DB Save() in the calling page
-        warning_message = '%d images tagged with %s' % (tag_count, tag_name)
+        warning_message = '%d images tagged with %s' % (len(selected_images), tag_name)
+  if clear_tag and selected_images:
+    # we have tags to delete; check tag validity
+    try:
+      tag_name = db.TagLineageStr(clear_tag)
+      # get the tag plus all below it
+      tag_child_ids = {i for i, _, _, _ in db.TagsWalk(
+          start_tag=db.GetTag(clear_tag)[-1][-1]['tags'])}  # type: ignore
+      tag_child_ids.add(clear_tag)
+    except fapdata.Error:
+      error_message = 'Unknown tag %d removal requested' % clear_tag
+    else:
+      # tag is OK; remove the tags
+      for sha in selected_images:
+        # check if image is valid, has the tag, and the image is on image_list
+        if sha not in db.blobs:
+          error_message = 'Unknown image %r tag clearing requested' % sha
+          break
+        if (0, sha) not in image_list:  # (0, foo) because for now this can only come from tag page
+          error_message = 'Image %r expected in image list and not found' % sha
+          break
+        tags_to_remove = tag_child_ids.intersection(db.blobs[sha]['tags'])
+        if not tags_to_remove:
+          error_message = 'Image %r does not have tag %s (or any of its children)' % (sha, tag_name)
+          break
+        # remove tag(s) from image and image from list so we don't serve it
+        for tag_id in tags_to_remove:
+          db.blobs[sha]['tags'].remove(tag_id)
+        image_list.remove((0, sha))
+      else:
+        # setting this message should trigger a DB Save() in the calling page
+        warning_message = '%d images had tag %s cleared' % (len(selected_images), tag_name)
   # retrieve the `GET` data
   show_duplicates = bool(int(request.GET.get('dup', '0')))        # default: False
   show_portraits = bool(int(request.GET.get('portrait', '1')))    # default: True
@@ -493,7 +523,6 @@ def ServeFavorite(
 def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
   # TODO: tag exporter
-  # TODO: how can we clear tags from an image?
   # check for errors in parameters
   db = _DBFactory()
   all_tags = [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()]

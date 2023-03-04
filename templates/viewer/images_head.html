@@ -74,17 +74,30 @@
     return sel;
   };
 
-  function tag_form_submit() {
+  function set_tag_form_submit() {
     sel = get_selected();
     if (parseInt(document.forms['selected_form']['tag_select'].value) > 0) {
       if (sel.length > 0) {
         document.forms['selected_form']['selected_blobs'].value = sel.join(',');
+        document.forms['selected_form']['clear_tag'].value = '0';
         return true;  // we can submit the form
       } else {
         alert('No images selected!');
       }
     } else {
       alert('No tag selected!');
+    }
+    return false;  // don't submit the form
+  };
+
+  function clear_tag_form_submit() {
+    sel = get_selected();
+    if (sel.length > 0) {
+      document.forms['selected_form']['selected_blobs'].value = sel.join(',');
+      document.forms['selected_form']['tag_select'].value = '0';
+      return true;  // we can submit the form
+    } else {
+      alert('No images selected!');
     }
     return false;  // don't submit the form
   };

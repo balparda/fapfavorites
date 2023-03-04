@@ -92,7 +92,7 @@
 
     {% url "tag" tag_id as tag_url %}
     {% include "./images.html" with page_url=tag_url %}
-    {% include "./images_selected_form.html" with page_url=tag_url %}
+    {% include "./images_selected_form.html" with page_url=tag_url clear_tag_name=tag_name clear_tag_id=tag_id %}
 
     <form id='delete_form' name='delete_form' action='{% url "tag" tag_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' method='post'>
       {% csrf_token %}

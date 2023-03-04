@@ -240,6 +240,36 @@ class TestDjangoViews(unittest.TestCase):
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CONTEXT_RENAME)
 
   @mock.patch('viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapdata.FapDatabase.Save')
+  def test_ServeTag_All_On_And_Clear_Tag(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        'clear_tag': '2',
+        'selected_blobs': ('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19,'
+                           '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8'),
+    }
+    request.GET = {
+        'dup': '1',  # by default, show portrait+landscape
+        'lock': '1',
+    }
+    views.ServeTag(request, 2)
+    clean_tags = {sha: db.blobs[sha]['tags'] for sha in request.POST['selected_blobs'].split(',')}
+    self.assertDictEqual(clean_tags, {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {3},
+        '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {33},
+    })
+    mock_save.assert_called_once_with()
+    mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CLEAR_TAG)
+
+  @mock.patch('viewer.views._DBFactory')
   def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()
@@ -1310,6 +1340,99 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
     'tag_name': 'The One (1)',
     'tag_simple_name': 'The One',
     'warning_message': 'Tag one (1) renamed to The One (1)',
+    'error_message': None,
+}
+
+_TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
+    'tags': [
+        (24, 'two-four', 'two/two-four', 1),
+        (246, 'deep', 'two/two-four/deep', 2),
+        (22, 'two-two', 'two/two-two', 1),
+    ],
+    'show_duplicates': True,
+    'dup_url': 'dup=1',
+    'show_portraits': True,
+    'portrait_url': 'portrait=1',
+    'show_landscapes': True,
+    'landscape_url': 'landscape=1',
+    'locked_for_tagging': True,
+    'tagging_url': 'lock=1',
+    'count': 4,
+    'stacked_blobs': [
+        [
+            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
+            (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
+            (0, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+        ],
+    ],
+    'blobs_data': {
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'name': 'name-101.jpg',
+            'sz': '101b',
+            'dimensions': '160x200 (WxH)',
+            'tags': 'one/one-one, three/three-three, two',
+            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
+            'has_duplicate': True,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
+                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+        },
+        'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
+            'name': 'name-112.jpg',
+            'sz': '87.12kb',
+            'dimensions': '300x222 (WxH)',
+            'tags': 'two/two-four/deep',
+            'thumb': 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180.jpg',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': '',
+        },
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
+            'name': 'name-100.jpg',
+            'sz': '55.26kb',
+            'dimensions': '200x246 (WxH)',
+            'tags': 'one, two',
+            'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
+            'has_duplicate': True,
+            'album_duplicate': False,
+            'has_percept': True,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Exact: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Exact: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
+                                'Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
+                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+        },
+        'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
+            'name': 'name-103.gif',
+            'sz': '434.54kb',
+            'dimensions': '500x100 (WxH)',
+            'tags': 'one, three/three-three, two/two-four',
+            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'duplicate_hints': '',
+        },
+    },
+    'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
+    'tag_id': 2,
+    'page_depth': 1,
+    'page_depth_up': 0,
+    'tag_name': 'two (2)',
+    'tag_simple_name': 'two',
+    'warning_message': '2 images had tag two (2) cleared',
     'error_message': None,
 }
 

@@ -4,6 +4,7 @@
   {% csrf_token %}
 
   <input id='selected_blobs' name='selected_blobs' type='hidden' value=''/>
+  <input id='clear_tag' name='clear_tag' type='hidden' value='{{ clear_tag_id }}'/>
 
   {% if locked_for_tagging and form_tags %}
 
@@ -15,9 +16,17 @@
           <option value='{{ id }}'>{{ parents|escape }}</option>
         {% endfor %}
       </select>&nbsp;&nbsp;&nbsp;
-      <input type='submit' value='Save Tag' onClick='return tag_form_submit();'/>
+      <input type='submit' value='Save Tag' onClick='return set_tag_form_submit();'/>
     </p>
     <p>&nbsp;</p>
+
+    {% if clear_tag_id %}
+      <p>
+        Remove tag {{ tag_name|escape }} from selected images:&nbsp;&nbsp;&nbsp;
+        <input type='submit' value='Remove {{ clear_tag_name|escape }}' onClick='return clear_tag_form_submit();'/>
+      </p>
+      <p>&nbsp;</p>
+    {% endif %}
 
   {% endif %}
 
