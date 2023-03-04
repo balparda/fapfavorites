@@ -97,6 +97,8 @@ class TagObjType(TypedDict):
   tags: dict[int, dict]
 
 
+# TODO: create an exact duplicate verdict registry (maybe inside blob K/S/N, no F)
+#     so user can point out which copy should be shown
 class _BlobObjType(TypedDict):
   """Blob object type."""
 
