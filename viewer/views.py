@@ -541,6 +541,9 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
     tag_child_ids.add(tag_id)
     sorted_blobs = [(0, k) for k in sorted({  # create intermediary set to de-dup hashed before sort
         sha for sha, blob in db.blobs.items() if tag_child_ids.intersection(blob['tags'])})]
+    # TODO: sort by favorite album and by order inside the album, by creating
+    #     {(user_id, album_id, index_in_album): sha} and using the key to sort; also filter
+    #     perceptual duplicates marked "skip"
   else:
     # root page, just build a mock object
     tag_obj: fapdata.TagObjType = {
