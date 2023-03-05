@@ -520,7 +520,7 @@ def ServeFavorite(
   return shortcuts.render(request, 'viewer/favorite.html', context)
 
 
-def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
+def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
   """Serve the `tag` page for one `tag_id`."""
   # TODO: tag exporter
   # check for errors in parameters
@@ -539,11 +539,19 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
     # get the images for this tag and all below it
     tag_child_ids = {i for i, _, _, _ in db.TagsWalk(start_tag=tag_obj['tags'])}  # type: ignore
     tag_child_ids.add(tag_id)
-    sorted_blobs = [(0, k) for k in sorted({  # create intermediary set to de-dup hashed before sort
-        sha for sha, blob in db.blobs.items() if tag_child_ids.intersection(blob['tags'])})]
-    # TODO: sort by favorite album and by order inside the album, by creating
-    #     {(user_id, album_id, index_in_album): sha} and using the key to sort; also filter
-    #     perceptual duplicates marked "skip"
+    indexed_dict: dict[tuple[int, int, int], str] = {}
+    for tag_sha in {  # create intermediary set to de-dup
+        sha for sha, blob in db.blobs.items() if tag_child_ids.intersection(blob['tags'])}:
+      # for now, we pick up on the "minimum" 'loc' found for user/album/id
+      # TODO: take into consideration future implementation of identical sets verdicts
+      all_loc = [(user_id, album_id, img)
+                 for img, _, _, user_id, album_id in db.blobs[tag_sha]['loc']]
+      all_loc.sort()
+      user_id, album_id, img = all_loc[0]
+      # the key to indexed_dict will help sort by: user / album / image position
+      indexed_dict[
+          (user_id, album_id, db.favorites[user_id][album_id]['images'].index(img))] = tag_sha
+    sorted_blobs = [(0, indexed_dict[k]) for k in sorted(indexed_dict.keys())]
   else:
     # root page, just build a mock object
     tag_obj: fapdata.TagObjType = {

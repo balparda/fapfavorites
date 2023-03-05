@@ -1193,12 +1193,12 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
     'count': 5,
     'stacked_blobs': [
         [
-            (0, '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
-            (0, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8'),
             (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
+            (0, '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
             (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
         ], [
-            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8'),
             (0, ''),
             (0, ''),
             (0, ''),
@@ -1360,10 +1360,10 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
     'count': 4,
     'stacked_blobs': [
         [
-            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
-            (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
             (0, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
             (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
         ],
     ],
     'blobs_data': {
