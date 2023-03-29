@@ -95,7 +95,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
 @click.option(
     '--output', '-o', 'output_path', type=click.STRING, default=fapdata.DEFAULT_DB_DIRECTORY,
     help='The intended local machine output directory path, '
-         'ex: "~/some-dir/"; will default to %r' % fapdata.DEFAULT_DB_DIRECTORY)
+         f'ex: "~/some-dir/"; will default to {fapdata.DEFAULT_DB_DIRECTORY!r}')
 @click.option(
     '--db/--no-db', 'make_db', default=True,
     help='Save a imagefap.database file to output? Default is True ("yes"); '
@@ -107,7 +107,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
          'is False ("no"). This will force a download even if the album '
          'is fresh in the database')
 @base.Timed('Total Imagefap favorites.py execution time')
-def main(operation: str,  # noqa: C901
+def Main(operation: str,  # noqa: C901
          user_name: str,
          user_id: int,
          favorites_name: str,
@@ -184,17 +184,17 @@ def main(operation: str,  # noqa: C901
     elif operation.lower() == 'read':
       _ReadOperation(database, user_id, folder_id, force_download)
     else:
-      raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
+      raise NotImplementedError(f'Unrecognized/Unimplemented operation {operation!r}')
     # save DB and end
     if make_db:
       database.Save()
     success_message = 'success'
-  except Exception as e:
-    success_message = 'error: ' + str(e)
+  except Exception as err:
+    success_message = f'error: {err}'
     raise
   finally:
     print('THE END: ' + success_message)
 
 
 if __name__ == '__main__':
-  main()  # pylint: disable=no-value-for-parameter
+  Main()  # pylint: disable=no-value-for-parameter

@@ -2,6 +2,7 @@
 #
 # Copyright 2023 Daniel Balparda (balparda@gmail.com)
 #
+# pylint: disable=invalid-name,protected-access
 """process.py unittest."""
 
 # import pdb
@@ -31,9 +32,9 @@ class TestProcess(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      process.main(['stats', '--dir', '/path/'])
+      process.Main(['stats', '--dir', '/path/'])
     except SystemExit as e:
-      if e.code:
+      if e.code:  # pylint: disable=using-constant-test
         raise
     self.assertListEqual(
         mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
@@ -58,9 +59,9 @@ class TestProcess(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      process.main(['print', '--dir', '/path/', '--blobs'])
+      process.Main(['print', '--dir', '/path/', '--blobs'])
     except SystemExit as e:
-      if e.code:
+      if e.code:  # pylint: disable=using-constant-test
         raise
     self.assertListEqual(
         mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
@@ -81,9 +82,9 @@ class TestProcess(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      process.main(['run', '--dir', '/path/'])
+      process.Main(['run', '--dir', '/path/'])
     except SystemExit as e:
-      if e.code:
+      if e.code:  # pylint: disable=using-constant-test
         raise
     self.assertListEqual(
         mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])

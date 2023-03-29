@@ -27,7 +27,7 @@ _TEST_MODULES_TO_RUN = (
 
 
 @base.Timed('Total imagefap-favorites package test time')
-def main() -> int:
+def Main() -> int:
   """Run all of the tests."""
   logging.info('*' * 80)
   for module in _TEST_MODULES_TO_RUN:
@@ -41,4 +41,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-  main()
+  Main()

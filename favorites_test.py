@@ -2,6 +2,7 @@
 #
 # Copyright 2023 Daniel Balparda (balparda@gmail.com)
 #
+# pylint: disable=invalid-name,protected-access
 """favorites.py unittest."""
 
 # import pdb
@@ -39,9 +40,9 @@ class TestFavorites(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      favorites.main(['get', '--id', '10', '--folder', '20', '--output', '/path/', '--no-db'])
-    except SystemExit as e:
-      if e.code:
+      favorites.Main(['get', '--id', '10', '--folder', '20', '--output', '/path/', '--no-db'])
+    except SystemExit as err:
+      if err.code:  # pylint: disable=using-constant-test
         raise
     mock_is_dir.assert_called_with('/path/')
     load.assert_not_called()
@@ -81,9 +82,9 @@ class TestFavorites(unittest.TestCase):
     add_folder_by_name.return_value = (20, 'some-folder')
     add_all.return_value = {100, 200}
     try:
-      favorites.main(['read', '--user', '"foo-user"', '--output', '/path/', '--force'])
-    except SystemExit as e:
-      if e.code:
+      favorites.Main(['read', '--user', '"foo-user"', '--output', '/path/', '--force'])
+    except SystemExit as err:
+      if err.code:  # pylint: disable=using-constant-test
         raise
     mock_is_dir.assert_called_with('/path/')
     load.assert_called_with()

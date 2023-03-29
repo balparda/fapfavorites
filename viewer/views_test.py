@@ -2,6 +2,7 @@
 #
 # Copyright 2023 Daniel Balparda (balparda@gmail.com)
 #
+# pylint: disable=invalid-name,protected-access,wrong-import-position
 """views.py unittest."""
 
 import copy
@@ -22,12 +23,12 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'fapper.settings'  # cspell:disable-line
 from django.views.decorators import cache  # noqa: E402
 
 
-def _mock_decorator(*args, **kwargs):
+def _mock_decorator(*unused_args, **unused_kwargs):
   def _decorator(f):
-      @functools.wraps(f)
-      def _decorated_function(*args, **kwargs):
-          return f(*args, **kwargs)
-      return _decorated_function
+    @functools.wraps(f)
+    def _decorated_function(*args, **kwargs):
+      return f(*args, **kwargs)
+    return _decorated_function
   return _decorator
 
 
@@ -68,7 +69,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_getsize.return_value = 100000
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {}
@@ -86,7 +87,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_delete.return_value = (66, 22)
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'delete_input': '3'}
@@ -106,7 +107,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_delete.return_value = (66, 22)
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'delete_input': '11'}
@@ -120,7 +121,7 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   def test_ServeFavorites_User_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeFavorites(mock.Mock(views.http.HttpRequest), 5)
 
@@ -132,7 +133,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    db = _TestDBFactory()
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {
@@ -144,7 +145,7 @@ class TestDjangoViews(unittest.TestCase):
         'dup': '1',  # by default, show portrait+landscape, lock is off
     }
     views.ServeFavorite(request, 1, 10)
-    new_tags = {sha: db.blobs[sha]['tags'] for sha in _FAVORITE_CONTEXT_ALL_ON['blobs_data'].keys()}
+    new_tags = {sha: db.blobs[sha]['tags'] for sha in _FAVORITE_CONTEXT_ALL_ON['blobs_data']}
     self.assertDictEqual(new_tags, _FAVORITE_NEW_TAGS)
     mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
@@ -158,7 +159,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {}
     request.GET = {
@@ -174,14 +175,14 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   def test_ServeFavorite_User_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeFavorite(mock.Mock(views.http.HttpRequest), 5, 10)
 
   @mock.patch('viewer.views._DBFactory')
   def test_ServeFavorite_Folder_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeFavorite(mock.Mock(views.http.HttpRequest), 1, 50)
 
@@ -193,7 +194,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'named_child': 'new-tag-foo'}
     request.GET = {}
@@ -210,7 +211,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    db = _TestDBFactory()
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'delete_input': '33'}
@@ -230,7 +231,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'rename_tag': 'The One'}
     request.GET = {}
@@ -247,7 +248,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    db = _TestDBFactory()
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {
@@ -272,7 +273,7 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeTag(mock.Mock(views.http.HttpRequest), 666)
 
@@ -285,7 +286,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_find.return_value = 88
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'re_run': '1'}
@@ -304,7 +305,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'delete_pending': '1'}
     request.GET = {}
@@ -321,7 +322,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {'delete_all': '1'}
     request.GET = {}
@@ -338,7 +339,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    db = _TestDBFactory()
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     db.DeleteAllDuplicates()  # work with no duplicates here, just for simplicity
     mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
@@ -370,7 +371,7 @@ class TestDjangoViews(unittest.TestCase):
   def test_ServeDuplicate_Blob(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {}
     request.GET = {}
@@ -388,7 +389,7 @@ class TestDjangoViews(unittest.TestCase):
       mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
-    db = _TestDBFactory()
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {
@@ -406,14 +407,14 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   def test_ServeDuplicate_Blob_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeDuplicate(mock.Mock(views.http.HttpRequest), 'not-a-valid-blob-hash')
 
   @mock.patch('viewer.views._DBFactory')
   def test_ServeDuplicate_Singleton_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeDuplicate(
           mock.Mock(views.http.HttpRequest),
@@ -423,7 +424,7 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   def test_ServeDuplicate_Update_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {
         # this is a blob-only (hash collision) duplicate, and should not support POST
@@ -442,7 +443,7 @@ class TestDjangoViews(unittest.TestCase):
       self, mock_get_blob: mock.MagicMock, mock_has_blob: mock.MagicMock,
       mock_response: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_has_blob.return_value = True
     mock_get_blob.return_value = b'image binary data'
     request = mock.Mock(views.http.HttpRequest)
@@ -458,7 +459,7 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('viewer.views._DBFactory')
   def test_ServeBlob_Existence_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeBlob(mock.Mock(views.http.HttpRequest), 'hash-does-not-exist')
 
@@ -467,7 +468,7 @@ class TestDjangoViews(unittest.TestCase):
   def test_ServeBlob_Blob_Not_On_Disk_404(
       self, mock_has_blob: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_has_blob.return_value = False
     with self.assertRaises(views.http.Http404):
       views.ServeBlob(
@@ -479,7 +480,7 @@ class TestDjangoViews(unittest.TestCase):
   def test_ServeBlob_Invalid_Extension_404(
       self, mock_has_blob: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
-    db = _TestDBFactory()
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     mock_db.return_value = db
     mock_has_blob.return_value = True
     db.blobs['5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8']['ext'] = 'invalid'
@@ -584,6 +585,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 54643,
             'tags': {2, 3},
             'width': 198,  # image will be considered "square" aspect
+            'gone': set(),
         },
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
             'animated': False,
@@ -602,6 +604,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 45309,
             'tags': set(),  # untagged!
             'width': 130,
+            'gone': set(),
         },
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {
             'animated': True,
@@ -619,6 +622,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz': 444973,
             'sz_thumb': 302143,
             'width': 100,
+            'gone': set(),
         },
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'animated': False,
@@ -638,6 +642,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 0,
             'tags': {2, 11, 33},
             'width': 160,
+            'gone': set(),
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'animated': False,
@@ -655,6 +660,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 11890,
             'tags': {246},
             'width': 300,
+            'gone': set(),
         },
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
             'animated': False,
@@ -674,6 +680,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 56583,
             'tags': {1, 2},
             'width': 200,
+            'gone': set(),
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'animated': True,
@@ -691,6 +698,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz': 444973,
             'sz_thumb': 302143,
             'width': 500,
+            'gone': set(),
         },
     },
     'image_ids_index': {

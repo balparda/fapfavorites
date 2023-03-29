@@ -2,6 +2,7 @@
 #
 # Copyright 2023 Daniel Balparda (balparda@gmail.com)
 #
+# pylint: disable=invalid-name,protected-access
 """duplicated.py unittest."""
 
 import copy

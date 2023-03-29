@@ -61,6 +61,7 @@ FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
 
 # internal types definitions
 LocationTupleType = tuple[int, str, str, int, int]
+GoneTupleType = tuple[int, str]
 FailedTupleType = tuple[int, int, Optional[str], Optional[str]]
 
 
@@ -115,6 +116,7 @@ class _BlobObjType(TypedDict):
   width: int
   height: int
   animated: bool
+  gone: set[GoneTupleType]
 
 
 _UserType = dict[int, _UserObjType]
@@ -140,11 +142,11 @@ class _DatabaseType(TypedDict):
 
 
 # the site page templates we need
-_USER_PAGE_URL = lambda n: 'https://www.imagefap.com/profile/%s' % n
+_USER_PAGE_URL = lambda n: f'https://www.imagefap.com/profile/{n}'
 _FAVORITES_URL = (
-    lambda u, p: 'https://www.imagefap.com/showfavorites.php?userid=%d&page=%d' % (u, p))
-_FOLDER_URL = lambda u, f, p: '%s&folderid=%d' % (_FAVORITES_URL(u, p), f)  # cspell:disable-line
-IMG_URL = lambda id: 'https://www.imagefap.com/photo/%d/' % id
+    lambda u, p: f'https://www.imagefap.com/showfavorites.php?userid={u}&page={p}')
+_FOLDER_URL = lambda u, f, p: f'{_FAVORITES_URL(u, p)}&folderid={f}'  # cspell:disable-line
+IMG_URL = lambda id: f'https://www.imagefap.com/photo/{id}/'
 
 # the regular expressions we use to navigate the pages
 _FIND_ONLY_IN_PICTURE_FOLDER = re.compile(r'<\/a><\/td><\/tr>\s+<\/table>\s+<table')
@@ -185,11 +187,9 @@ class Error404(Error):
   def __str__(self) -> str:
     """Get string representation."""
     failure = self.FailureTuple()
-    return 'Error404(ID: %d, @%s, %r, %r)' % (
-        failure[0],
-        base.STD_TIME_STRING(failure[1]),
-        '-' if failure[2] is None else failure[2],
-        '-' if failure[3] is None else failure[3])
+    return (f'Error404(ID: {failure[0]}, @{base.STD_TIME_STRING(failure[1])}, '
+            f'{"-" if failure[2] is None else failure[2]!r}, '
+            f'{"-" if failure[3] is None else failure[3]!r})')
 
   def FailureTuple(self) -> FailedTupleType:
     """Get a failure tuple for this 404."""
@@ -243,7 +243,7 @@ class FapDatabase:
     # check output directory, create if needed
     if not os.path.isdir(self._db_dir):
       if not create_if_needed:
-        raise Error('Output directory %r does not exist' % self._original_dir)
+        raise Error(f'Output directory {self._original_dir!r} does not exist')
       logging.info('Creating output directory %r', self._original_dir)
       os.mkdir(self._db_dir)
     # save to environment
@@ -335,51 +335,49 @@ class FapDatabase:
   def UserStr(self, user_id: int) -> str:
     """Produce standard user representation, like 'UserName (id)'."""
     try:
-      return '%s (%d)' % (self.users[user_id]['name'], user_id)
-    except KeyError:
-      raise Error('User %d not found' % user_id)
+      return f'{self.users[user_id]["name"]} ({user_id})'
+    except KeyError as err:
+      raise Error(f'User {user_id} not found') from err
 
   def AlbumStr(self, user_id: int, folder_id: int) -> str:
     """Produce standard album representation, like 'UserName/FolderName (uid/fid)'."""
     try:
-      return '%s/%s (%d/%d)' % (
-          self.users[user_id]['name'], self.favorites[user_id][folder_id]['name'],
-          user_id, folder_id)
-    except KeyError:
-      raise Error('Album %d/%d not found' % (user_id, folder_id))
+      return (f'{self.users[user_id]["name"]}/{self.favorites[user_id][folder_id]["name"]} '
+              f'({user_id}/{folder_id})')
+    except KeyError as err:
+      raise Error(f'Album {user_id}/{folder_id} not found') from err
 
   def LocationStr(self, loc: LocationTupleType) -> str:
     """Produce standard location repr, like 'UserName/FolderName/ImageName (uid/fid/img_id)'."""
     try:
-      return '%s/%s/%s (%d/%d/%d)' % (
-          self.users[loc[3]]['name'], self.favorites[loc[3]][loc[4]]['name'],
-          loc[2], loc[3], loc[4], loc[0])
-    except KeyError:
-      raise Error('Location %s had inconsistencies' % repr(loc))
+      return (f'{self.users[loc[3]]["name"]}/{self.favorites[loc[3]][loc[4]]["name"]}/{loc[2]} '
+              f'({loc[3]}/{loc[4]}/{loc[0]})')
+    except KeyError as err:
+      raise Error(f'Location {loc!r} had inconsistencies') from err
 
   def TagStr(self, tag_id: int, add_id: bool = True) -> str:
     """Produce standard tag representation, like 'TagName (id)'."""
     name = self.GetTag(tag_id)[-1][1]
-    return '%s (%d)' % (name, tag_id) if add_id else name
+    return f'{name} ({tag_id})' if add_id else name
 
   def TagLineageStr(self, tag_id: int, add_id: bool = True) -> str:
     """Print tag name together with parents, like 'grand_name/parent_name/tag_name (id)'."""
     name = '/'.join(n for _, n, _ in self.GetTag(tag_id))
-    return '%s (%d)' % (name, tag_id) if add_id else name
+    return f'{name} ({tag_id})' if add_id else name
 
   def _BlobPath(self, sha: str) -> str:
     """Get full file path for a blob hash (`sha`)."""
     try:
-      return os.path.join(self._blobs_dir, '%s.%s' % (sha, self.blobs[sha]['ext']))
-    except KeyError:
-      raise Error('Blob %r not found' % sha)
+      return os.path.join(self._blobs_dir, f'{sha}.{self.blobs[sha]["ext"]}')
+    except KeyError as err:
+      raise Error(f'Blob {sha!r} not found') from err
 
   def ThumbnailPath(self, sha: str) -> str:
     """Get full file path for a thumbnail, based on its blob hash (`sha`)."""
     try:
-      return os.path.join(self._thumbs_dir, '%s.%s' % (sha, self.blobs[sha]['ext']))
-    except KeyError:
-      raise Error('Blob %r not found' % sha)
+      return os.path.join(self._thumbs_dir, f'{sha}.{self.blobs[sha]["ext"]}')
+    except KeyError as err:
+      raise Error(f'Blob {sha!r} not found') from err
 
   def HasBlob(self, sha: str) -> bool:
     """Check if blob `sha` is available in blobs/ directory."""
@@ -387,8 +385,8 @@ class FapDatabase:
 
   def GetBlob(self, sha: str) -> bytes:
     """Get the blob binary data for `sha` entry."""
-    with open(self._BlobPath(sha), 'rb') as f:
-      return f.read()
+    with open(self._BlobPath(sha), 'rb') as file_obj:
+      return file_obj.read()
 
   def GetTag(self, tag_id: int) -> list[tuple[int, str, TagObjType]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
@@ -407,25 +405,25 @@ class FapDatabase:
       raise Error('tag_id cannot be empty')
     hierarchy: list[tuple[int, str, TagObjType]] = []
 
-    def _get_recursive(obj: _TagType) -> bool:
+    def _GetRecursive(obj: _TagType) -> bool:
       if tag_id in obj:
         try:
           hierarchy.append((tag_id, obj[tag_id]['name'], obj[tag_id]))  # found!
-        except KeyError:
-          raise Error('Found tag %d is empty (has no \'name\')!' % tag_id)
+        except KeyError as err:
+          raise Error(f'Found tag {tag_id} is empty (has no \'name\')!') from err
         return True
-      for i, o in obj.items():
-        if o.get('tags', {}):
-          if _get_recursive(o['tags']):  # type: ignore
+      for i, inner_obj in obj.items():
+        if inner_obj.get('tags', {}):
+          if _GetRecursive(inner_obj['tags']):  # type: ignore
             try:
-              hierarchy.append((i, o['name'], o))  # parent to a found tag
-            except KeyError:
-              raise Error('Parent tag %d (of %d) is empty (has no \'name\')!' % (i, tag_id))
+              hierarchy.append((i, inner_obj['name'], inner_obj))  # parent to a found tag
+            except KeyError as err:
+              raise Error(f'Parent tag {i} (of {tag_id}) is empty (has no \'name\')!') from err
             return True
       return False
 
-    if not _get_recursive(self.tags):
-      raise Error('Tag ID %d was not found' % tag_id)
+    if not _GetRecursive(self.tags):
+      raise Error(f'Tag ID {tag_id} was not found')
     hierarchy.reverse()
     return hierarchy
 
@@ -447,9 +445,9 @@ class FapDatabase:
         (t['name'], k, t['tags']) for k, t in start_tag.items()):  # will sort by name in this level
       yield (tag_id, tag_name, depth, tag_tags)  # type: ignore
       if start_tag[tag_id]['tags']:
-        for o in self.TagsWalk(
-            start_tag=start_tag[tag_id]['tags'], depth=(depth + 1)):  # type: ignore
-          yield o
+        for obj in self.TagsWalk(
+            start_tag=start_tag[tag_id]['tags'], depth=depth + 1):  # type: ignore
+          yield obj
 
   def _TagNameOKOrDie(self, new_tag_name: str) -> None:
     """Check tag name is OK: does not clash and has no invalid chars. If not will raise exception.
@@ -462,12 +460,12 @@ class FapDatabase:
     """
     # check for invalid chars
     if '/' in new_tag_name or '\\' in new_tag_name:
-      raise Error('Don\'t use "/" or "\\" in tag name (tried to use %r as tag name)' % new_tag_name)
+      raise Error(f'Don\'t use "/" or "\\" in tag name (tried to use {new_tag_name!r} as tag name)')
     # check if name does not clash with any already existing tag
     for tid, name, _, _ in self.TagsWalk():
       if new_tag_name.lower() == name.lower():
         raise Error(
-            'Proposed tag name %r clashes with existing tag %s' % (new_tag_name, self.TagStr(tid)))
+            f'Proposed tag name {new_tag_name!r} clashes with existing tag {self.TagStr(tid)}')
 
   def AddTag(self, parent_id: int, new_tag_name: str) -> int:
     """Add new tag.
@@ -526,8 +524,8 @@ class FapDatabase:
     # check tag does not have children
     if tag_hierarchy[-1][-1]['tags']:
       raise Error(
-          'Requested deletion of tag %s that is not empty (delete children first)' %
-          self.TagLineageStr(tag_id))
+          f'Requested deletion of tag {self.TagLineageStr(tag_id)} that is not empty '
+          '(delete children first)')
     # everything OK: do deletion
     if len(tag_hierarchy) < 2:
       # in this case it is a child of root
@@ -563,65 +561,60 @@ class FapDatabase:
       if actually_print:
         print(line)
 
-    _PrintLine('Database is located in %r, and is %s (%0.3f%% of total images size)' % (
-        self._db_path, base.HumanizedBytes(db_size),
-        (100.0 * db_size) / (all_files_size if all_files_size else 1)))
     _PrintLine(
-        '%s total (unique) images size (%s min, %s max, '
-        '%s mean with %s standard deviation, %d are animated)' % (
-            base.HumanizedBytes(all_files_size),
-            base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
-            base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
-            base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
-            base.HumanizedBytes(int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-',
-            sum(int(s['animated']) for s in self.blobs.values())))
+        f'Database is located in {self._db_path!r}, and is {base.HumanizedBytes(db_size)} '
+        f'({(100.0 * db_size) / (all_files_size if all_files_size else 1):0.3f}% of '
+        'total images size)')
+    _PrintLine(
+        f'{base.HumanizedBytes(all_files_size)} total (unique) images size '
+        f'({base.HumanizedBytes(min(file_sizes)) if file_sizes else "-"} min, '
+        f'{base.HumanizedBytes(max(file_sizes)) if file_sizes else "-"} max, '
+        f'{base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else "-"} mean with '
+        f'{base.HumanizedBytes(int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else "-"} '
+        f'standard deviation, {sum(int(s["animated"]) for s in self.blobs.values())} are animated)')
     if file_sizes:
       wh_sizes: list[tuple[int, int]] = [
           (s['width'], s['height']) for s in self.blobs.values()]
       pixel_sizes: list[int] = [
           s['width'] * s['height'] for s in self.blobs.values()]
-      _PrintLine(
-          'Pixel size (width, height): %s pixels min %r, %s pixels max %r, '  # cspell:disable-line
-          '%s mean with %s standard deviation' % (
-              base.HumanizedDecimal(min(pixel_sizes)),
-              wh_sizes[pixel_sizes.index(min(pixel_sizes))],
-              base.HumanizedDecimal(max(pixel_sizes)),
-              wh_sizes[pixel_sizes.index(max(pixel_sizes))],
-              base.HumanizedDecimal(int(statistics.mean(pixel_sizes))),
-              base.HumanizedDecimal(
-                  int(statistics.stdev(pixel_sizes))) if len(pixel_sizes) > 2 else '-'))
+      std_dev = base.HumanizedDecimal(
+          int(statistics.stdev(pixel_sizes))) if len(pixel_sizes) > 2 else '-'
+      _PrintLine(  # cspell:disable-line
+          f'Pixel size (width, height): {base.HumanizedDecimal(min(pixel_sizes))} pixels min '
+          f'{wh_sizes[pixel_sizes.index(min(pixel_sizes))]!r}, '
+          f'{base.HumanizedDecimal(max(pixel_sizes))} pixels max '
+          f'{wh_sizes[pixel_sizes.index(max(pixel_sizes))]!r}, '
+          f'{base.HumanizedDecimal(int(statistics.mean(pixel_sizes)))} mean with '
+          f'{std_dev} standard deviation')
     if all_files_size and all_thumb_size:
+      std_dev = base.HumanizedBytes(
+          int(statistics.stdev(thumb_sizes))) if len(thumb_sizes) > 2 else '-'
       _PrintLine(
-          '%s total thumbnail size (%s min, %s max, %s mean with %s standard deviation), '
-          '%0.1f%% of total images size' % (
-              base.HumanizedBytes(all_thumb_size),
-              base.HumanizedBytes(min(thumb_sizes)) if thumb_sizes else '-',
-              base.HumanizedBytes(max(thumb_sizes)) if thumb_sizes else '-',
-              base.HumanizedBytes(int(statistics.mean(thumb_sizes))) if thumb_sizes else '-',
-              base.HumanizedBytes(
-                  int(statistics.stdev(thumb_sizes))) if len(thumb_sizes) > 2 else '-',
-              (100.0 * all_thumb_size) / all_files_size))
+          f'{base.HumanizedBytes(all_thumb_size)} total thumbnail size ('
+          f'{base.HumanizedBytes(min(thumb_sizes)) if thumb_sizes else "-"} min, '
+          f'{base.HumanizedBytes(max(thumb_sizes)) if thumb_sizes else "-"} max, '
+          f'{base.HumanizedBytes(int(statistics.mean(thumb_sizes))) if thumb_sizes else "-"} mean '
+          f'with {std_dev} standard deviation), '
+          f'{(100.0 * all_thumb_size) / all_files_size:0.1f}% of total images size')
     _PrintLine()
-    _PrintLine('%d users' % len(self.users))
+    _PrintLine(f'{len(self.users)} users')
     all_dates = [max(f['date_straight'], f['date_blobs'])
                  for u in self.favorites.values() for f in u.values()]
     min_date = min(all_dates) if all_dates else 0
     max_date = max(all_dates) if all_dates else 0
-    _PrintLine('%d favorite galleries (oldest: %s / newer: %s)' % (
-        sum(len(f) for _, f in self.favorites.items()),
-        base.STD_TIME_STRING(min_date) if min_date else 'pending',
-        base.STD_TIME_STRING(max_date) if max_date else 'pending'))
-    _PrintLine('%d unique images (%d total, %d exact duplicates)' % (
-        len(self.blobs),
-        sum(len(b['loc']) for _, b in self.blobs.items()),
-        sum(len(b['loc']) - 1 for _, b in self.blobs.items())))
+    _PrintLine(f'{sum(len(f) for _, f in self.favorites.items())} favorite galleries '
+               f'(oldest: {base.STD_TIME_STRING(min_date) if min_date else "pending"} / '
+               f'newer: {base.STD_TIME_STRING(max_date) if max_date else "pending"})')
+    _PrintLine(
+        f'{len(self.blobs)} unique images ({sum(len(b["loc"]) for _, b in self.blobs.items())} '
+        f'total, {sum(len(b["loc"]) - 1 for _, b in self.blobs.items())} exact duplicates)')
     unique_failed: set[int] = set()
     for failed in (
         fav['failed_images'] for user in self.favorites.values() for fav in user.values()):
       unique_failed.update(img for img, _, _, _ in failed)
-    _PrintLine('%d unique failed images in all user albums' % len(unique_failed))
-    _PrintLine('%d perceptual duplicates in %d groups' % (
-        len(self.duplicates.index), len(self.duplicates.registry)))
+    _PrintLine(f'{len(unique_failed)} unique failed images in all user albums')
+    _PrintLine(f'{len(self.duplicates.index)} perceptual duplicates in '
+               f'{len(self.duplicates.registry)} groups')
     return all_lines
 
   def PrintUsersAndFavorites(self, actually_print=True) -> list[str]:
@@ -646,36 +639,37 @@ class FapDatabase:
     _PrintLine('           FILE STATS FOR FAVORITES')
     for uid in sorted(self.users.keys()):
       _PrintLine()
-      _PrintLine('%d: %r' % (uid, self.users[uid]['name']))
+      _PrintLine(f'{uid}: {self.users[uid]["name"]!r}')
       file_sizes: list[int] = [
           self.blobs[self.image_ids_index[i]]['sz']
           for d, u in self.favorites.items() if d == uid
           for f in u.values()
           for i in f['images'] if i in self.image_ids_index]
-      _PrintLine('    %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
-          base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
-          base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
-          base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
-          base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
-          base.HumanizedBytes(int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'))
+      std_dev = base.HumanizedBytes(
+          int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'
+      _PrintLine(f'    {base.HumanizedBytes(sum(file_sizes) if file_sizes else 0)} files size '
+                 f'({base.HumanizedBytes(min(file_sizes)) if file_sizes else "-"} min, '
+                 f'{base.HumanizedBytes(max(file_sizes)) if file_sizes else "-"} max, '
+                 f'{base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else "-"} '
+                 f'mean with {std_dev} standard deviation)')
       for fid in sorted(self.favorites.get(uid, {}).keys()):
         obj = self.favorites[uid][fid]
         file_sizes: list[int] = [
             self.blobs[self.image_ids_index[i]]['sz']
             for i in obj['images'] if i in self.image_ids_index]
-        _PrintLine('    => %d: %r (%d / %d / %d / %s)' % (
-            fid, obj['name'], len(obj['images']), len(obj['failed_images']), obj['pages'],
-            base.STD_TIME_STRING(max(obj['date_straight'], obj['date_blobs']))
-            if obj['date_straight'] or obj['date_blobs'] else 'pending'))
+        date_str = (base.STD_TIME_STRING(max(obj["date_straight"], obj["date_blobs"]))
+                    if obj["date_straight"] or obj["date_blobs"] else "pending")
+        _PrintLine(f'    => {fid}: {obj["name"]!r} ({len(obj["images"])} / '
+                   f'{len(obj["failed_images"])} / {obj["pages"]} / {date_str})')
         if file_sizes:
+          std_dev = base.HumanizedBytes(
+              int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'
           _PrintLine(
-              '           %s files size (%s min, %s max, %s mean with %s standard deviation)' % (
-                  base.HumanizedBytes(sum(file_sizes)),
-                  base.HumanizedBytes(min(file_sizes)),
-                  base.HumanizedBytes(max(file_sizes)),
-                  base.HumanizedBytes(int(statistics.mean(file_sizes))),
-                  base.HumanizedBytes(
-                      int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-'))
+              f'           {base.HumanizedBytes(sum(file_sizes))} files size '
+              f'({base.HumanizedBytes(min(file_sizes))} min, '
+              f'{base.HumanizedBytes(max(file_sizes))} max, '
+              f'{base.HumanizedBytes(int(statistics.mean(file_sizes)))} mean with '
+              f'{std_dev} standard deviation)')
     return all_lines
 
   def PrintTags(self, actually_print=True) -> list[str]:
@@ -701,13 +695,13 @@ class FapDatabase:
     _PrintLine()
     for tag_id, tag_name, depth, _ in self.TagsWalk():
       count: int = 0
-      sz: int = 0
+      total_sz: int = 0
       for blob in self.blobs.values():
         if tag_id in blob['tags']:
           count += 1
-          sz += blob['sz']
-      _PrintLine('%s%d: %r (%d / %s)' % (
-          '    ' * depth, tag_id, tag_name, count, base.HumanizedBytes(sz)))
+          total_sz += blob['sz']
+      _PrintLine(
+          f'{"    " * depth}{tag_id}: {tag_name!r} ({count} / {base.HumanizedBytes(total_sz)})')
     return all_lines
 
   def PrintBlobs(self, actually_print=True) -> list[str]:
@@ -732,14 +726,12 @@ class FapDatabase:
     _PrintLine()
     for sha in sorted(self.blobs.keys()):
       blob = self.blobs[sha]
-      _PrintLine('%s: %s, %s %r%s' % (
-          sha, ' or '.join(self.LocationStr(loc)
-                           for loc in sorted(blob['loc'], key=lambda x: (x[0], x[3], x[4]))),
-          base.HumanizedDecimal(blob['width'] * blob['height']),
-          (blob['width'], blob['height']),
-          ' animated' if blob['animated'] else ''))
+      locations = ' or '.join(self.LocationStr(loc)
+                              for loc in sorted(blob['loc'], key=lambda x: (x[0], x[3], x[4])))
+      _PrintLine(f'{sha}: {locations}, {base.HumanizedDecimal(blob["width"] * blob["height"])} '
+                 f'({blob["width"]}, {blob["height"]}){" animated" if blob["animated"] else ""}')
       if blob['tags']:
-        _PrintLine('    => {%s}' % ', '.join(self.TagStr(tid) for tid in sorted(blob['tags'])))
+        _PrintLine(f'    => {{{", ".join(self.TagStr(tid) for tid in sorted(blob["tags"]))}}}')
     return all_lines
 
   def AddUserByID(self, user_id: int) -> str:
@@ -763,7 +755,7 @@ class FapDatabase:
       user_html = _FapHTMLRead(url)
       user_names: list[str] = _FIND_NAME_IN_FAVORITES.findall(user_html)
       if len(user_names) != 1:
-        raise Error('Could not find user name for %d' % user_id)
+        raise Error(f'Could not find user name for {user_id}')
       self.users[user_id] = {
           'name': html.unescape(user_names[0]), 'date_albums': 0, 'date_finished': 0}
     logging.info('%s user %s added', status, self.UserStr(user_id))
@@ -792,11 +784,11 @@ class FapDatabase:
     user_html = _FapHTMLRead(url)
     user_ids: list[str] = _FIND_USER_ID_RE.findall(user_html)
     if len(user_ids) != 1:
-      raise Error('Could not find ID for user %r' % user_name)
+      raise Error(f'Could not find ID for user {user_name!r}')
     uid = int(user_ids[0])
     actual_name: list[str] = _FIND_ACTUAL_NAME.findall(user_html)
     if len(actual_name) != 1:
-      raise Error('Could not find actual display name for user %r' % user_name)
+      raise Error(f'Could not find actual display name for user {user_name!r}')
     self.users[uid] = {
         'name': html.unescape(actual_name[0]), 'date_albums': 0, 'date_finished': 0}
     logging.info('New user %s added', self.UserStr(uid))
@@ -824,7 +816,7 @@ class FapDatabase:
       folder_html = _FapHTMLRead(url)
       folder_names: list[str] = _FIND_NAME_IN_FOLDER.findall(folder_html)
       if len(folder_names) != 1:
-        raise Error('Could not find folder name for %d/%d' % (user_id, folder_id))
+        raise Error(f'Could not find folder name for {user_id}/{folder_id}')
       _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
       self.favorites.setdefault(user_id, {})[folder_id] = {
           'name': html.unescape(folder_names[0]), 'pages': 0,
@@ -859,7 +851,7 @@ class FapDatabase:
       fav_html = _FapHTMLRead(url)
       favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
       if not favorites_page:
-        raise Error('Could not find picture folder %r for user %d' % (favorites_name, user_id))
+        raise Error(f'Could not find picture folder {favorites_name!r} for user {user_id}')
       for f_id, f_name in favorites_page:
         i_f_id, f_name = int(f_id), html.unescape(f_name)
         if f_name.lower() == favorites_name.lower():
@@ -886,10 +878,10 @@ class FapDatabase:
       # check for the timestamps: should we even do this work?
       if not self._CheckWorkHysteresis(
           force_download, self.users[user_id]['date_albums'],
-          'Getting all image favorites for user %s' % self.UserStr(user_id)):
+          f'Getting all image favorites for user {self.UserStr(user_id)}'):
         return set(self.favorites.get(user_id, {}).keys())
-    except KeyError:
-      raise Error('This user was not added to DB yet: %d' % user_id)
+    except KeyError as err:
+      raise Error(f'This user was not added to DB yet: {user_id}') from err
     # get all pages of albums, extract the albums
     page_num: int = 0
     known_favorites: int = 0
@@ -955,12 +947,12 @@ class FapDatabase:
                              self.favorites[user_id][folder_id]['date_blobs'])
       if not self._CheckWorkHysteresis(
           force_download, tm_download,
-          'Reading album %s pages & IDs' % self.AlbumStr(user_id, folder_id)):
+          f'Reading album {self.AlbumStr(user_id, folder_id)} pages & IDs'):
         return self.favorites[user_id][folder_id]['images']
       img_list: list[int] = self.favorites[user_id][folder_id]['images']
       seen_pages: int = self.favorites[user_id][folder_id]['pages']
-    except KeyError:
-      raise Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
+    except KeyError as err:
+      raise Error(f'This user/folder was not added to DB yet: {user_id}/{folder_id}') from err
     # do the paging backtracking, if adequate; this is guaranteed to work because
     # the site only adds images to the *end* of the images favorites; on the other
     # hand there is the issue of the "disappearing" images, so we have to backtrack
@@ -992,12 +984,12 @@ class FapDatabase:
             break  # after 2 extra safety pages, we hope we can now safely give up...
           else:
             page_num += 2  # we found something (2nd extra page), remember to increment page counter
-            logging.warn('Album %s had 2 EMPTY PAGES in the middle of the page list!',
-                         self.AlbumStr(user_id, folder_id))
+            logging.warning('Album %s had 2 EMPTY PAGES in the middle of the page list!',
+                            self.AlbumStr(user_id, folder_id))
         else:
           page_num += 1  # we found something (1st extra page), remember to increment page counter
-          logging.warn('Album %s had 1 EMPTY PAGES in the middle of the page list!',
-                       self.AlbumStr(user_id, folder_id))
+          logging.warning('Album %s had 1 EMPTY PAGES in the middle of the page list!',
+                          self.AlbumStr(user_id, folder_id))
       # add the images to the end, preserve order, but skip the ones already there
       for i in new_ids:
         if i not in img_set:
@@ -1039,40 +1031,40 @@ class FapDatabase:
         (image_bytes, sha, percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
          width, height, is_animated) = self._GetBinary(
             url_path, extension)
-      except Error404 as e:
-        e.image_id = img_id
-        e.image_name = sanitized_image_name
+      except Error404 as err:
+        err.image_id = img_id
+        err.image_name = sanitized_image_name
         raise  # (let Error404 bubble through after adding the image ID and name...)
       # create DB entries and return
       self.image_ids_index[img_id] = sha
-      sz = len(image_bytes)
+      sz_bytes = len(image_bytes)
       if sha in self.blobs:
         # in this case we haven't seen this img_id, but the actual binary (sha) was seen in
         # some other album, so we do some checks and add to the 'loc' entry
-        if (self.blobs[sha]['sz'] != sz or self.blobs[sha]['percept'] != percept_hash or
+        if (self.blobs[sha]['sz'] != sz_bytes or self.blobs[sha]['percept'] != percept_hash or
             self.blobs[sha]['width'] != width or self.blobs[sha]['height'] != height or
             self.blobs[sha]['animated'] != is_animated):
           logging.error(  # this would be truly weird case, especially for the sz data!
               'Mismatch in %r: stored %d/%s/%s/%d/%d/%r versus new %d/%s/%s/%d/%d/%r',
               sha, self.blobs[sha]['sz'], self.blobs[sha]['percept'], self.blobs[sha]['ext'],
               self.blobs[sha]['width'], self.blobs[sha]['height'], self.blobs[sha]['animated'],
-              sz, percept_hash, extension, width, height, is_animated)
+              sz_bytes, percept_hash, extension, width, height, is_animated)
         self.blobs[sha]['loc'].add(
             (img_id, url_path, sanitized_image_name, user_id, folder_id))
       else:
         # in this case this is a truly new image: never seen img_id or sha
         self.blobs[sha] = {
             'loc': {(img_id, url_path, sanitized_image_name, user_id, folder_id)},
-            'tags': set(), 'sz': sz, 'sz_thumb': 0, 'ext': extension, 'percept': percept_hash,
+            'tags': set(), 'sz': sz_bytes, 'sz_thumb': 0, 'ext': extension, 'percept': percept_hash,
             'average': average_hash, 'diff': diff_hash, 'wavelet': wavelet_hash, 'cnn': cnn_hash,
-            'width': width, 'height': height, 'animated': is_animated}
+            'width': width, 'height': height, 'animated': is_animated, 'gone': set()}
       return (image_bytes, sha, url_path, sanitized_image_name, extension)
     # we have seen this img_id before, and can skip a lot of computation
     # first: could it be we saw it in this same user_id/folder_id?
-    for iid, url, nm, uid, fid in self.blobs[sha]['loc']:
+    for iid, url, loc_nm, uid, fid in self.blobs[sha]['loc']:
       if img_id == iid and user_id == uid and folder_id == fid:
         # this is an exact match (img_id/user_id/folder_id) and we won't download or search for URL
-        return (None, sha, url, nm, self.blobs[sha]['ext'])
+        return (None, sha, url, loc_nm, self.blobs[sha]['ext'])
     # in this last case we know the img_id but it seems to be duplicated in another album,
     # so we have to get the img_id metadata (url, name) at least, and add to the database
     url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)  # 404 bubble through
@@ -1163,12 +1155,12 @@ class FapDatabase:
       tm_download: int = self.favorites[user_id][folder_id][date_key]
       if not self._CheckWorkHysteresis(
           force_download, tm_download,
-          'Downloading album %s images' % self.AlbumStr(user_id, folder_id)):
+          f'Downloading album {self.AlbumStr(user_id, folder_id)} images'):
         return 0
       logging.info('*NO* checkpoints used (work may be lost!)' if checkpoint_size == 0 else
-                   'Checkpoint DB every %d downloads' % checkpoint_size)
-    except KeyError:
-      raise Error('This user/folder was not added to DB yet: %d/%d' % (user_id, folder_id))
+                   f'Checkpoint DB every {checkpoint_size} downloads')
+    except KeyError as err:
+      raise Error(f'This user/folder was not added to DB yet: {user_id}/{folder_id}') from err
     # download all full resolution images we don't yet have
     total_sz: int = 0
     thumb_sz: int = 0
@@ -1180,11 +1172,11 @@ class FapDatabase:
       try:
         image_bytes, sha, url_path, sanitized_image_name, extension = (
             self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id))
-      except Error404 as e:
+      except Error404 as err:
         # we had a 404 error, but this already comes will all fields ready
         self.favorites[user_id][folder_id]['images'].remove(img_id)
-        self.favorites[user_id][folder_id]['failed_images'].add(e.FailureTuple())
-        logging.error('FAILED IMAGE: %s' % e)
+        self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
+        logging.error('FAILED IMAGE: %s', err)
         continue
       known_count += 1 if image_bytes is None else 0
       full_path = (os.path.join(output_dir, sanitized_image_name)
@@ -1201,13 +1193,13 @@ class FapDatabase:
       try:
         total_sz += _SaveImage(full_path, self._GetBinary(
             url_path, extension)[0] if image_bytes is None else image_bytes)
-      except Error404 as e:
+      except Error404 as err:
         # we had a 404 error, and it needs extra fields
-        e.image_id = img_id
-        e.image_name = sanitized_image_name
+        err.image_id = img_id
+        err.image_name = sanitized_image_name
         self.favorites[user_id][folder_id]['images'].remove(img_id)
-        self.favorites[user_id][folder_id]['failed_images'].add(e.FailureTuple())
-        logging.error('FAILED IMAGE: %s' % e)
+        self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
+        logging.error('FAILED IMAGE: %s', err)
         continue
       saved_count += 1
       # if we saved a blob, we should also generate a thumbnail
@@ -1219,10 +1211,9 @@ class FapDatabase:
     # all images were downloaded, the end
     self.favorites[user_id][folder_id][date_key] = base.INT_TIME()  # marks album as done
     print(
-        'Saved %d images to disk (%s) and %s in thumbnails; also %d images were already in DB and '
-        '%d images were already saved to destination' % (
-            saved_count, base.HumanizedBytes(total_sz), base.HumanizedBytes(thumb_sz),
-            known_count, exists_count))
+        f'Saved {saved_count} images to disk ({base.HumanizedBytes(total_sz)}) and '
+        f'{base.HumanizedBytes(thumb_sz)} in thumbnails; also {known_count} images were '
+        f'already in DB and {exists_count} images were already saved to destination')
     return total_sz
 
   def _GetBinary(
@@ -1247,7 +1238,7 @@ class FapDatabase:
     logging.info('Fetching full-res image: %s', url)
     img_data = _FapBinRead(url)  # (let Error404 bubble through...)
     if not img_data:
-      raise Error('Empty full-res URL: %s' % url)
+      raise Error(f'Empty full-res URL: {url}')
     # do perceptual hashing
     with tempfile.NamedTemporaryFile(suffix='.' + image_extension) as temp_file:
       temp_file.write(img_data)
@@ -1328,7 +1319,7 @@ class FapDatabase:
     """
     # check input
     if user_id not in self.users:
-      raise Error('Invalid user %d' % user_id)
+      raise Error(f'Invalid user {user_id}')
     # delete the favorite albums first
     img_count: int = 0
     duplicate_count: int = 0
@@ -1356,9 +1347,9 @@ class FapDatabase:
     """
     # check input
     if user_id not in self.users or user_id not in self.favorites:
-      raise Error('Invalid user %d' % user_id)
+      raise Error(f'Invalid user {user_id}')
     if folder_id not in self.favorites[user_id]:
-      raise Error('Invalid folder %d for user %s' % (folder_id, self.UserStr(user_id)))
+      raise Error(f'Invalid folder {folder_id} for user {self.UserStr(user_id)}')
     # get the album and go through the images deleting as necessary
     img_count: int = 0
     duplicate_count: int = 0
@@ -1372,8 +1363,8 @@ class FapDatabase:
           logging.info('Deleting image entry %s/%s', self.LocationStr(loc_key), sha)
           break  # found the entry, as expected
       else:
-        raise Error('Invalid image %d in folder %s; inconsistency should not happen!' % (
-            img_id, self.AlbumStr(user_id, folder_id)))
+        raise Error(f'Invalid image {img_id} in folder {self.AlbumStr(user_id, folder_id)}; '
+                    'inconsistency should not happen!')
       self.blobs[sha]['loc'].remove(loc_key)
       # now we either still have locations for this blob, or it is orphaned
       if self.blobs[sha]['loc']:
@@ -1384,13 +1375,13 @@ class FapDatabase:
       try:
         os.remove(self._BlobPath(sha))
         logging.info('Deleted blob %r from disk', sha)
-      except FileNotFoundError as e:
-        logging.warning('Blob %r not found: %s', sha, e)
+      except FileNotFoundError as err:
+        logging.warning('Blob %r not found: %s', sha, err)
       try:
         os.remove(self.ThumbnailPath(sha))
         logging.info('Deleted thumbnail %r from disk', sha)
-      except FileNotFoundError as e:
-        logging.warning('Thumbnail %r not found: %s', sha, e)
+      except FileNotFoundError as err:
+        logging.warning('Thumbnail %r not found: %s', sha, err)
       # now delete the blob entry
       del self.blobs[sha]
       img_count += 1
@@ -1416,9 +1407,9 @@ class FapDatabase:
 
   @property
   def _hashes_encodings_map(self) -> duplicates.HashEncodingMapType:
-     """A dictionary containing mapping of filenames and corresponding perceptual hashes."""
-     return {method: {sha: obj[method] for sha, obj in self.blobs.items()}  # type: ignore
-             for method in duplicates.DUPLICATE_HASHES}
+    """A dictionary containing mapping of filenames and corresponding perceptual hashes."""
+    return {method: {sha: obj[method] for sha, obj in self.blobs.items()}  # type: ignore
+            for method in duplicates.DUPLICATE_HASHES}
 
   def DeletePendingDuplicates(self) -> tuple[int, int]:
     """Delete pending duplicate images, including all evaluations, verdicts, and indexes.
@@ -1480,15 +1471,15 @@ def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> b
         urllib.error.URLError,
         urllib.error.HTTPError,
         http.client.RemoteDisconnected,
-        socket.timeout) as e:
+        socket.timeout) as err:
       # these errors sometimes happen and can be a case for retry
       n_retry += 1
-      last_error = str(e)
+      last_error = str(err)
       logging.error('%r error for URL %r, RETRY # %d', last_error, url, n_retry)
   # only way to reach here is exceeding retries
   if last_error is not None and 'http error 404' in last_error.lower():
     raise Error404(url)
-  raise Error('Max retries reached on URL %r' % url)
+  raise Error(f'Max retries reached on URL {url!r}')
 
 
 def _FapHTMLRead(url: str) -> str:
@@ -1563,16 +1554,16 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   logging.info('Fetching image page: %s', url)
   try:
     img_html = _FapHTMLRead(url)
-  except Error404 as e:
-    e.image_id = img_id
+  except Error404 as err:
+    err.image_id = img_id
     raise
   full_res_urls: list[str] = _FULL_IMAGE.findall(img_html)
   if not full_res_urls:
-    raise Error('No full resolution image in %s' % url)
+    raise Error(f'No full resolution image in {url!r}')
   # from the same source extract image file name
   img_name: list[str] = _IMAGE_NAME.findall(img_html)
   if not img_name:
-    raise Error('No image name path in %s' % url)
+    raise Error(f'No image name path in {url!r}')
   # sanitize image name before returning
   new_name: str = sanitize_filename.sanitize(html.unescape(img_name[0]).replace('/', '-'))
   if new_name != img_name[0]:
@@ -1580,7 +1571,7 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   # figure out the file name, sanitize extension
   main_name, extension = new_name.rsplit('.', 1) if '.' in new_name else (new_name, 'jpg')
   sanitized_extension = _NormalizeExtension(extension)
-  sanitized_image_name = '%s.%s' % (main_name, sanitized_extension)
+  sanitized_image_name = f'{main_name}.{sanitized_extension}'
   return (full_res_urls[0], sanitized_image_name, sanitized_extension)
 
 
@@ -1594,11 +1585,11 @@ def _SaveImage(full_path: str, bin_data: bytes) -> int:
   Returns:
     number of bytes actually saved
   """
-  sz = len(bin_data)
-  with open(full_path, 'wb') as f:
-    f.write(bin_data)
-  logging.info('Saved %s for image %r', base.HumanizedBytes(sz), full_path)
-  return sz
+  bin_sz = len(bin_data)
+  with open(full_path, 'wb') as file_obj:
+    file_obj.write(bin_data)
+  logging.info('Saved %s for image %r', base.HumanizedBytes(bin_sz), full_path)
+  return bin_sz
 
 
 def GetDatabaseTimestamp(db_path: str = DEFAULT_DB_DIRECTORY) -> int:
@@ -1615,5 +1606,5 @@ def GetDatabaseTimestamp(db_path: str = DEFAULT_DB_DIRECTORY) -> int:
   """
   db_file = os.path.join(os.path.expanduser(db_path), _DEFAULT_DB_NAME)
   if not os.path.exists(db_file):
-    raise Error('Database file not found: %r' % db_file)
+    raise Error(f'Database file not found: {db_file!r}')
   return math.ceil(os.path.getmtime(db_file))

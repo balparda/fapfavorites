@@ -195,7 +195,7 @@ class Duplicates:
         # now we add the new duplicate sha to the new key position
         new_sha = diff_sha_set.pop()
         if diff_sha_set:
-          raise Error('SHA remained where none should be: %r/%r, %r' % (sha1, sha2, diff_sha_set))
+          raise Error(f'SHA remained where none should be: {sha1!r}/{sha2!r}, {diff_sha_set!r}')
         self.registry[new_key]['verdicts'][new_sha] = 'new'
       # now that the key is OK, add the new score
       self.registry[new_key]['sources'].setdefault(method, {})[tuple(sorted(sha_set))] = score
@@ -208,7 +208,7 @@ class Duplicates:
       new_key: DuplicatesKeyType = tuple(sorted(sha_set.union(old_key_set)))
       added_count = 0
       if set(new_key).difference(old_key_set):
-        raise Error('Merging still had inserted keys: %r/%r, %r' % (sha1, sha2, dup_keys))
+        raise Error(f'Merging still had inserted keys: {sha1!r}/{sha2!r}, {dup_keys!r}')
       # not a good idea to try to keep old verdicts, so the new super-group will be reset to 'new'
       self.registry[new_key] = {'sources': {}, 'verdicts': {sha: 'new' for sha in new_key}}
       # copy sources from old locations and then delete old entries, finishing the merge
@@ -220,7 +220,7 @@ class Duplicates:
       # now that the merge is complete and all old sources are copied, add the new score
       self.registry[new_key]['sources'].setdefault(method, {})[tuple(sorted(sha_set))] = score
     else:
-      raise Error('Unexpected duplicate keys length: %r/%r, %r' % (sha1, sha2, dup_keys))
+      raise Error(f'Unexpected duplicate keys length: {sha1!r}/{sha2!r}, {dup_keys!r}')
     # now we update the index (make sure to overwrite all sha in new_key!), and return the count
     for sha in new_key:
       self.index[sha] = new_key
@@ -287,13 +287,13 @@ class Duplicates:
         if (animated_sensitivities['cnn'] < regular_sensitivities['cnn'] and
             animated_sensitivities['cnn'] != -1.0):
           raise Error(
-              'Animated sensitivity (method \'CNN\') must be stricter than regular one (%f < %f)' %
-              (animated_sensitivities['cnn'], regular_sensitivities['cnn']))
+              'Animated sensitivity (method \'CNN\') must be stricter than regular one '
+              f'({animated_sensitivities["cnn"]} < {regular_sensitivities["cnn"]})')
       else:
         if animated_sensitivities[method] > regular_sensitivities[method]:
           raise Error(
-              'Animated sensitivity (method %r) must be stricter than regular one (%d > %d)' %
-              (method.upper(), animated_sensitivities[method], regular_sensitivities[method]))
+              f'Animated sensitivity (method {method.upper()!r}) must be stricter than regular '
+              f'one ({animated_sensitivities[method]} > {regular_sensitivities[method]})')
     # do the scoring by method
     logging.info('Searching for perceptual duplicates in database...')
     new_duplicates: int = 0
@@ -340,8 +340,9 @@ class Duplicates:
             # still here? this is a valid pair, so store it
             dup_key: DuplicatesKeyType = tuple(sorted({sha1, sha2}))
             if dup_key in scored_duplicates and scored_duplicates[dup_key] != score:
-              raise Error('Duplicate collision, method %r, key %r, new score %d versus %d' % (
-                  method, dup_key, score, scored_duplicates[dup_key]))
+              raise Error(
+                  f'Duplicate collision, method {method!r}, key {dup_key!r}, '
+                  f'new score {score} versus {scored_duplicates[dup_key]}')
             scored_duplicates[dup_key] = score
       # now we add each de-duplicated pair to the database
       for (sha1, sha2), score in scored_duplicates.items():
@@ -382,7 +383,7 @@ class Duplicates:
     old_key = self.index.pop(sha)
     remaining_digests = set(old_key).difference({sha})
     if not remaining_digests:
-      raise Error('Found duplicate key with less than 2 entries? %r/%s' % (old_key, sha))
+      raise Error(f'Found duplicate key with less than 2 entries? {old_key!r}/{sha}')
     if len(remaining_digests) == 1:
       # easy deletion case: there is no duplicate with only 1 key, so purge the whole group
       del self.registry[old_key]

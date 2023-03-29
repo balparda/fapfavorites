@@ -6,6 +6,7 @@
 # Image testdata/109.gif authored by Charly Whisky, creative commons attribution.
 # (Found in https://en.wikipedia.org/wiki/File:Dopplerfrequenz.gif)
 #
+# pylint: disable=invalid-name,protected-access
 """fapdata.py unittest."""
 
 import hashlib
@@ -209,6 +210,7 @@ class TestFapDatabase(unittest.TestCase):
     class _MockResponse1:
 
       def read(self):
+        """Read."""
         return b'foo.response'
 
     mock_url.return_value = _MockResponse1()
@@ -220,6 +222,7 @@ class TestFapDatabase(unittest.TestCase):
     class _MockResponse2:
 
       def read(self):
+        """Read."""
         raise fapdata.socket.timeout('timeout in page')
 
     fapdata._MAX_RETRY = 2
@@ -476,13 +479,13 @@ class TestFapDatabase(unittest.TestCase):
               'tags': set(), 'sz': 101, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
               'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['108.png'],
-              'width': 160, 'height': 200, 'animated': False},
+              'width': 160, 'height': 200, 'animated': False, 'gone': set()},
           'sha-107': {
               'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
               'tags': set(), 'sz': 107, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
               'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['107.png'],
-              'width': 107, 'height': 1070, 'animated': False},
+              'width': 107, 'height': 1070, 'animated': False, 'gone': set()},
       }
       db._db['image_ids_index'] = {
           101: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
@@ -593,9 +596,11 @@ class TestFapDatabase(unittest.TestCase):
 class _MockRegex:
 
   def __init__(self, return_values: dict[str, list[Union[str, tuple[str, ...]]]]):
+    """Init."""
     self._return_values = return_values
 
   def findall(self, query: str) -> list[Union[str, tuple[str, ...]]]:
+    """Find all."""
     return self._return_values[query]
 
 
@@ -617,48 +622,48 @@ _BLOBS: fapdata._BlobType = {
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
         'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
         'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
-        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168,
+        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'gone': set(),
     },
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
         'animated': False, 'ext': 'png', 'height': 173,
         'loc': {(108, 'url-108', 'na-me-108.png', 1, 13)},
         'percept': 'd99ee32e586716c8', 'average': 'ffffff9a180060c8', 'diff': '6854541633d5c991',
         'wavelet': 'ffffbf88180060c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130,
+        'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130, 'gone': set(),
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160,
+        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160, 'gone': set(),
     },
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
         'animated': False, 'ext': 'jpg', 'height': 222,
         'loc': {(106, 'url-106', 'name-106.jpg', 1, 13)},
         'percept': '89991f6f62a63479', 'average': '091b5f7761323000', 'diff': '737394c5d3e66431',
         'wavelet': '091b7f7f71333018', 'cnn': np.array([1, 2, 3]),
-        'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300,
+        'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300, 'gone': set(),
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
         'loc': {(100, 'url-100', 'name-100.jpg', 1, 10), (105, 'url-105', 'name-105.jpg', 1, 13)},
         'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
         'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
-        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200,
+        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'gone': set(),
     },
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
         'animated': True, 'ext': 'gif', 'height': 100, 'tags': set(),
         'loc': {(109, 'url-109', 'name-109.gif', 1, 13)},
         'percept': 'e699669966739866', 'average': 'ffffffffffffe7e7', 'diff': '000000000000080c',
-        'wavelet': 'ffffffffffffe7e7', 'cnn': np.array([1, 2, 3]),
+        'wavelet': 'ffffffffffffe7e7', 'cnn': np.array([1, 2, 3]), 'gone': set(),
         'sz': 444973, 'sz_thumb': 302143, 'width': 500},
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20), (107, 'url-107', 'name-107.png', 1, 13)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'gone': set(),
     },
 }
 
@@ -668,28 +673,28 @@ _BLOBS_TRIMMED: fapdata._BlobType = {  # type: ignore
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
         'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
         'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
-        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168,
+        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'gone': set(),
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160,
+        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'gone': set(),
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
         'loc': {(100, 'url-100', 'name-100.jpg', 1, 10)},
         'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
         'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
-        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200,
+        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'gone': set(),
     },
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'gone': set(),
     },
     'sha-103': {'ext': 'jpg', 'loc': {(103, '', 'nm103', 1, 11)}},
     'sha-104': {'ext': 'jpg', 'loc': {(104, '', 'nm104', 1, 11)}},
@@ -701,14 +706,14 @@ _BLOBS_NO_LUKE: fapdata._BlobType = {
         'loc': {(801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160,
+        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'gone': set(),
     },
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107,
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'gone': set(),
     },
 }
 

@@ -106,7 +106,7 @@ def _RunDjangoServerAndBlock(development_mode: bool) -> None:
 @click.option(
     '--dir', '-d', 'db_dir', type=click.STRING, default=fapdata.DEFAULT_DB_DIRECTORY,
     help='The local machine database directory path to use, '
-         'ex: "~/some-dir/"; will default to %r' % fapdata.DEFAULT_DB_DIRECTORY)
+         f'ex: "~/some-dir/"; will default to {fapdata.DEFAULT_DB_DIRECTORY!r}')
 @click.option(
     '--blobs/--no-blobs', 'print_blobs', default=False,
     help='Print all blobs in `print` command? Default is False ("no")')
@@ -118,7 +118,7 @@ def _RunDjangoServerAndBlock(development_mode: bool) -> None:
          'resource, but the drawback (and the reason for the default) is that the app will '
          'initially load twice, taking more time to start')
 @base.Timed('Total Imagefap process.py execution time')
-def main(operation: str,
+def Main(operation: str,
          db_dir: str,
          print_blobs: bool,
          development_mode: bool) -> None:  # noqa: D301
@@ -160,9 +160,9 @@ def main(operation: str,
     # load database
     database = fapdata.FapDatabase(db_dir, create_if_needed=False)
     if not database.Load():
-      raise fapdata.Error('Database does not exist in given path: %r' % db_dir)
+      raise fapdata.Error(f'Database does not exist in given path: {db_dir!r}')
     if not database.blobs_dir_exists:
-      raise fapdata.Error('Database blobs directory is not inside %r' % db_dir)
+      raise fapdata.Error(f'Database blobs directory is not inside {db_dir!r}')
     # we should now have both IDs that we need
     if operation.lower() == 'stats':
       _StatsOperation(database)
@@ -171,12 +171,12 @@ def main(operation: str,
     elif operation.lower() == 'run':
       _RunDjangoServerAndBlock(development_mode)
     else:
-      raise NotImplementedError('Unrecognized/Unimplemented operation %r' % operation)
+      raise NotImplementedError(f'Unrecognized/Unimplemented operation {operation!r}')
     # for now, no operation needs to save DB
     # database.Save()
     success_message = 'success'
-  except Exception as e:
-    success_message = 'error: ' + str(e)
+  except Exception as err:
+    success_message = f'error: {err}'
     raise
   finally:
     print('THE END: ' + success_message)
@@ -184,4 +184,4 @@ def main(operation: str,
 
 if __name__ == '__main__':
   os.environ['DJANGO_SETTINGS_MODULE'] = 'fapper.settings'  # cspell:disable-line
-  main()  # pylint: disable=no-value-for-parameter
+  Main()  # pylint: disable=no-value-for-parameter

@@ -40,7 +40,13 @@ $ git clone https://github.com/balparda/imagefap-favorites.git
 
 The project has __more than 90%__ test coverage and its
 code is pretty readable, but is still being developed for
-more features and flexibility.
+more features and flexibility. Remember to periodically update
+the packages with:
+
+```
+$ sudo pip3 list --outdated
+$ nice sudo python3 -m pip list --outdated --format=json | jq -r '.[] | "\(.name)==\(.latest_version)"' | xargs --no-run-if-empty -n1 sudo pip3 install -U
+```
 
 ## User Journeys, A Simple Guide
 
@@ -353,12 +359,12 @@ from a structure like:
   'blobs': {
     # stored blob metadata: where has each blob been seen and what tags have been attached
     file_sha_256_hex_digest: {
-      'loc': {
+      'loc': {  # the locations where this blob has been found
         (imagefap_image_id-1, imagefap_full_res_url-1, imagefap_file_name_sanitized-1, user_id-1, folder_id-1),
         (imagefap_image_id-2, imagefap_full_res_url-2, imagefap_file_name_sanitized-2, user_id-2, folder_id-2),
         ... this is a set of every occurrence of the blob in the downloaded favorites ...
       },
-      'tags': {tag_id-1, tag_id-2, ...},
+      'tags': {tag_id-1, tag_id-2, ...},  # tags for this blob
       'sz': int_size_bytes,          # size of blob file
       'sz_thumb': int_size_bytes,    # size of saved thumbnail image, if any, else 0
       'ext': string_file_extension,  # the saved file extension ('jpg', 'gif', ...)
@@ -370,6 +376,11 @@ from a structure like:
       'width': int,      # image width
       'height': int,     # image height
       'animated': bool,  # True if image is animated (gif), False otherwise
+      'gone': {  # the locations that are now failing audit even though images *are* available in DB
+        (imagefap_image_id-1, imagefap_full_res_url-1),
+        (imagefap_image_id-2, imagefap_full_res_url-2),
+        ... this is a set of every previously OK location that is now failing audit ...
+      },
     },
   },
 
