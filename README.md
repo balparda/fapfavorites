@@ -1,4 +1,4 @@
-# Imagefap Favorites
+# Imagefap Favorites (fapfavorites)
 
 Python code that downloads an entire Imagefap favorites image
 (picture folder) collection, de-duplicates using multiple methods,
@@ -35,7 +35,7 @@ $ sudo apt-get install python3 python3-pip
 $ sudo pip3 install -U click sanitize_filename Pillow imagededup Django
 
 $ git clone https://github.com/balparda/baselib.git
-$ git clone https://github.com/balparda/imagefap-favorites.git
+$ git clone https://github.com/balparda/fapfavorites.git
 ```
 
 The project has __more than 90%__ test coverage and its

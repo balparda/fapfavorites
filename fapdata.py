@@ -40,7 +40,7 @@ import numpy as np
 import sanitize_filename
 
 from baselib import base
-import duplicates
+from fapfavorites import duplicates
 
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'

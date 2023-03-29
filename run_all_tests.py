@@ -7,11 +7,11 @@
 import logging
 
 from baselib import base
-import duplicates_test
-import fapdata_test
-import favorites_test
-import process_test
-from viewer import views_test
+from fapfavorites import duplicates_test
+from fapfavorites import fapdata_test
+from fapfavorites import favorites_test
+from fapfavorites import process_test
+from fapfavorites.viewer import views_test
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)

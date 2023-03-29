@@ -24,7 +24,7 @@ import click
 from django.core import management
 
 from baselib import base
-import fapdata
+from fapfavorites import fapdata
 
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'

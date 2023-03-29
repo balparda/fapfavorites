@@ -13,7 +13,7 @@ from unittest import mock
 
 import numpy as np
 
-import duplicates
+from fapfavorites import duplicates
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -25,11 +25,11 @@ _TESTDATA_PATH = os.path.join(os.path.dirname(__file__), 'testdata/')
 class TestDuplicates(unittest.TestCase):
   """Tests for duplicates.py."""
 
-  @mock.patch('duplicates.image_methods.PHash.encode_image')
-  @mock.patch('duplicates.image_methods.AHash.encode_image')
-  @mock.patch('duplicates.image_methods.DHash.encode_image')
-  @mock.patch('duplicates.image_methods.WHash.encode_image')
-  @mock.patch('duplicates.image_methods.CNN.encode_image')
+  @mock.patch('fapfavorites.duplicates.image_methods.PHash.encode_image')
+  @mock.patch('fapfavorites.duplicates.image_methods.AHash.encode_image')
+  @mock.patch('fapfavorites.duplicates.image_methods.DHash.encode_image')
+  @mock.patch('fapfavorites.duplicates.image_methods.WHash.encode_image')
+  @mock.patch('fapfavorites.duplicates.image_methods.CNN.encode_image')
   def test_Encode(
       self, mock_cnn: mock.MagicMock, mock_w: mock.MagicMock, mock_d: mock.MagicMock,
       mock_a: mock.MagicMock, mock_p: mock.MagicMock) -> None:
@@ -52,11 +52,11 @@ class TestDuplicates(unittest.TestCase):
         ('89991f6f62a63479', '091b5f7761323000', '737394c5d3e66431', '091b7f7f71333018'))
     self.assertTupleEqual(dup.Encode(f_name)[-1].shape, (576,))
 
-  @mock.patch('duplicates.image_methods.PHash.find_duplicates')
-  @mock.patch('duplicates.image_methods.AHash.find_duplicates')
-  @mock.patch('duplicates.image_methods.DHash.find_duplicates')
-  @mock.patch('duplicates.image_methods.WHash.find_duplicates')
-  @mock.patch('duplicates.image_methods.CNN.find_duplicates')
+  @mock.patch('fapfavorites.duplicates.image_methods.PHash.find_duplicates')
+  @mock.patch('fapfavorites.duplicates.image_methods.AHash.find_duplicates')
+  @mock.patch('fapfavorites.duplicates.image_methods.DHash.find_duplicates')
+  @mock.patch('fapfavorites.duplicates.image_methods.WHash.find_duplicates')
+  @mock.patch('fapfavorites.duplicates.image_methods.CNN.find_duplicates')
   def test_FindDuplicates(
       self, mock_cnn: mock.MagicMock, mock_w: mock.MagicMock, mock_d: mock.MagicMock,
       mock_a: mock.MagicMock, mock_p: mock.MagicMock) -> None:

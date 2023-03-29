@@ -9,7 +9,7 @@
 import unittest
 from unittest import mock
 
-import process
+from fapfavorites import process
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -18,13 +18,13 @@ __version__ = (1, 0)
 class TestProcess(unittest.TestCase):
   """Tests for process.py."""
 
-  @mock.patch('process.fapdata.os.path.isdir')
-  @mock.patch('process.fapdata.FapDatabase.Load')
-  @mock.patch('process.fapdata.FapDatabase.Save')
-  @mock.patch('process.fapdata.FapDatabase.PrintStats')
-  @mock.patch('process.fapdata.FapDatabase.PrintUsersAndFavorites')
-  @mock.patch('process.fapdata.FapDatabase.PrintTags')
-  @mock.patch('process.fapdata.FapDatabase.PrintBlobs')
+  @mock.patch('fapfavorites.process.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintStats')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintUsersAndFavorites')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintTags')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintBlobs')
   def test_StatsOperation(
       self, print_blobs: mock.MagicMock, print_tags: mock.MagicMock, print_users: mock.MagicMock,
       print_stats: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
@@ -32,7 +32,7 @@ class TestProcess(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      process.Main(['stats', '--dir', '/path/'])
+      process.Main(['stats', '--dir', '/path/'])  # pylint: disable=no-value-for-parameter
     except SystemExit as e:
       if e.code:  # pylint: disable=using-constant-test
         raise
@@ -45,13 +45,13 @@ class TestProcess(unittest.TestCase):
     print_tags.assert_not_called()
     print_users.assert_not_called()
 
-  @mock.patch('process.fapdata.os.path.isdir')
-  @mock.patch('process.fapdata.FapDatabase.Load')
-  @mock.patch('process.fapdata.FapDatabase.Save')
-  @mock.patch('process.fapdata.FapDatabase.PrintStats')
-  @mock.patch('process.fapdata.FapDatabase.PrintUsersAndFavorites')
-  @mock.patch('process.fapdata.FapDatabase.PrintTags')
-  @mock.patch('process.fapdata.FapDatabase.PrintBlobs')
+  @mock.patch('fapfavorites.process.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintStats')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintUsersAndFavorites')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintTags')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintBlobs')
   def test_PrintOperation(
       self, print_blobs: mock.MagicMock, print_tags: mock.MagicMock, print_users: mock.MagicMock,
       print_stats: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
@@ -59,7 +59,8 @@ class TestProcess(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      process.Main(['print', '--dir', '/path/', '--blobs'])
+      process.Main(  # pylint: disable=no-value-for-parameter
+          ['print', '--dir', '/path/', '--blobs'])
     except SystemExit as e:
       if e.code:  # pylint: disable=using-constant-test
         raise
@@ -72,9 +73,9 @@ class TestProcess(unittest.TestCase):
     print_stats.assert_called_with()
     save.assert_not_called()
 
-  @mock.patch('process.fapdata.os.path.isdir')
-  @mock.patch('process.fapdata.FapDatabase.Load')
-  @mock.patch('process.fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.process.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Save')
   @mock.patch('django.core.management.execute_from_command_line')
   def test_RunOperation(
       self, mock_django: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
@@ -82,7 +83,7 @@ class TestProcess(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      process.Main(['run', '--dir', '/path/'])
+      process.Main(['run', '--dir', '/path/'])  # pylint: disable=no-value-for-parameter
     except SystemExit as e:
       if e.code:  # pylint: disable=using-constant-test
         raise

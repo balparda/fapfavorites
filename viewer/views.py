@@ -14,8 +14,8 @@ from django.utils import safestring
 from django.template import defaulttags
 
 from baselib import base
-import duplicates
-import fapdata
+from fapfavorites import duplicates
+from fapfavorites import fapdata
 
 
 _IMAGE_TYPES = {

@@ -9,7 +9,7 @@
 import unittest
 from unittest import mock
 
-import favorites
+from fapfavorites import favorites
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -18,18 +18,18 @@ __version__ = (1, 0)
 class TestFavorites(unittest.TestCase):
   """Tests for favorites.py."""
 
-  @mock.patch('favorites.fapdata.os.path.isdir')
-  @mock.patch('favorites.fapdata.FapDatabase.Load')
-  @mock.patch('favorites.fapdata.FapDatabase.Save')
-  @mock.patch('favorites.fapdata.FapDatabase.AddUserByID')
-  @mock.patch('favorites.fapdata.FapDatabase.AddUserByName')
-  @mock.patch('favorites.fapdata.FapDatabase.AddFolderByID')
-  @mock.patch('favorites.fapdata.FapDatabase.AddFolderByName')
-  @mock.patch('favorites.fapdata.FapDatabase.AddFolderPics')
-  @mock.patch('favorites.fapdata.FapDatabase.DownloadFavorites')
-  @mock.patch('favorites.fapdata.FapDatabase.ReadFavoritesIntoBlobs')
-  @mock.patch('favorites.fapdata.FapDatabase.FindDuplicates')
-  @mock.patch('favorites.fapdata.FapDatabase.AddAllUserFolders')
+  @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderPics')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadFavorites')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.ReadFavoritesIntoBlobs')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   def test_GetOperation(
       self, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
       read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
@@ -40,7 +40,8 @@ class TestFavorites(unittest.TestCase):
     """Test."""
     mock_is_dir.return_value = True
     try:
-      favorites.Main(['get', '--id', '10', '--folder', '20', '--output', '/path/', '--no-db'])
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['get', '--id', '10', '--folder', '20', '--output', '/path/', '--no-db'])
     except SystemExit as err:
       if err.code:  # pylint: disable=using-constant-test
         raise
@@ -57,18 +58,18 @@ class TestFavorites(unittest.TestCase):
     find_duplicates.assert_not_called()
     add_all.assert_not_called()
 
-  @mock.patch('favorites.fapdata.os.path.isdir')
-  @mock.patch('favorites.fapdata.FapDatabase.Load')
-  @mock.patch('favorites.fapdata.FapDatabase.Save')
-  @mock.patch('favorites.fapdata.FapDatabase.AddUserByID')
-  @mock.patch('favorites.fapdata.FapDatabase.AddUserByName')
-  @mock.patch('favorites.fapdata.FapDatabase.AddFolderByID')
-  @mock.patch('favorites.fapdata.FapDatabase.AddFolderByName')
-  @mock.patch('favorites.fapdata.FapDatabase.AddFolderPics')
-  @mock.patch('favorites.fapdata.FapDatabase.DownloadFavorites')
-  @mock.patch('favorites.fapdata.FapDatabase.ReadFavoritesIntoBlobs')
-  @mock.patch('favorites.fapdata.FapDatabase.FindDuplicates')
-  @mock.patch('favorites.fapdata.FapDatabase.AddAllUserFolders')
+  @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderPics')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadFavorites')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.ReadFavoritesIntoBlobs')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   def test_ReadOperation(
       self, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
       read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
@@ -82,7 +83,8 @@ class TestFavorites(unittest.TestCase):
     add_folder_by_name.return_value = (20, 'some-folder')
     add_all.return_value = {100, 200}
     try:
-      favorites.Main(['read', '--user', '"foo-user"', '--output', '/path/', '--force'])
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--user', '"foo-user"', '--output', '/path/', '--force'])
     except SystemExit as err:
       if err.code:  # pylint: disable=using-constant-test
         raise

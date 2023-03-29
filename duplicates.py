@@ -174,7 +174,7 @@ class Duplicates:
     new_key: DuplicatesKeyType = tuple()
     added_count: int = 0
     if not dup_keys:
-      new_key: DuplicatesKeyType = tuple(sorted(sha_set))
+      new_key = tuple(sorted(sha_set))
       self.registry[new_key] = {
           'sources': {method: {new_key: score}},
           'verdicts': {sha1: 'new', sha2: 'new'},
@@ -184,7 +184,7 @@ class Duplicates:
     elif len(dup_keys) == 1:
       # compose a new key, find out the diff to the old one
       old_key = dup_keys.pop()
-      new_key: DuplicatesKeyType = tuple(sorted(sha_set.union(old_key)))
+      new_key = tuple(sorted(sha_set.union(old_key)))
       diff_sha_set = set(new_key).difference(old_key)
       added_count = len(diff_sha_set)  # can be only 0 or 1
       # we only have to move the entry where there is some diff
@@ -205,7 +205,7 @@ class Duplicates:
       old_key_set: set[str] = set()
       for dup_key in dup_keys:
         old_key_set = old_key_set.union(dup_key)
-      new_key: DuplicatesKeyType = tuple(sorted(sha_set.union(old_key_set)))
+      new_key = tuple(sorted(sha_set.union(old_key_set)))
       added_count = 0
       if set(new_key).difference(old_key_set):
         raise Error(f'Merging still had inserted keys: {sha1!r}/{sha2!r}, {dup_keys!r}')
@@ -297,6 +297,7 @@ class Duplicates:
     # do the scoring by method
     logging.info('Searching for perceptual duplicates in database...')
     new_duplicates: int = 0
+    method_dup: dict[str, list[tuple[str, Union[int, float]]]] = {}
     for method in DUPLICATE_HASHES:
       # for each method, we get all the duplicates and scores
       if method == 'cnn':
@@ -306,11 +307,10 @@ class Duplicates:
         logging.info(
             'Computing diffs using \'CNN\', with threshold >=%0.2f and animated>=%0.2f',
             regular_sensitivities['cnn'], animated_sensitivities['cnn'])
-        method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
-            self.perceptual_hashers[method].find_duplicates(
-                encoding_map=hash_encodings_map[method],  # type: ignore
-                min_similarity_threshold=regular_sensitivities['cnn'],
-                scores=True))
+        method_dup = self.perceptual_hashers[method].find_duplicates(
+            encoding_map=hash_encodings_map[method],  # type: ignore
+            min_similarity_threshold=regular_sensitivities['cnn'],
+            scores=True)
       else:
         if regular_sensitivities[method] < 0:
           logging.warning('Duplicate method %r disabled: SKIP', method.upper())
@@ -318,11 +318,10 @@ class Duplicates:
         logging.info(
             'Computing diffs using %r, with regular threshold <=%d and animated <=%d',
             method.upper(), regular_sensitivities[method], animated_sensitivities[method])
-        method_dup: dict[str, list[tuple[str, Union[int, float]]]] = (
-            self.perceptual_hashers[method].find_duplicates(
-                encoding_map=hash_encodings_map[method],
-                max_distance_threshold=regular_sensitivities[method],
-                scores=True))
+        method_dup = self.perceptual_hashers[method].find_duplicates(
+            encoding_map=hash_encodings_map[method],
+            max_distance_threshold=regular_sensitivities[method],
+            scores=True)
       # we filter them into pairs of duplicates and a score, eliminating symmetric relationships
       scored_duplicates: dict[DuplicatesKeyType, Union[int, float]] = {}
       for sha1, dup in method_dup.items():

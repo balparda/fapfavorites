@@ -33,7 +33,7 @@ def _mock_decorator(*unused_args, **unused_kwargs):
 
 
 cache.cache_page = _mock_decorator  # monkey-patch the cache
-from viewer import views  # noqa: E402
+from fapfavorites.viewer import views  # noqa: E402
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -48,8 +48,8 @@ class TestDjangoViews(unittest.TestCase):
     self.assertEqual(digest.to_python('fOO'), 'foo')
     self.assertEqual(digest.to_url('Bar'), 'bar')
 
-  @mock.patch('fapdata.GetDatabaseTimestamp')
-  @mock.patch('fapdata.FapDatabase')
+  @mock.patch('fapfavorites.fapdata.GetDatabaseTimestamp')
+  @mock.patch('fapfavorites.fapdata.FapDatabase')
   def test_DBFactory(self, mock_db: mock.MagicMock, mock_tm: mock.MagicMock) -> None:
     """Test."""
     mock_tm.return_value = 100
@@ -61,7 +61,7 @@ class TestDjangoViews(unittest.TestCase):
         views.conf.settings.IMAGEFAP_FAVORITES_DB_PATH, create_if_needed=False)
     db.Load.assert_called_once_with()
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
   @mock.patch('os.path.getsize')
   def test_ServeIndex(
@@ -78,10 +78,10 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/index.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _INDEX_CONTEXT)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.DeleteUserAndAlbums')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.DeleteUserAndAlbums')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeUsers(
       self, mock_save: mock.MagicMock, mock_delete: mock.MagicMock,
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -98,10 +98,10 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/users.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _USERS_CONTEXT)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.DeleteAlbum')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.DeleteAlbum')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeFavorites(
       self, mock_save: mock.MagicMock, mock_delete: mock.MagicMock,
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -118,16 +118,16 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/favorites.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _FAVORITES_CONTEXT)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeFavorites_User_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeFavorites(mock.Mock(views.http.HttpRequest), 5)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeFavorite_All_On_And_Tagging(
       self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
@@ -151,9 +151,9 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _FAVORITE_CONTEXT_ALL_ON)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeFavorite_All_Off(
       self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
@@ -172,23 +172,23 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _FAVORITE_CONTEXT_ALL_OFF)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeFavorite_User_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeFavorite(mock.Mock(views.http.HttpRequest), 5, 10)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeFavorite_Folder_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeFavorite(mock.Mock(views.http.HttpRequest), 1, 50)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeTag_Root_And_Create(
       self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
@@ -203,9 +203,9 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_ROOT_CONTEXT)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeTag_Leaf_And_Delete(
       self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
@@ -223,9 +223,9 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CONTEXT_DELETE)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeTag_Leaf_And_Rename(
       self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
@@ -240,9 +240,9 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CONTEXT_RENAME)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeTag_All_On_And_Clear_Tag(
       self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
@@ -270,17 +270,17 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CLEAR_TAG)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeTag(mock.Mock(views.http.HttpRequest), 666)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.FindDuplicates')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.FindDuplicates')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeDuplicates_And_ReRun(
       self, mock_save: mock.MagicMock, mock_find: mock.MagicMock,
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -297,9 +297,9 @@ class TestDjangoViews(unittest.TestCase):
     mock_find.assert_called_once_with()
     mock_save.assert_called_once_with()
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeDuplicates_And_Delete_Pending(
       self, mock_save: mock.MagicMock,
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -314,9 +314,9 @@ class TestDjangoViews(unittest.TestCase):
     self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT_DELETE_PENDING)
     mock_save.assert_called_once_with()
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeDuplicates_And_Delete_All(
       self, mock_save: mock.MagicMock,
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -331,9 +331,9 @@ class TestDjangoViews(unittest.TestCase):
     self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT_DELETE_ALL)
     mock_save.assert_called_once_with()
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeDuplicates_And_Edit_Parameters(
       self, mock_save: mock.MagicMock,
       mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -366,7 +366,7 @@ class TestDjangoViews(unittest.TestCase):
     self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATES_CONTEXT_EDIT_PARAMETERS)
     mock_save.assert_called_once_with()
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
   def test_ServeDuplicate_Blob(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
@@ -381,9 +381,9 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATE_BLOB_CONTEXT)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  @mock.patch('fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_ServeDuplicate_Set(
       self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
       mock_db: mock.MagicMock) -> None:
@@ -404,14 +404,14 @@ class TestDjangoViews(unittest.TestCase):
     mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATE_SET_CONTEXT)
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeDuplicate_Blob_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeDuplicate(mock.Mock(views.http.HttpRequest), 'not-a-valid-blob-hash')
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeDuplicate_Singleton_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
@@ -421,7 +421,7 @@ class TestDjangoViews(unittest.TestCase):
           # this hash has no duplicate set nor hash collision
           'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180')
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeDuplicate_Update_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
@@ -435,10 +435,10 @@ class TestDjangoViews(unittest.TestCase):
       views.ServeDuplicate(
           request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.http.HttpResponse')
-  @mock.patch('fapdata.FapDatabase.HasBlob')
-  @mock.patch('fapdata.FapDatabase.GetBlob')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasBlob')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.GetBlob')
   def test_ServeBlob(
       self, mock_get_blob: mock.MagicMock, mock_has_blob: mock.MagicMock,
       mock_response: mock.MagicMock, mock_db: mock.MagicMock) -> None:
@@ -456,15 +456,15 @@ class TestDjangoViews(unittest.TestCase):
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
     mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
 
-  @mock.patch('viewer.views._DBFactory')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeBlob_Existence_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     with self.assertRaises(views.http.Http404):
       views.ServeBlob(mock.Mock(views.http.HttpRequest), 'hash-does-not-exist')
 
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('fapdata.FapDatabase.HasBlob')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasBlob')
   def test_ServeBlob_Blob_Not_On_Disk_404(
       self, mock_has_blob: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
@@ -475,8 +475,8 @@ class TestDjangoViews(unittest.TestCase):
           mock.Mock(views.http.HttpRequest),
           '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
 
-  @mock.patch('viewer.views._DBFactory')
-  @mock.patch('fapdata.FapDatabase.HasBlob')
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasBlob')
   def test_ServeBlob_Invalid_Extension_404(
       self, mock_has_blob: mock.MagicMock, mock_db: mock.MagicMock) -> None:
     """Test."""
@@ -490,7 +490,7 @@ class TestDjangoViews(unittest.TestCase):
           '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
 
 
-@mock.patch('fapdata.os.path.isdir')
+@mock.patch('fapfavorites.fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:
   mock_isdir.return_value = True
   db = views.fapdata.FapDatabase('/foo/', create_if_needed=False)

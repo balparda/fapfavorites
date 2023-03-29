@@ -20,7 +20,7 @@ from unittest import mock
 
 import numpy as np
 
-import fapdata
+from fapfavorites import fapdata
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -32,7 +32,7 @@ _TESTDATA_PATH = os.path.join(os.path.dirname(__file__), 'testdata/')
 class TestFapDatabase(unittest.TestCase):
   """Tests for fapdata.py."""
 
-  @mock.patch('fapdata.base.INT_TIME')
+  @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   def test_Error404(self, mock_time: mock.MagicMock):
     """Test."""
     mock_time.return_value = 1675368670  # 02/feb/2023 20:11:10
@@ -45,8 +45,8 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(
         str(err), 'Error404(ID: 999, @2023/Feb/02-20:11:10-UTC, \'foo-name\', \'foo-url\')')
 
-  @mock.patch('fapdata.os.path.isdir')
-  @mock.patch('fapdata.os.mkdir')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata.os.mkdir')
   def test_Constructor(self, mock_mkdir: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
@@ -87,7 +87,7 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(db.duplicates.index, {'a': ('a', 'b'), 'b': ('a', 'b')})
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
 
-  @mock.patch('fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
   def test_Constructor_Fail(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = False
@@ -96,7 +96,7 @@ class TestFapDatabase(unittest.TestCase):
     with self.assertRaises(AttributeError):
       fapdata.FapDatabase('')
 
-  @mock.patch('fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
   def test_GetTag(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -128,7 +128,7 @@ class TestFapDatabase(unittest.TestCase):
     with self.assertRaisesRegex(fapdata.Error, r'tag 3 \(of 33\) is empty'):
       db.GetTag(33)
 
-  @mock.patch('fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
   def test_TagsWalk(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
@@ -152,7 +152,7 @@ class TestFapDatabase(unittest.TestCase):
         'a': {'tags': {1, 2, 33}, 'sz': 10}, 'b': {'tags': {246, 33}, 'sz': 55}}
     self.assertListEqual(db.PrintTags(), _PRINTED_TAGS)
 
-  @mock.patch('fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
   def test_Tags_Add_Rename_Delete(self, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
@@ -198,8 +198,8 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(
         db.blobs, {'a': {'tags': {1, 2}, 'sz': 10}, 'b': {'tags': {246}, 'sz': 55}})
 
-  @mock.patch('fapdata.urllib.request.urlopen')
-  @mock.patch('fapdata.time.sleep')
+  @mock.patch('fapfavorites.fapdata.urllib.request.urlopen')
+  @mock.patch('fapfavorites.fapdata.time.sleep')
   def test_LimpingURLRead(self, unused_time: mock.MagicMock, mock_url: mock.MagicMock) -> None:
     """Test."""
     # test args error
@@ -235,8 +235,8 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('bar.url', timeout=15.0),   # retry 1
          mock.call('bar.url', timeout=15.0)])  # retry 2
 
-  @mock.patch('fapdata.os.path.isdir')
-  @mock.patch('fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
   def test_AddUserByID(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -259,8 +259,8 @@ class TestFapDatabase(unittest.TestCase):
         [mock.call('https://www.imagefap.com/showfavorites.php?userid=11&page=0'),
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0')])
 
-  @mock.patch('fapdata.os.path.isdir')
-  @mock.patch('fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
   def test_AddUserByName(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -289,8 +289,8 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('https://www.imagefap.com/profile/no-user'),
          mock.call('https://www.imagefap.com/profile/foo-user')])
 
-  @mock.patch('fapdata.os.path.isdir')
-  @mock.patch('fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
   def test_AddFolderByID(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -321,8 +321,8 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0&folderid=20'),
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0&folderid=20')])
 
-  @mock.patch('fapdata.os.path.isdir')
-  @mock.patch('fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
   def test_AddFolderByName(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -357,9 +357,9 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=2'),
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0&folderid=400')])
 
-  @mock.patch('fapdata._FapHTMLRead')
-  @mock.patch('fapdata._FapBinRead')
-  @mock.patch('fapdata.base.INT_TIME')
+  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapdata._FapBinRead')
+  @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   def test_Read(  # noqa: C901
       self, mock_time: mock.MagicMock, read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:
     """Test."""
