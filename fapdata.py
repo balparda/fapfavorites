@@ -16,6 +16,7 @@
 #
 """Imagefap.com database."""
 
+import enum
 import hashlib
 import html
 import http.client
@@ -37,6 +38,7 @@ import urllib.request
 
 from PIL import Image, ImageSequence
 import numpy as np
+import requests
 import sanitize_filename
 
 from baselib import base
@@ -55,14 +57,26 @@ DEFAULT_THUMBS_DIR_NAME = 'thumbs/'
 _THUMBNAIL_MAX_DIMENSION = 280
 _MAX_RETRY = 10         # int number of retries for URL get
 _URL_TIMEOUT = 15.0     # URL timeout, in seconds
-CHECKPOINT_LENGTH = 10  # int number of images to download between database checkpoints
+CHECKPOINT_LENGTH = 10         # int number of downloads between database checkpoints
+AUDIT_CHECKPOINT_LENGTH = 100  # int number of audits between database checkpoints
 _PAGE_BACKTRACKING_THRESHOLD = 5
 FAVORITES_MIN_DOWNLOAD_WAIT = 3 * (60 * 60 * 24)  # 3 days (in seconds)
+AUDIT_MIN_DOWNLOAD_WAIT = 10 * (60 * 60 * 24)     # 10 days (in seconds)
+
 
 # internal types definitions
+class _FailureLevel(enum.Enum):
+  """Audit image failure depths."""
+
+  IMAGE_PAGE = 1
+  URL_EXTRACTION = 2
+  FULL_RES = 3
+
+
 LocationTupleType = tuple[int, str, str, int, int]
-GoneTupleType = tuple[int, str]
 FailedTupleType = tuple[int, int, Optional[str], Optional[str]]
+_GoneTupleType = tuple[int, _FailureLevel, str]
+_GoneType = dict[int, _GoneTupleType]
 
 
 class _ConfigsType(TypedDict):
@@ -78,6 +92,7 @@ class _UserObjType(TypedDict):
   name: str
   date_albums: int
   date_finished: int
+  date_audit: int
 
 
 class _FavoriteObjType(TypedDict):
@@ -116,7 +131,8 @@ class _BlobObjType(TypedDict):
   width: int
   height: int
   animated: bool
-  gone: set[GoneTupleType]
+  date: int
+  gone: _GoneType
 
 
 _UserType = dict[int, _UserObjType]
@@ -613,6 +629,8 @@ class FapDatabase:
         fav['failed_images'] for user in self.favorites.values() for fav in user.values()):
       unique_failed.update(img for img, _, _, _ in failed)
     _PrintLine(f'{len(unique_failed)} unique failed images in all user albums')
+    _PrintLine(f'{sum(1 for b in self.blobs.values() if b["gone"])} unique images are now '
+               'disappeared from imagefap site')
     _PrintLine(f'{len(self.duplicates.index)} perceptual duplicates in '
                f'{len(self.duplicates.registry)} groups')
     return all_lines
@@ -757,7 +775,8 @@ class FapDatabase:
       if len(user_names) != 1:
         raise Error(f'Could not find user name for {user_id}')
       self.users[user_id] = {
-          'name': html.unescape(user_names[0]), 'date_albums': 0, 'date_finished': 0}
+          'name': html.unescape(user_names[0]), 'date_albums': 0,
+          'date_finished': 0, 'date_audit': 0}
     logging.info('%s user %s added', status, self.UserStr(user_id))
     return self.users[user_id]['name']
 
@@ -790,7 +809,8 @@ class FapDatabase:
     if len(actual_name) != 1:
       raise Error(f'Could not find actual display name for user {user_name!r}')
     self.users[uid] = {
-        'name': html.unescape(actual_name[0]), 'date_albums': 0, 'date_finished': 0}
+        'name': html.unescape(actual_name[0]), 'date_albums': 0,
+        'date_finished': 0, 'date_audit': 0}
     logging.info('New user %s added', self.UserStr(uid))
     return (uid, self.users[uid]['name'])
 
@@ -1051,13 +1071,15 @@ class FapDatabase:
               sz_bytes, percept_hash, extension, width, height, is_animated)
         self.blobs[sha]['loc'].add(
             (img_id, url_path, sanitized_image_name, user_id, folder_id))
+        self.blobs[sha]['date'] = base.INT_TIME()
       else:
         # in this case this is a truly new image: never seen img_id or sha
         self.blobs[sha] = {
             'loc': {(img_id, url_path, sanitized_image_name, user_id, folder_id)},
             'tags': set(), 'sz': sz_bytes, 'sz_thumb': 0, 'ext': extension, 'percept': percept_hash,
             'average': average_hash, 'diff': diff_hash, 'wavelet': wavelet_hash, 'cnn': cnn_hash,
-            'width': width, 'height': height, 'animated': is_animated, 'gone': set()}
+            'width': width, 'height': height, 'animated': is_animated,
+            'date': base.INT_TIME(), 'gone': {}}
       return (image_bytes, sha, url_path, sanitized_image_name, extension)
     # we have seen this img_id before, and can skip a lot of computation
     # first: could it be we saw it in this same user_id/folder_id?
@@ -1070,6 +1092,7 @@ class FapDatabase:
     url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)  # 404 bubble through
     self.blobs[sha]['loc'].add(
         (img_id, url_path, sanitized_image_name, user_id, folder_id))
+    self.blobs[sha]['date'] = base.INT_TIME()
     return (None, sha, url_path, sanitized_image_name, extension)
 
   def _CheckWorkHysteresis(self, force_download: bool, tm_last: int, task_message: str) -> bool:
@@ -1438,6 +1461,93 @@ class FapDatabase:
         {sha for sha, blob in self.blobs.items() if blob['animated']},
         self.configs['duplicates_sensitivity_regular'],
         self.configs['duplicates_sensitivity_animated'])
+
+  def Audit(self, user_id: int, checkpoint_size: int, force_audit: bool) -> None:  # noqa: C901
+    """Audit an user to find any missing images.
+
+    Args:
+      user_id: User ID
+      checkpoint_size: Commit database to disk every `checkpoint_size` images checked;
+          if zero will not checkpoint at all
+      force_audit: If True will audit even if recently audited
+
+    Raises:
+      Error: invalid user_id or user not finished
+    """
+    # check if we know the user and they have been finished
+    if user_id not in self.users or not self.users[user_id]['date_finished']:
+      raise Error(f'Unknown user {user_id} or user not yet finished: before `audit` you must '
+                  'finish downloading all images for the user')
+    logging.info(
+        'Audit for user %s, last finished %s, last audit %s',
+        self.UserStr(user_id), base.STD_TIME_STRING(self.users[user_id]['date_finished']),
+        base.STD_TIME_STRING(self.users[user_id]['date_audit']))
+    logging.info('*NO* checkpoints used (work may be lost!)' if checkpoint_size == 0 else
+                 f'Checkpoint DB every {checkpoint_size} downloads')
+    # go over the albums and images for each album, in order
+    checked_count: int = 0
+    problem_count: int = 0
+    for folder_id in sorted(self.favorites[user_id].keys()):
+      logging.info('Audit folder %s', self.AlbumStr(user_id, folder_id))
+      for original_id in self.favorites[user_id][folder_id]['images']:
+        # audit this image: get hash and locations; we always audit all known locations of the image
+        sha = self.image_ids_index[original_id]
+        tm_last = max(
+            [self.blobs[sha]['date']] +
+            [g[0] for i, g in self.blobs[sha]['gone'].items() if i == original_id])
+        if not force_audit and tm_last and (tm_last + AUDIT_MIN_DOWNLOAD_WAIT) > base.INT_TIME():
+          logging.info('Image %d (%s) recently audited: SKIP (%s)',
+                       original_id, sha, base.STD_TIME_STRING(tm_last))
+          continue
+        for img_id in sorted({loc[0] for loc in self.blobs[sha]['loc']}):  # de-dup with set
+          # this is one known location of this image, so read the image page
+          # we can't use the full-res URL directly because it expires;
+          # also, using _FapHTMLRead() here will help pace the audit with pauses
+          url: str = IMG_URL(img_id)
+          try:
+            img_html = _FapHTMLRead(url)
+          except Error404:
+            self.blobs[sha]['gone'][img_id] = (base.INT_TIME(), _FailureLevel.IMAGE_PAGE, url)
+            problem_count += 1
+            logging.warning('Image %d: ERROR on %r page', img_id, url)
+            continue  # stop on first error for this img_id: do not update date
+          # we have a page, so extract the full-res URL
+          full_res_urls: list[str] = _FULL_IMAGE.findall(img_html)
+          if not full_res_urls:
+            self.blobs[sha]['gone'][img_id] = (base.INT_TIME(), _FailureLevel.URL_EXTRACTION, url)
+            problem_count += 1
+            logging.warning('Image %d: ERROR on %r full-res extraction', img_id, url)
+            continue  # stop on first error for this img_id: do not update date
+          full_res_url = full_res_urls[0]
+          # finally, stream the actual image to make sure it is there, but avoid data transfer:
+          # use the requests.get() with streaming to avoid a full download
+          # see: https://docs.python-requests.org/en/latest/user/advanced/#body-content-workflow
+          with requests.get(full_res_url, stream=True, timeout=None) as bin_request:  # nosec
+            # leaving context stops the download, closes connection, after just the header fetch
+            if (bin_request.status_code != 200 or
+                int(bin_request.headers['Content-Length']) != self.blobs[sha]['sz']):
+              self.blobs[sha]['gone'][img_id] = (
+                  base.INT_TIME(), _FailureLevel.FULL_RES, full_res_url)
+              problem_count += 1
+              logging.warning('Image %d: ERROR on binary %r page', img_id, full_res_url)
+              continue  # stop on first error for this img_id: do not update date
+          # all went well for this img_id, we should also update the date
+          self.blobs[sha]['date'] = base.INT_TIME()
+        # we finished auditing this blob for all its locations
+        if self.blobs[sha]['gone']:
+          logging.warning('Image %d (%s) has errors for IDs %r',
+                          original_id, sha, set(self.blobs[sha]['gone'].keys()))
+        else:
+          logging.info('Image %d (%s) is OK', original_id, sha)
+        # checkpoint database, if needed
+        checked_count += 1
+        if checkpoint_size and not checked_count % checkpoint_size:
+          self.Save()
+    # finished audit, mark user as audited
+    self.users[user_id]['date_audit'] = base.INT_TIME()
+    logging.info(
+        'Audit for user %s finished, %d images checked, with %d image errors',
+        self.UserStr(user_id), checked_count, problem_count)
 
 
 def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> bytes:

@@ -28,7 +28,8 @@
     <p>
       <b>{{ album_count }}</b> user favorite albums,
       album list fetched on {{ date_albums }},
-      all user tasks finished on {{ date_finished }}
+      all user tasks finished on {{ date_finished }},
+      last audit on {{ date_audit }}
     </p>
 
     {% if error_message %}
@@ -46,6 +47,7 @@
         <th>Name</th>
         <th>Image<br/>Count</th>
         <th>Failed<br/>Count</th>
+        <th>Disappeared<br/>Count&nbsp;<small>(*)</small></th>
         <th>Animated<br/>Count</th>
         <th>Imagefap<br/>Pages</th>
         <th>Files&nbsp;Size</th>
@@ -63,6 +65,7 @@
           <td>{{ obj.name|escape }}</td>
           <td align='center'>{{ obj.count }}</td>
           <td align='center'>{{ obj.failed }}</td>
+          <td align='center'>{{ obj.disappeared }}</td>
           <td align='center'>{{ obj.n_animated }}</td>
           <td align='center'>{{ obj.pages }}</td>
           <td align='center'>{{ obj.files_sz }}</td>
@@ -79,13 +82,14 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan='14'>No favorites for this user in database</td></tr>
+        <tr><td colspan='15'>No favorites for this user in database</td></tr>
       {% endfor %}
       {% if favorites %}
         <tr>
           <td colspan='2' align='right'><b>TOTAL:</b></td>
           <td align='center'><b>{{ img_count }}</b></td>
           <td align='center'><b>{{ failed_count }}</b></td>
+          <td align='center'><b>{{ disappeared_count }}</b></td>
           <td align='center'><b>{{ total_animated }}</b></td>
           <td align='center'><b>{{ page_count }}</b></td>
           <td align='center'><b>{{ total_sz }}</b></td>
@@ -98,7 +102,7 @@
           <td>&nbsp;</td>
         </tr>
         <tr>
-          <td colspan='6' align='right'><b><i>TOTAL&nbsp;STORAGE:</i></b></td>
+          <td colspan='7' align='right'><b><i>TOTAL&nbsp;STORAGE:</i></b></td>
           <td colspan='6' align='center'><b><i>{{ total_file_storage }}</i></b></td>
           <td>&nbsp;</td>
           <td>&nbsp;</td>
@@ -110,6 +114,13 @@
       {% csrf_token %}
       <input id='delete_input' name='delete_input' type='hidden' value=''/>
     </form>
+
+    <p>
+      <small>(*)&nbsp;<i>&quot;Disappeared&quot;</i> here means that an audit was done, and these
+      images were found to have been removed from the imagefap site for some reason. They are still
+      present in the local database and will not be removed unless the database is deleted.</small>
+    </p>
+    <p>&nbsp;</p>
 
     <p><a href='{% url "users" %}'>(Go To: Users Page)</a></p>
 

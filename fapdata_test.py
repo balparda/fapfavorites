@@ -248,7 +248,8 @@ class TestFapDatabase(unittest.TestCase):
     mock_read.return_value = 'user_html'
     self.assertEqual(db.AddUserByID(10), 'foo & user')
     self.assertDictEqual(
-        db.users, {10: {'date_albums': 0, 'date_finished': 0, 'name': 'foo & user'}})
+        db.users,
+        {10: {'date_albums': 0, 'date_finished': 0, 'date_audit': 0, 'name': 'foo & user'}})
     fapdata._FIND_NAME_IN_FAVORITES = None  # make sure is not used again in next call
     self.assertEqual(db.AddUserByID(10), 'foo & user')
     self.assertEqual(db.UserStr(10), 'foo & user (10)')
@@ -276,7 +277,8 @@ class TestFapDatabase(unittest.TestCase):
     mock_read.return_value = 'user_html'
     self.assertTupleEqual(db.AddUserByName('foo-user'), (10, 'foo & user'))
     self.assertDictEqual(
-        db.users, {10: {'date_albums': 0, 'date_finished': 0, 'name': 'foo & user'}})
+        db.users,
+        {10: {'date_albums': 0, 'date_finished': 0, 'date_audit': 0, 'name': 'foo & user'}})
     fapdata._FIND_USER_ID_RE = None  # make sure is not used again in next call
     fapdata._FIND_ACTUAL_NAME = None
     self.assertTupleEqual(db.AddUserByName('foo & user'), (10, 'foo & user'))
@@ -359,9 +361,11 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapfavorites.fapdata._FapHTMLRead')
   @mock.patch('fapfavorites.fapdata._FapBinRead')
+  @mock.patch('fapfavorites.fapdata.requests.get')
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   def test_Read(  # noqa: C901
-      self, mock_time: mock.MagicMock, read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:
+      self, mock_time: mock.MagicMock, mock_get: mock.MagicMock,
+      read_bin: mock.MagicMock, read_html: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
     mock_time.return_value = 1675368670  # 02/feb/2023 20:11:10
@@ -371,8 +375,9 @@ class TestFapDatabase(unittest.TestCase):
         fapdata.GetDatabaseTimestamp(db_path)
       db = fapdata.FapDatabase(db_path)
       db._db['users'] = {
-          1: {'name': 'Luke', 'date_albums': 1675360670, 'date_finished': 1675369670},
-          2: {'name': 'Ben', 'date_albums': 0, 'date_finished': 0}}
+          1: {'name': 'Luke', 'date_albums': 1675360670,
+              'date_finished': 1675369670, 'date_audit': 1675369880},
+          2: {'name': 'Ben', 'date_albums': 0, 'date_finished': 0, 'date_audit': 0}}
       db._db['favorites'] = {1: {11: {
           'name': 'known-folder-1', 'pages': 8, 'date_straight': 0, 'date_blobs': 1675360670,
           'images': [103, 104], 'failed_images': {(123, 1675360070, 'failed.jpg', 'f-url')}}}}
@@ -479,13 +484,13 @@ class TestFapDatabase(unittest.TestCase):
               'tags': set(), 'sz': 101, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
               'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['108.png'],
-              'width': 160, 'height': 200, 'animated': False, 'gone': set()},
+              'width': 160, 'height': 200, 'animated': False, 'date': 1675360670, 'gone': {}},
           'sha-107': {
               'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
               'tags': set(), 'sz': 107, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
               'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['107.png'],
-              'width': 107, 'height': 1070, 'animated': False, 'gone': set()},
+              'width': 107, 'height': 1070, 'animated': False, 'date': 1675360670, 'gone': {}},
       }
       db._db['image_ids_index'] = {
           101: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
@@ -560,6 +565,8 @@ class TestFapDatabase(unittest.TestCase):
       db.blobs['321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6']['tags'].update(
           {13, 22})
       db.Save()
+      db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19']['gone'] = {
+          102: (1675368671, fapdata._FailureLevel.FULL_RES, 'xxx')}
       self.assertListEqual(db.PrintStats(actually_print=False)[1:], _PRINTED_STATS_FULL)
       self.assertListEqual(db.PrintUsersAndFavorites(actually_print=False), _PRINTED_USERS_FULL)
       db.favorites[2] = {20: {'name': 'foo-bar'}}  # type: ignore
@@ -580,7 +587,8 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
       self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
       self.assertTupleEqual(db.DeleteUserAndAlbums(1), (4, 0))
-      self.assertDictEqual(db.users, {2: {'date_albums': 0, 'date_finished': 0, 'name': 'Ben'}})
+      self.assertDictEqual(
+          db.users, {2: {'date_albums': 0, 'date_finished': 0, 'date_audit': 0, 'name': 'Ben'}})
       self.assertDictEqual(db.favorites, {2: {20: {'images': [107, 801]}}})
       for blob in _BLOBS_NO_LUKE.values():
         if 'cnn' in blob:
@@ -591,6 +599,36 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
       self.assertTupleEqual(db.DeletePendingDuplicates(), (1, 2))
       self.assertTupleEqual(db.DeleteAllDuplicates(), (0, 0))
+      read_html.reset_mock(side_effect=True)  # reset calls and side_effect
+      # Audit ######################################################################################
+      db.blobs['sha-107']['loc'].add((777, 'url-777', 'some-name-7.gif', 1, 77))
+      mock_time.return_value = 1675368680  # 02/feb/2023 20:11:20
+      read_html.side_effect = ['img-107', 'img-777', 'img-801']
+      fapdata._FULL_IMAGE = _MockRegex({
+          'img-107': ['url-107'], 'img-777': ['url-777'], 'img-801': []})
+      mock_get.side_effect = [_MockRequestsGet(200, 107), _MockRequestsGet(404, 1)]
+      with self.assertRaisesRegex(fapdata.Error, r'not yet finished'):
+        db.Audit(2, 2, True)
+      db.users[2]['date_finished'] = 1675360000
+      db.favorites[2][20]['name'] = 'Ben1'  # type: ignore
+      db.Audit(2, 2, True)
+      self.assertListEqual(
+          read_html.call_args_list,
+          [mock.call('https://www.imagefap.com/photo/107/'),
+           mock.call('https://www.imagefap.com/photo/777/'),
+           mock.call('https://www.imagefap.com/photo/801/')])
+      self.assertListEqual(
+          mock_get.call_args_list,
+          [mock.call('url-107', stream=True, timeout=None),
+           mock.call('url-777', stream=True, timeout=None)])
+      self.assertDictEqual(
+          db.users,
+          {2: {'date_albums': 0, 'date_audit': 1675368680,
+               'date_finished': 1675360000, 'name': 'Ben'}})
+      self.assertDictEqual(db.blobs, _BLOBS_AUDITED)
+      self.assertListEqual(mock_time.call_args_list, [mock.call() for _ in range(21)])
+      self.assertEqual(db.users[2]['date_audit'], 1675368680)
+      fapdata._FULL_IMAGE = None      # set to None for safety
 
 
 class _MockRegex:
@@ -602,6 +640,19 @@ class _MockRegex:
   def findall(self, query: str) -> list[Union[str, tuple[str, ...]]]:
     """Find all."""
     return self._return_values[query]
+
+
+class _MockRequestsGet:
+
+  def __init__(self, status_code: int, content_length: int):
+    self.status_code = status_code
+    self.headers = {'Content-Length': content_length}
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, unused_type, unused_value, unused_traceback):
+    pass
 
 
 _FAVORITES_TRIMMED: fapdata._FavoriteType = {  # type: ignore
@@ -622,48 +673,48 @@ _BLOBS: fapdata._BlobType = {
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
         'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
         'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
-        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'gone': set(),
+        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'date': 1675368670, 'gone': {},
     },
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
         'animated': False, 'ext': 'png', 'height': 173,
         'loc': {(108, 'url-108', 'na-me-108.png', 1, 13)},
         'percept': 'd99ee32e586716c8', 'average': 'ffffff9a180060c8', 'diff': '6854541633d5c991',
         'wavelet': 'ffffbf88180060c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130, 'gone': set(),
+        'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130, 'date': 1675368670, 'gone': {},
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160, 'gone': set(),
+        'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160, 'date': 1675360670, 'gone': {},
     },
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
         'animated': False, 'ext': 'jpg', 'height': 222,
         'loc': {(106, 'url-106', 'name-106.jpg', 1, 13)},
         'percept': '89991f6f62a63479', 'average': '091b5f7761323000', 'diff': '737394c5d3e66431',
         'wavelet': '091b7f7f71333018', 'cnn': np.array([1, 2, 3]),
-        'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300, 'gone': set(),
+        'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300, 'date': 1675368670, 'gone': {},
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
         'loc': {(100, 'url-100', 'name-100.jpg', 1, 10), (105, 'url-105', 'name-105.jpg', 1, 13)},
         'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
         'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
-        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'gone': set(),
+        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'date': 1675368670, 'gone': {},
     },
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
         'animated': True, 'ext': 'gif', 'height': 100, 'tags': set(),
         'loc': {(109, 'url-109', 'name-109.gif', 1, 13)},
         'percept': 'e699669966739866', 'average': 'ffffffffffffe7e7', 'diff': '000000000000080c',
-        'wavelet': 'ffffffffffffe7e7', 'cnn': np.array([1, 2, 3]), 'gone': set(),
+        'wavelet': 'ffffffffffffe7e7', 'cnn': np.array([1, 2, 3]), 'date': 1675368670, 'gone': {},
         'sz': 444973, 'sz_thumb': 302143, 'width': 500},
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20), (107, 'url-107', 'name-107.png', 1, 13)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'gone': set(),
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368670, 'gone': {},
     },
 }
 
@@ -673,28 +724,29 @@ _BLOBS_TRIMMED: fapdata._BlobType = {  # type: ignore
         'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
         'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
         'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
-        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'gone': set(),
+        'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'date': 1675368670,
+        'gone': {102: (1675368671, fapdata._FailureLevel.FULL_RES, 'xxx')},
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
         'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'gone': set(),
+        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'date': 1675360670, 'gone': {},
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
         'loc': {(100, 'url-100', 'name-100.jpg', 1, 10)},
         'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
         'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
-        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'gone': set(),
+        'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'date': 1675368670, 'gone': {},
     },
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'gone': set(),
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368670, 'gone': {},
     },
     'sha-103': {'ext': 'jpg', 'loc': {(103, '', 'nm103', 1, 11)}},
     'sha-104': {'ext': 'jpg', 'loc': {(104, '', 'nm104', 1, 11)}},
@@ -706,14 +758,35 @@ _BLOBS_NO_LUKE: fapdata._BlobType = {
         'loc': {(801, 'url-1', 'some-name.jpg', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'gone': set(),
+        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'date': 1675360670, 'gone': {},
     },
     'sha-107': {
         'animated': False, 'ext': 'jpg', 'height': 1070,
         'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'gone': set(),
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368670, 'gone': {},
+    },
+}
+
+_BLOBS_AUDITED: fapdata._BlobType = {  # type: ignore
+    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+        'animated': False, 'ext': 'jpg', 'height': 200,
+        'loc': {(801, 'url-1', 'some-name.jpg', 2, 20)},
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8',
+        'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'date': 1675360670,
+        'gone': {801: (1675368680, fapdata._FailureLevel.URL_EXTRACTION,
+                       'https://www.imagefap.com/photo/801/')},
+    },
+    'sha-107': {
+        'animated': False, 'ext': 'jpg', 'height': 1070,
+        'loc': {(107, 'url-1', 'some-name.gif', 2, 20),
+                (777, 'url-777', 'some-name-7.gif', 1, 77)},
+        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
+        'wavelet': 'd99ee32e586716c8',
+        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368680,
+        'gone': {777: (1675368680, fapdata._FailureLevel.FULL_RES, 'url-777')},
     },
 }
 
@@ -974,13 +1047,14 @@ TAG_ID: TAG_NAME (NUMBER_OF_IMAGES_WITH_TAG / SIZE_OF_IMAGES_WITH_TAG)
 """.splitlines()[1:]
 
 _PRINTED_STATS_EMPTY = """
-Database is located in '%s/imagefap.database', and is 539b (53900.000%% of total images size)
+Database is located in '%s/imagefap.database', and is 561b (56100.000%% of total images size)
 0b total (unique) images size (- min, - max, - mean with - standard deviation, 0 are animated)
 
 2 users
 1 favorite galleries (oldest: 2023/Feb/02-17:57:50-UTC / newer: 2023/Feb/02-17:57:50-UTC)
 0 unique images (0 total, 0 exact duplicates)
 1 unique failed images in all user albums
+0 unique images are now disappeared from imagefap site
 0 perceptual duplicates in 0 groups
 """.splitlines()[1:]
 
@@ -1014,6 +1088,7 @@ Pixel size (width, height): 22.49k pixels min (130, 173), 114.49k pixels max (10
 3 favorite galleries (oldest: 2023/Feb/02-17:57:50-UTC / newer: 2023/Feb/02-20:11:10-UTC)
 7 unique images (10 total, 3 exact duplicates)
 1 unique failed images in all user albums
+1 unique images are now disappeared from imagefap site
 3 perceptual duplicates in 1 groups
 """.splitlines()[2:]  # noqa: E501
 

@@ -14,6 +14,10 @@
 
   a.delete {text-decoration: none;}
 
+  table.disappeared {
+    background-color: midnightblue;
+  }
+
   th, td {padding: 5px;}
 
   td.album_duplicate {
@@ -28,6 +32,9 @@
     border-color: purple;
     background-color: purple;
   }
+  td.has_disappeared {
+    background-color: midnightblue;
+  }
 
   td.selected {
     border-color: peru;
@@ -36,6 +43,25 @@
   }
   td.unselected {
     padding: 4px;
+  }
+
+  details {
+    user-select: none;
+  }
+  details>summary span.icon {
+    width: 24px;
+    height: 24px;
+    transition: all 0.3s;
+  }
+  details[open] summary span.icon {
+    transform: rotate(180deg);
+  }
+  summary {
+    display: flex;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
   }
 
 </style>

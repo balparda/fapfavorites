@@ -157,6 +157,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
         'name': user['name'],
         'date_albums': base.STD_TIME_STRING(user['date_albums']),
         'date_finished': base.STD_TIME_STRING(user['date_finished']),
+        'date_audit': base.STD_TIME_STRING(user['date_audit']),
         'n_img': n_img,
         'n_failed': len(unique_failed),
         'n_animated': f'{n_animated} ({(100.0 * n_animated / n_img) if n_img else 0.0:0.1f}%)',
@@ -220,6 +221,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
   names = sorted(((fid, obj['name']) for fid, obj in user_favorites.items()), key=lambda x: x[1])
   favorites: dict[int, dict[str, Any]] = {}
   total_failed: int = 0
+  total_disappeared: int = 0
   total_sz: int = 0
   total_thumbs_sz: int = 0
   total_animated: int = 0
@@ -227,6 +229,9 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
     obj = db.favorites[user_id][fid]
     count_img = len(obj['images'])
     count_failed = len(obj['failed_images'])
+    count_disappeared = sum(
+        1 for i in obj['images']
+        if i in db.image_ids_index if db.blobs[db.image_ids_index[i]]['gone'])
     file_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz']
         for i in obj['images'] if i in db.image_ids_index]
@@ -242,6 +247,8 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
         'date': base.STD_TIME_STRING(obj['date_blobs']),
         'count': count_img,
         'failed': count_failed,
+        'disappeared': (f'{count_disappeared} '
+                        f'({(100.0 * count_disappeared / count_img) if count_img else 0.0:0.1f}%)'),
         'files_sz': base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
         'min_sz': base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
         'max_sz': base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
@@ -253,6 +260,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
                        f'({(100.0 * n_animated / count_img) if count_img else 0.0:0.1f}%)'),
     }
     total_failed += count_failed
+    total_disappeared += count_disappeared
     total_sz += sum(file_sizes) if file_sizes else 0
     total_thumbs_sz += sum(thumbs_sizes) if thumbs_sizes else 0
     total_animated += n_animated
@@ -263,10 +271,14 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
       'user_name': db.users[user_id]['name'],
       'date_albums': base.STD_TIME_STRING(db.users[user_id]['date_albums']),
       'date_finished': base.STD_TIME_STRING(db.users[user_id]['date_finished']),
+      'date_audit': base.STD_TIME_STRING(db.users[user_id]['date_audit']),
       'favorites': favorites,
       'album_count': len(names),
       'img_count': all_img_count,
       'failed_count': total_failed,
+      'disappeared_count': (
+          f'{total_disappeared} '
+          f'({(100.0 * total_disappeared / all_img_count) if all_img_count else 0.0:0.1f}%)'),
       'page_count': sum(f['pages'] for f in favorites.values()),
       'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
       'total_thumbs_sz': base.HumanizedBytes(total_thumbs_sz) if total_thumbs_sz else '-',
@@ -425,6 +437,12 @@ def _ServeImages(  # noqa: C901
                    for i in range(0, len(image_list), _IMG_COLUMNS)]
   if stacked_blobs:
     stacked_blobs[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_blobs[-1]))]
+  # do the same for disappeared images
+  disappeared_list = [i for i in image_list if db.blobs[i[1]]['gone']]
+  stacked_disappeared = [disappeared_list[i:(i + _IMG_COLUMNS)]
+                         for i in range(0, len(disappeared_list), _IMG_COLUMNS)]
+  if stacked_disappeared:
+    stacked_disappeared[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_disappeared[-1]))]
   # format blob data to be included as auxiliary data
   blobs_data: dict[str, dict[str, Any]] = {}
   for img, sha in image_list:
@@ -456,6 +474,8 @@ def _ServeImages(  # noqa: C901
         'duplicate_hints': (
             '\n'.join(dup_hints[(img, sha)])
             if (img, sha) in dup_hints and dup_hints[(img, sha)] else ''),
+        'date': base.STD_TIME_STRING(blob['date']),
+        'gone': [(i, base.STD_TIME_STRING(t[0]), t[1].name) for i, t in blob['gone'].items()],
     }
   # create context
   return {
@@ -469,6 +489,8 @@ def _ServeImages(  # noqa: C901
       'tagging_url': f'lock={int(locked_for_tagging)}',
       'count': len(image_list),
       'stacked_blobs': stacked_blobs,
+      'count_disappeared': len(disappeared_list),
+      'stacked_disappeared': stacked_disappeared,
       'blobs_data': blobs_data,
       'form_tags': [(tid, name, db.TagLineageStr(tid, add_id=False))
                     for tid, name, _, _ in db.TagsWalk()],

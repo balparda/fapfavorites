@@ -32,7 +32,7 @@ want the GIT packages to be installed:
 
 ```
 $ sudo apt-get install python3 python3-pip
-$ sudo pip3 install -U click sanitize_filename Pillow imagededup Django
+$ sudo pip3 install -U click types-requests sanitize_filename Pillow imagededup Django
 
 $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/fapfavorites.git
@@ -117,6 +117,17 @@ local computer, so please don't do that! Also, ___do NOT simultaneously
 run the web app and other concurrent calls to `favorites.py` or `process.py`
 or you might lose data!___
 
+One day you might come back and ask the software to find out if
+any images are now missing from the user:
+
+```
+./favorites.py audit --user dirty999
+```
+
+This will neither download new images nor delete images that you
+already have. you can also use the `--force` flag here.
+You can see the results in the web interface.
+
 ## Usage of `favorites.py`
 
 Run `./favorites.py --help` for an options and flag summary.
@@ -196,6 +207,20 @@ image galleries in the user's favorite:
 The `read` command will also generate thumbnails for the images,
 that will be used to display them in the web app (see `run` command of
 `process.py`).
+
+### `favorites.py AUDIT` command - _Check the Database!_
+
+After you have a database in place you can use the `audit` operation to
+look at all pictures for a `--user` (or `--id`) and find out if any images
+in the DB are missing from the site. This will *not* download any new images
+but will re-check the existence of images in the database for that user.
+Use `audit` sparingly, as it is rather wasteful.
+
+```
+./favorites.py audit --user dirty999
+```
+
+The results of this operation can be seen in the web interface.
 
 ## Usage of `process.py`
 
@@ -324,6 +349,7 @@ from a structure like:
       'name': user_name,
       'date_albums': int_time_last_success_list_all_albums,
       'date_finished': int_time_last_success_finish,
+      'date_audit': int_time_last_success_audit,
     },
   },
 
@@ -376,10 +402,12 @@ from a structure like:
       'width': int,      # image width
       'height': int,     # image height
       'animated': bool,  # True if image is animated (gif), False otherwise
+      'date': int_time_last_success_download,
       'gone': {  # the locations that are now failing audit even though images *are* available in DB
-        (imagefap_image_id-1, imagefap_full_res_url-1),
-        (imagefap_image_id-2, imagefap_full_res_url-2),
+        imagefap_image_id-1: (int_time_last_audit-1, int_level-1, imagefap_failed_url-1),
+        imagefap_image_id-2: (int_time_last_audit-2, int_level-2, imagefap_failed_url-2),
         ... this is a set of every previously OK location that is now failing audit ...
+        # int_level is: 1 -> page failure ; 2 -> URL extraction failure ; 3 -> full-res URL failure
       },
     },
   },

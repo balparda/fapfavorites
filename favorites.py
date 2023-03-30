@@ -71,11 +71,25 @@ def _ReadOperation(database: fapdata.FapDatabase,
   database.FindDuplicates()
   # if we finished getting all user albums, mark user as finished
   if not folder_id:
+    # use lazy users.get() so tests don't have to mock the actual DB
     database.users.get(user_id, {})['date_finished'] = base.INT_TIME()
 
 
+def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bool) -> None:
+  """Implement `audit` user operation: Check all user images for continued existence.
+
+  Args:
+    database: Active fapdata.FapDatabase
+    user_id: User ID
+    force_audit: If True will audit even if recently audited
+  """
+  # start
+  print('Executing AUDIT command')
+  database.Audit(user_id, fapdata.AUDIT_CHECKPOINT_LENGTH, force_audit)
+
+
 @click.command()  # see `click` module usage in http://click.pocoo.org/
-@click.argument('operation', type=click.Choice(['get', 'read']))
+@click.argument('operation', type=click.Choice(['get', 'read', 'audit']))
 @click.option(
     '--user', '-u', 'user_name', type=click.STRING, default='',
     help='The imagefap.com user name, as found in https://www.imagefap.com/profile/USER; '
@@ -103,8 +117,8 @@ def _ReadOperation(database: fapdata.FapDatabase,
          'you can\'t disable the DB for the `read` command')
 @click.option(
     '--force/--no-force', 'force_download', default=False,
-    help='Ignore recency check for download of favorite images? Default '
-         'is False ("no"). This will force a download even if the album '
+    help='Ignore recency check for download/audit of favorite images? Default '
+         'is False ("no"). This will force a download/audit even if the album/image '
          'is fresh in the database')
 @base.Timed('Total Imagefap favorites.py execution time')
 def Main(operation: str,  # noqa: C901
@@ -130,6 +144,12 @@ def Main(operation: str,  # noqa: C901
   If you are using `read` then you can specify only the user and
   let it browse for all image favorite galleries.
 
+  After you have a database in place you can use the `audit` operation to
+  look at all pictures for a --user (or --id) and find out if any images
+  in the DB are missing from the site. This will *not* download any new images
+  but will re-check the existence of images in the database for that user.
+  Use `audit` sparingly, as it is rather wasteful.
+
   Typical examples:
 
   \b
@@ -145,7 +165,12 @@ def Main(operation: str,  # noqa: C901
   \b
   ./favorites.py read --user "some-login"
   (in this case, will find all image favorite galleries for this user
-   and place them in the database;)
+   and place them in the database)
+
+  \b
+  ./favorites.py audit --user "some-login" --force
+  (will look at all the images this user has and check if they exist
+   but will not download any new image; will ignore recent audits)
   """
   print('***********************************************')
   print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER   **')
@@ -158,12 +183,14 @@ def Main(operation: str,  # noqa: C901
       raise AttributeError('You have to provide either the --user or the --id options')
     if user_name and user_id:
       raise AttributeError('You should not provide both the --user and the --id options')
-    if (not favorites_name and not folder_id) and operation.lower() != 'read':
+    if (not favorites_name and not folder_id) and operation.lower() not in {'read', 'audit'}:
       raise AttributeError('You have to provide either the --name or the --folder options')
     if favorites_name and folder_id:
       raise AttributeError('You should not provide both the --name and the --folder options')
-    if not make_db and operation.lower() == 'read':
-      raise AttributeError('The `read` command requires a database (--db option)')
+    if (favorites_name or folder_id) and operation.lower() == 'audit':
+      raise AttributeError('You should not provide --name or --folder in the `audit` operation')
+    if not make_db and operation.lower() in {'read', 'audit'}:
+      raise AttributeError('The `read` & `audit` commands require a database (--db option)')
     # load database, if any
     database = fapdata.FapDatabase(output_path)
     if make_db:
@@ -183,6 +210,8 @@ def Main(operation: str,  # noqa: C901
       _GetOperation(database, user_id, folder_id, make_db, force_download)
     elif operation.lower() == 'read':
       _ReadOperation(database, user_id, folder_id, force_download)
+    elif operation.lower() == 'audit':
+      _AuditOperation(database, user_id, force_download)
     else:
       raise NotImplementedError(f'Unrecognized/Unimplemented operation {operation!r}')
     # save DB and end

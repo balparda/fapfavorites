@@ -75,7 +75,12 @@
         {% endif %}
       {% endif %}
       The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!<br/>
-      The <i>"gemini"</i> icon in duplicate images (<small>&#9802;</small>) will open the page showing the duplicates set for inspection and action.
+      The <i>"gemini"</i> icon in duplicate images (<small>&#9802;</small>) will open the page showing the duplicates set for inspection and action.<br/>
+      {% if locked_for_tagging %}
+        Images that disappeared from the site have an expandable section at the end.
+      {% else %}
+        Images marked <span style='color: midnightblue;'>MIDNIGHT BLUE</span> have disappeared from site. They also have an expandable section at the end.
+      {% endif %}
     </td>
   </tr>
   {% if locked_for_tagging %}
@@ -92,7 +97,7 @@
 
 {% load static %}
 
-<p>&nbsp;</p>
+<p><small>({{ count }} images in selection)</small></p>
 
 <table border='2'>
   {% for sha_group in stacked_blobs %}
@@ -104,10 +109,10 @@
               <td align='center' valign='center' id='{{ sha }}' class='unselected'>
                 <img src='{% static blob.thumb %}'
                     onclick='javascript:switch_selection("{{ sha }}");'
-                    title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}{% if blob.is_duplicate %} - has exact duplicate{% endif %}{% if blob.is_percept %} - has perceptual duplicate{% endif %}'/><br/>
+                    title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}{% if blob.tags %}&#10;{{ blob.tags|escape }}{% endif %}&#10;{{ blob.date }}{% if blob.has_duplicate %}&#10;has exact duplicate{% endif %}{% if blob.has_percept %}&#10;has perceptual duplicate{% endif %}'/><br/>
                 <small><small>
                   <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>&#128444;</a>&nbsp;&nbsp;
-                  <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>&nbsp;&nbsp;
+                  <a href='{{ blob.imagefap }}' class='external' title='{% for gone in blob.gone %}{{ gone.0 }} - {{ gone.1 }} - {{ gone.2 }} missing&#10;{% empty %}Image in Imagefap{% endfor %}' target='_blank' rel='noopener noreferrer'>{% if blob.gone %}&#9986;{% else %}&#128279;{% endif %}</a>&nbsp;&nbsp;
                 </small>
                   {% if blob.album_duplicate or blob.has_duplicate or blob.has_percept %}
                     <a href='{% url "duplicate" sha %}' class='external' title='{{ blob.duplicate_hints }}' target='_blank' rel='noopener noreferrer'>&#9802;</a>
@@ -118,12 +123,13 @@
               <td align='center' valign='center'
                   {% if blob.album_duplicate %}class='album_duplicate'{% else %}
                   {% if blob.has_duplicate %}class='has_duplicate'{% else %}
-                  {% if blob.has_percept %}class='has_perceptual'{% endif %}{% endif %}{% endif %}>
+                  {% if blob.has_percept %}class='has_perceptual'{% else %}
+                  {% if blob.gone %}class='has_disappeared'{% endif %}{% endif %}{% endif %}{% endif %}>
                 <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
-                  <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}&#10;{{ blob.tags|escape }}'/></a>
-                &nbsp;<small><small><small>
-                  <a href='{{ blob.imagefap }}' class='external' title='Image in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
-                </small></small>
+                  <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}{% if blob.tags %}&#10;{{ blob.tags|escape }}{% endif %}&#10;{{ blob.date }}{% if blob.has_duplicate %}&#10;has exact duplicate{% endif %}{% if blob.has_percept %}&#10;has perceptual duplicate{% endif %}'/></a>
+                &nbsp;<small><small>
+                  <a href='{{ blob.imagefap }}' class='external' title='{% for gone in blob.gone %}{{ gone.0 }} - {{ gone.1 }} - {{ gone.2 }} missing&#10;{% empty %}Image in Imagefap{% endfor %}' target='_blank' rel='noopener noreferrer'>{% if blob.gone %}&#9986;{% else %}&#128279;{% endif %}</a>
+                </small>
                 {% if blob.album_duplicate or blob.has_duplicate or blob.has_percept %}
                   <a href='{% url "duplicate" sha %}' class='external' title='{{ blob.duplicate_hints }}' target='_blank' rel='noopener noreferrer'>&#9802;</a>
                 {% endif %}
@@ -137,6 +143,47 @@
       {% endfor %}
     </tr>
   {% empty %}
-    <tr><td colspan='4'>No images for this selection</td></tr>
+    <tr><td colspan='10'>No images for this selection</td></tr>
   {% endfor %}
 </table>
+
+<p>&nbsp;</p>
+
+<details>
+  <summary>
+    Disappeared Images Section ({{ count_disappeared }} images) - EXPAND&nbsp;&nbsp;<span class="icon">&#128071;</span>
+    <p>&nbsp;</p>
+  </summary>
+  <table border='2' class='disappeared'>
+    <tr><th colspan='10'>Images That Disappeared From Site <i>(non-selectable table)</i></th></tr>
+    {% for sha_group in stacked_disappeared %}
+      <tr>
+        {% for img, sha in sha_group %}
+          {% if sha %}
+            {% with blob=blobs_data|lookup:sha %}
+              <td align='center' valign='center'
+                  {% if blob.album_duplicate %}class='album_duplicate'{% else %}
+                  {% if blob.has_duplicate %}class='has_duplicate'{% else %}
+                  {% if blob.has_percept %}class='has_perceptual'{% else %}
+                  {% if blob.gone %}class='has_disappeared'{% endif %}{% endif %}{% endif %}{% endif %}>
+                <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
+                  <img src='{% static blob.thumb %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}{% if blob.tags %}&#10;{{ blob.tags|escape }}{% endif %}&#10;{{ blob.date }}{% if blob.has_duplicate %}&#10;has exact duplicate{% endif %}{% if blob.has_percept %}&#10;has perceptual duplicate{% endif %}'/></a>
+                &nbsp;<small><small>
+                  <a href='{{ blob.imagefap }}' class='external' title='{% for gone in blob.gone %}{{ gone.0 }} - {{ gone.1 }} - {{ gone.2 }} missing&#10;{% empty %}Image in Imagefap{% endfor %}' target='_blank' rel='noopener noreferrer'>{% if blob.gone %}&#9986;{% else %}&#128279;{% endif %}</a>
+                </small>
+                {% if blob.album_duplicate or blob.has_duplicate or blob.has_percept %}
+                  <a href='{% url "duplicate" sha %}' class='external' title='{{ blob.duplicate_hints }}' target='_blank' rel='noopener noreferrer'>&#9802;</a>
+                {% endif %}
+                </small>
+              </td>
+            {% endwith %}
+          {% else %}
+            <td></td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+    {% empty %}
+      <tr><td colspan='10'>No images have disappeared in this selection</td></tr>
+    {% endfor %}
+  </table>
+</details>

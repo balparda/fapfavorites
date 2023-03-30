@@ -34,6 +34,7 @@ def _mock_decorator(*unused_args, **unused_kwargs):
 
 cache.cache_page = _mock_decorator  # monkey-patch the cache
 from fapfavorites.viewer import views  # noqa: E402
+from fapfavorites import fapdata       # noqa: E402
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
@@ -521,16 +522,19 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'name': 'Luke',  # has 2 albums
             'date_albums': 1675350000,
             'date_finished': 1675390000,
+            'date_audit': 1675368770,
         },
         2: {
             'name': 'Ben',  # has 1 album
             'date_albums': 1675370000,
             'date_finished': 0,
+            'date_audit': 0,
         },
         3: {
             'name': 'Yoda',  # has 0 albums
             'date_albums': 0,
             'date_finished': 0,
+            'date_audit': 0,
         },
     },
     'favorites': {
@@ -585,7 +589,8 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 54643,
             'tags': {2, 3},
             'width': 198,  # image will be considered "square" aspect
-            'gone': set(),
+            'date': 1675368770,
+            'gone': {},
         },
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
             'animated': False,
@@ -604,7 +609,11 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 45309,
             'tags': set(),  # untagged!
             'width': 130,
-            'gone': set(),
+            'date': 1675368770,
+            'gone': {
+                110: (1675368770, fapdata._FailureLevel.IMAGE_PAGE, 'url-110'),
+                202: (1675368770, fapdata._FailureLevel.FULL_RES, 'url-202'),
+            },
         },
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {
             'animated': True,
@@ -622,7 +631,8 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz': 444973,
             'sz_thumb': 302143,
             'width': 100,
-            'gone': set(),
+            'date': 1675360770,
+            'gone': {},
         },
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'animated': False,
@@ -642,7 +652,8 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 0,
             'tags': {2, 11, 33},
             'width': 160,
-            'gone': set(),
+            'date': 1675360770,
+            'gone': {},
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'animated': False,
@@ -660,7 +671,8 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 11890,
             'tags': {246},
             'width': 300,
-            'gone': set(),
+            'date': 1675360770,
+            'gone': {},
         },
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
             'animated': False,
@@ -680,7 +692,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz_thumb': 56583,
             'tags': {1, 2},
             'width': 200,
-            'gone': set(),
+            'date': 1675360770,
+            'gone': {
+                104: (1675360770, fapdata._FailureLevel.URL_EXTRACTION, 'url-104'),
+            },
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'animated': True,
@@ -698,7 +713,10 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'sz': 444973,
             'sz_thumb': 302143,
             'width': 500,
-            'gone': set(),
+            'date': 1675368770,
+            'gone': {
+                103: (1675368770, fapdata._FailureLevel.IMAGE_PAGE, 'url-103'),
+            },
         },
     },
     'image_ids_index': {
@@ -855,6 +873,7 @@ _INDEX_CONTEXT: dict[str, Any] = {
         '3 favorite galleries (oldest: 2023/Jan/06-10:13:20-UTC / newer: 2023/Feb/02-01:06:40-UTC)',
         '7 unique images (12 total, 5 exact duplicates)',
         '3 unique failed images in all user albums',
+        '3 unique images are now disappeared from imagefap site',
         '5 perceptual duplicates in 2 groups',
     ],
 }
@@ -865,6 +884,7 @@ _USERS_CONTEXT: dict[str, Any] = {
             'name': 'Luke',
             'date_albums': '2023/Feb/02-15:00:00-UTC',
             'date_finished': '2023/Feb/03-02:06:40-UTC',
+            'date_audit': '2023/Feb/02-20:12:50-UTC',
             'n_img': 8,
             'n_failed': 1,
             'n_animated': '1 (12.5%)',
@@ -879,6 +899,7 @@ _USERS_CONTEXT: dict[str, Any] = {
             'name': 'Ben',
             'date_albums': '2023/Feb/02-20:33:20-UTC',
             'date_finished': '-',
+            'date_audit': '-',
             'n_img': 4,
             'n_failed': 2,
             'n_animated': '1 (25.0%)',
@@ -893,6 +914,7 @@ _USERS_CONTEXT: dict[str, Any] = {
             'name': 'Yoda',
             'date_albums': '-',
             'date_finished': '-',
+            'date_audit': '-',
             'n_img': 0,
             'n_failed': 0,
             'n_animated': '0 (0.0%)',
@@ -921,6 +943,7 @@ _FAVORITES_CONTEXT: dict[str, Any] = {
     'user_name': 'Luke',
     'date_albums': '2023/Feb/02-15:00:00-UTC',
     'date_finished': '2023/Feb/03-02:06:40-UTC',
+    'date_audit': '2023/Feb/02-20:12:50-UTC',
     'favorites': {
         10: {
             'name': 'luke-folder-10',
@@ -928,6 +951,7 @@ _FAVORITES_CONTEXT: dict[str, Any] = {
             'date': '2023/Feb/02-01:06:40-UTC',
             'count': 5,
             'failed': 1,
+            'disappeared': '3 (60.0%)',
             'files_sz': '598.52kb',
             'min_sz': '101b',
             'max_sz': '434.54kb',
@@ -942,6 +966,7 @@ _FAVORITES_CONTEXT: dict[str, Any] = {
             'date': '2022/Dec/14-06:40:00-UTC',
             'count': 3,
             'failed': 0,
+            'disappeared': '1 (33.3%)',
             'files_sz': '131.47kb',
             'min_sz': '101b',
             'max_sz': '87.12kb',
@@ -954,6 +979,7 @@ _FAVORITES_CONTEXT: dict[str, Any] = {
     'album_count': 2,
     'img_count': 8,
     'failed_count': 1,
+    'disappeared_count': '4 (50.0%)',
     'page_count': 17,
     'total_sz': '729.99kb',
     'total_thumbs_sz': '514.80kb',
@@ -994,6 +1020,15 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             (0, ''),
         ],
     ],
+    'count_disappeared': 3,
+    'stacked_disappeared': [
+        [
+            (100, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+            (103, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (104, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+            (0, ''),
+        ],
+    ],
     'blobs_data': {
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
             'name': 'name-104.jpg',
@@ -1014,6 +1049,10 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
                                 'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104) <= THIS\n'
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [
+                (104, '2023/Feb/02-17:59:30-UTC', 'URL_EXTRACTION'),
+            ],
         },
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'name': 'name-101.jpg',
@@ -1028,6 +1067,8 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101) <= THIS\n'
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
         },
         '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
             'name':
@@ -1046,6 +1087,8 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
                                 'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [],
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1058,6 +1101,10 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/103/',
             'duplicate_hints': '',
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [
+                (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
+            ],
         },
     },
     'form_tags': [
@@ -1116,6 +1163,8 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
             (0, ''),
         ],
     ],
+    'count_disappeared': 0,
+    'stacked_disappeared': [],
     'blobs_data': {
         '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
             'name': 'name-102.jpg',
@@ -1133,6 +1182,8 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
                                 'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [],
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
@@ -1172,7 +1223,9 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
     'count': 0,
+    'count_disappeared': 0,
     'stacked_blobs': [],
+    'stacked_disappeared': [],
     'blobs_data': {},
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
     'tag_id': 0,
@@ -1212,6 +1265,15 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             (0, ''),
         ],
     ],
+    'count_disappeared': 1,
+    'stacked_disappeared': [
+        [
+            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, ''),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
     'blobs_data': {
         '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
             'name': 'name-102.jpg',
@@ -1229,6 +1291,8 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
                                 'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [],
         },
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {
             'name': 'name-200.gif',
@@ -1241,6 +1305,8 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/0/',
             'duplicate_hints': '',
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
         },
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'name': 'name-101.jpg',
@@ -1255,6 +1321,8 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'name': 'name-112.jpg',
@@ -1267,6 +1335,8 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/0/',
             'duplicate_hints': '',
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1279,6 +1349,10 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/0/',
             'duplicate_hints': '',
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [
+                (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
+            ],
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
@@ -1313,6 +1387,15 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             (0, ''),
         ],
     ],
+    'count_disappeared': 1,
+    'stacked_disappeared': [
+        [
+            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, ''),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
     'blobs_data': {
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'name': 'name-101.jpg',
@@ -1327,6 +1410,8 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1339,6 +1424,10 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/0/',
             'duplicate_hints': '',
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [
+                (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
+            ],
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
@@ -1374,6 +1463,15 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
         ],
     ],
+    'count_disappeared': 2,
+    'stacked_disappeared': [
+        [
+            (0, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+            (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
     'blobs_data': {
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'name': 'name-101.jpg',
@@ -1388,6 +1486,8 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'name': 'name-112.jpg',
@@ -1400,6 +1500,8 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/0/',
             'duplicate_hints': '',
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
         },
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
             'name': 'name-100.jpg',
@@ -1420,6 +1522,10 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
                                 'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [
+                (104, '2023/Feb/02-17:59:30-UTC', 'URL_EXTRACTION'),
+            ],
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1432,6 +1538,10 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/0/',
             'duplicate_hints': '',
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [
+                (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
+            ],
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
