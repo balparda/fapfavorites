@@ -1049,10 +1049,9 @@ class FapDatabase:
           new_ids = _ExtractFavoriteIDs(page_num + 2, user_id, folder_id)  # extra safety page 1
           if not new_ids:
             break  # after 2 extra safety pages, we hope we can now safely give up...
-          else:
-            page_num += 2  # we found something (2nd extra page), remember to increment page counter
-            logging.warning('Album %s had 2 EMPTY PAGES in the middle of the page list!',
-                            self.AlbumStr(user_id, folder_id))
+          page_num += 2  # we found something (2nd extra page), remember to increment page counter
+          logging.warning('Album %s had 2 EMPTY PAGES in the middle of the page list!',
+                          self.AlbumStr(user_id, folder_id))
         else:
           page_num += 1  # we found something (1st extra page), remember to increment page counter
           logging.warning('Album %s had 1 EMPTY PAGES in the middle of the page list!',
@@ -1071,18 +1070,23 @@ class FapDatabase:
         sum(1 for i in img_list if i not in self.image_ids_index))
     return img_list
 
-  def _FindOrCreateBlobLocationEntry(self, user_id: int, folder_id: int, img_id: int) -> tuple[
-      Optional[bytes], str, str, str, str]:
+  def _FindOrCreateBlobLocationEntry(
+      self,
+      user_id: int,
+      folder_id: int,
+      img_id: int,
+      temp_file: tempfile._TemporaryFileWrapper) -> tuple[Optional[bytes], str, str, str]:
     """Find entry for user_id/folder_id/img_id or create one, if none is found.
 
     Args:
       user_id: User int ID
       folder_id: Folder int ID
       img_id: Imagefap int image ID
+      temp_file: Temporary file, like created with tempfile.NamedTemporaryFile, in *virgin* state,
+          so this method can call write() and flush() on it
 
     Returns:
-      (image_bytes, sha256_hexdigest, imagefap_full_res_url,
-       file_name_sanitized, file_extension_sanitized)
+      (image_bytes, sha256_hexdigest, imagefap_full_res_url, file_name_sanitized)
       image_bytes can be None if the image's hash is known!
 
     Raises:
@@ -1096,8 +1100,7 @@ class FapDatabase:
       # get actual binary data
       try:
         (image_bytes, sha, percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
-         width, height, is_animated) = self._GetBinary(
-            url_path, extension)
+         width, height, is_animated) = self._GetBinary(url_path, temp_file)
       except Error404 as err:
         err.image_id = img_id
         err.image_name = sanitized_image_name
@@ -1127,20 +1130,20 @@ class FapDatabase:
             'average': average_hash, 'diff': diff_hash, 'wavelet': wavelet_hash, 'cnn': cnn_hash,
             'width': width, 'height': height, 'animated': is_animated,
             'date': base.INT_TIME(), 'gone': {}}
-      return (image_bytes, sha, url_path, sanitized_image_name, extension)
+      return (image_bytes, sha, url_path, sanitized_image_name)
     # we have seen this img_id before, and can skip a lot of computation
     # first: could it be we saw it in this same user_id/folder_id?
     for iid, url, loc_nm, uid, fid in self.blobs[sha]['loc']:
       if img_id == iid and user_id == uid and folder_id == fid:
         # this is an exact match (img_id/user_id/folder_id) and we won't download or search for URL
-        return (None, sha, url, loc_nm, self.blobs[sha]['ext'])
+        return (None, sha, url, loc_nm)
     # in this last case we know the img_id but it seems to be duplicated in another album,
     # so we have to get the img_id metadata (url, name) at least, and add to the database
-    url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)  # 404 bubble through
+    url_path, sanitized_image_name, _ = _ExtractFullImageURL(img_id)  # 404 bubble through
     self.blobs[sha]['loc'].add(
         (img_id, url_path, sanitized_image_name, user_id, folder_id))
     self.blobs[sha]['date'] = base.INT_TIME()
-    return (None, sha, url_path, sanitized_image_name, extension)
+    return (None, sha, url_path, sanitized_image_name)
 
   def _CheckWorkHysteresis(self, force_download: bool, tm_last: int, task_message: str) -> bool:
     """Check if work should be done, or if task has recently been finished.
@@ -1238,46 +1241,49 @@ class FapDatabase:
     known_count: int = 0
     exists_count: int = 0
     for img_id in list(self.favorites[user_id][folder_id]['images']):  # copy b/c we might change it
-      # add image to database
-      try:
-        image_bytes, sha, url_path, sanitized_image_name, extension = (
-            self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id))
-      except Error404 as err:
-        # we had a 404 error, but this already comes will all fields ready
-        self.favorites[user_id][folder_id]['images'].remove(img_id)
-        self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
-        logging.error('FAILED IMAGE: %s', err)
-        continue
-      known_count += 1 if image_bytes is None else 0
-      full_path = (os.path.join(output_dir, sanitized_image_name)
-                   if date_key == 'date_straight' else self._BlobPath(sha))
-      # check for output path existence so we don't clobber images that are already there
-      if os.path.exists(full_path):
-        logging.info('Image already exists at %r', full_path)
-        exists_count += 1
-        continue
-      # if we still don't have the image data, check if we have the data in the DB
-      if image_bytes is None and self.HasBlob(sha):
-        image_bytes = self.GetBlob(sha)
-      # save image and get data if we couldn't find it in DB yet
-      try:
-        total_sz += _SaveImage(full_path, self._GetBinary(
-            url_path, extension)[0] if image_bytes is None else image_bytes)
-      except Error404 as err:
-        # we had a 404 error, and it needs extra fields
-        err.image_id = img_id
-        err.image_name = sanitized_image_name
-        self.favorites[user_id][folder_id]['images'].remove(img_id)
-        self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
-        logging.error('FAILED IMAGE: %s', err)
-        continue
-      saved_count += 1
-      # if we saved a blob, we should also generate a thumbnail
-      if date_key == 'date_blobs':
-        thumb_sz += self._MakeThumbnailForBlob(sha)
-      # checkpoint database, if needed
-      if checkpoint_size and not saved_count % checkpoint_size:
-        self.Save()
+      # create a temporary file so we can do all the clear-text operations we need on the file
+      with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+        # add image to database
+        try:
+          image_bytes, sha, url_path, sanitized_image_name = (
+              self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id, temp_file))
+        except Error404 as err:
+          # we had a 404 error, but this already comes will all fields ready
+          self.favorites[user_id][folder_id]['images'].remove(img_id)
+          self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
+          logging.error('FAILED IMAGE: %s', err)
+          continue
+        known_count += 1 if image_bytes is None else 0
+        full_path = (os.path.join(output_dir, sanitized_image_name)
+                     if date_key == 'date_straight' else self._BlobPath(sha))
+        # check for output path existence so we don't clobber images that are already there
+        if os.path.exists(full_path):
+          logging.info('Image already exists at %r', full_path)
+          exists_count += 1
+          continue
+        # if we still don't have the image data, check if we have the data in the DB
+        if image_bytes is None and self.HasBlob(sha):
+          image_bytes = self.GetBlob(sha)
+        # save image and get data if we couldn't find it in DB yet
+        try:
+          total_sz += _SaveImage(
+              full_path,
+              self._GetBinary(url_path, temp_file)[0] if image_bytes is None else image_bytes)
+        except Error404 as err:
+          # we had a 404 error, and it needs extra fields
+          err.image_id = img_id
+          err.image_name = sanitized_image_name
+          self.favorites[user_id][folder_id]['images'].remove(img_id)
+          self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
+          logging.error('FAILED IMAGE: %s', err)
+          continue
+        saved_count += 1
+        # if we saved a blob, we should also generate a thumbnail
+        if date_key == 'date_blobs':
+          thumb_sz += self._MakeThumbnailForBlob(sha, temp_file)
+        # checkpoint database, if needed
+        if checkpoint_size and not saved_count % checkpoint_size:
+          self.Save()
     # all images were downloaded, the end
     self.favorites[user_id][folder_id][date_key] = base.INT_TIME()  # marks album as done
     print(
@@ -1289,12 +1295,14 @@ class FapDatabase:
   def _GetBinary(
       self,
       url: str,
-      image_extension: str) -> tuple[bytes, str, str, str, str, str, np.ndarray, int, int, bool]:
+      temp_file: tempfile._TemporaryFileWrapper) -> tuple[
+          bytes, str, str, str, str, str, np.ndarray, int, int, bool]:
     """Get an image by URL and compute data that depends only on the binary representation.
 
     Args:
       url: Image URL path
-      image_extension: Putative image extension
+      temp_file: Temporary file, like created with tempfile.NamedTemporaryFile, in *virgin* state,
+          so this method can call write() and flush() on it
 
     Returns:
       (image_bytes, image_sha256_hexdigest,
@@ -1309,22 +1317,27 @@ class FapDatabase:
     img_data = _FapBinRead(url)  # (let Error404 bubble through...)
     if not img_data:
       raise Error(f'Empty full-res URL: {url}')
-    # do perceptual hashing
-    with tempfile.NamedTemporaryFile(suffix='.' + image_extension) as temp_file:
-      temp_file.write(img_data)
-      temp_file.flush()
-      with Image.open(temp_file.name) as img:
-        width, height = img.width, img.height
-        is_animated: bool = getattr(img, 'is_animated', False)
-      percept, average, diff, wavelet, cnn = self.duplicates.Encode(temp_file.name)
+    # save image data to the temp_file and get basic characteristics
+    # it is important to note that Image.open() does not rely on filename (extension) to know
+    # what type of image it is, so we can get away with any generic temp_file name
+    temp_file.write(img_data)
+    temp_file.flush()
+    with Image.open(temp_file.name) as img:
+      width, height = img.width, img.height
+      is_animated: bool = getattr(img, 'is_animated', False)
+    # do perceptual hashing; deep down, the perceptual_hashers[...].encode_image() will also
+    # eventually rely on Image.open() to parse the image, so again we don't rely on file extension
+    percept, average, diff, wavelet, cnn = self.duplicates.Encode(temp_file.name)
     return (img_data, hashlib.sha256(img_data).hexdigest(),
             percept, average, diff, wavelet, cnn, width, height, is_animated)
 
-  def _MakeThumbnailForBlob(self, sha: str) -> int:
+  def _MakeThumbnailForBlob(self, sha: str, temp_file: tempfile._TemporaryFileWrapper) -> int:
     """Make equivalent thumbnail for `sha` entry. Will overwrite destination.
 
     Args:
       sha: the SHA256 key
+      temp_file: Temporary file, like created with tempfile.NamedTemporaryFile, in saved state,
+          so this method can call open it to read the original binary data
 
     Returns:
       int size of saved file
@@ -1334,13 +1347,13 @@ class FapDatabase:
       logging.info('Creating thumbnails directory %r', self._thumbs_dir)
       os.mkdir(self._thumbs_dir)
     # open image and generate a thumbnail
-    with Image.open(self._BlobPath(sha)) as img:
+    with Image.open(temp_file.name) as img:
       output_path = self.ThumbnailPath(sha)
       # figure out the new size that will be used
       width, height = img.width, img.height
       if max((width, height)) <= _THUMBNAIL_MAX_DIMENSION:
         # the image is already smaller than the putative thumbnail, so we just copy it as thumbnail
-        shutil.copyfile(self._BlobPath(sha), output_path)
+        shutil.copyfile(temp_file.name, output_path)
         sz_thumb = os.path.getsize(output_path)
         self.blobs[sha]['sz_thumb'] = sz_thumb
         logging.info('Copied image as thumbnail for %r', sha)

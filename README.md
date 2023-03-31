@@ -74,6 +74,19 @@ Generate a database by reading the favorite albums for each user, like this:
 Since we didn't give any specific location (`--output` flag), the database
 will be placed in `~/Downloads/imagefap/`.
 Those examples would read all favorites for users _"username1"_ and _"username2"_.
+
+You will be asked if you want to password protect your database.
+If you enter a valid password the data will be encrypted, but you have to
+save your password in a secure place (or remember it) because there is no
+recovery possible from forgetting the password. If you don't want to encrypt
+your data and remember a password, you can skip the prompt by pressing `Enter`
+and the images and database will not be encrypted. You won't be asked again,
+as unencrypted data opens automatically. If you did encrypt, you will be
+asked for the password (only once) when you run the (command-line) commands.
+Encrypting the database and files is safer, but will introduce a little
+lag into the database load/save and into image viewing, even though we
+do our best to ensure the lag is minimal.
+
 If you don't want all the albums for an user, just a specific one, add
 the `--folder` flag. Example:
 
@@ -106,6 +119,8 @@ to see it you just leave `./process.py` running and
 visit http://127.0.0.1:8000/viewer/ in your browser. If your
 database is not in the default location (`~/Downloads/imagefap/`)
 you should provide the `--dir` flag to the `./process.py` command.
+If your database is encrypted, when you open the site you will
+be prompted for a database password (only once) in the shell.
 The web app is not beautiful, for sure, but it is simple, fast, gets
 the job done, does not waste your time, and 100% offline.
 You can see all users, all favorite albums, images, duplicates,
@@ -181,6 +196,18 @@ This `read` command is for when you want to do more than just download
 images from one (or a few) galleries. This will store the images as blobs
 and will feed the database with data. It is _not_ meant for immediate
 consumption. The idea is to capture data for processing.
+
+You will be asked if you want to password protect your database.
+If you enter a valid password the data will be encrypted, but you have to
+save your password in a secure place (or remember it) because there is no
+recovery possible from forgetting the password. If you don't want to encrypt
+your data and remember a password, you can skip the prompt by pressing `Enter`
+and the images and database will not be encrypted. You won't be asked again,
+as unencrypted data opens automatically. If you did encrypt, you will be
+asked for the password (only once) when you run the (command-line) commands.
+Encrypting the database and files is safer, but will introduce a little
+lag into the database load/save and into image viewing, even though we
+do our best to ensure the lag is minimal.
 
 With this command duplicates will be found. We search for duplicates
 using a hybrid intersection of perceptual, average, differential
