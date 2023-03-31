@@ -14,14 +14,14 @@ import os
 import os.path
 # import pdb
 
-from pathlib import Path
+import pathlib
 
-import fapdata
+from fapfavorites import fapdata
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # BASE_DIR = Path(__file__).resolve().parent.parent  # original
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = pathlib.Path(__file__).resolve().parent
 
 
 # Imagefap-Favorites Settings
@@ -131,7 +131,6 @@ STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
     os.path.join(os.path.expanduser(IMAGEFAP_FAVORITES_DB_PATH), fapdata.DEFAULT_THUMBS_DIR_NAME),
-    # TODO: another path that should be loaded from main() options
 ]
 
 # Default primary key field type

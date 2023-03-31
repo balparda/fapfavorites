@@ -262,7 +262,11 @@ class FapDatabase:
         raise Error(f'Output directory {self._original_dir!r} does not exist')
       logging.info('Creating output directory %r', self._original_dir)
       os.mkdir(self._db_dir)
-    # save to environment
+    # save to environment: "changes will be effective only for the current process where it was
+    # assigned and it will not change the value permanently", so the variable won't leak to the
+    # larger system; Also: "This mapping is captured the first time the os module is imported,
+    # typically during Python startup [...] Changes to the environment made after this time are
+    # not reflected in os.environ, except for changes made by modifying os.environ directly."
     os.environ['IMAGEFAP_FAVORITES_DB_PATH'] = self._original_dir
 
   @property
