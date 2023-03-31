@@ -17,6 +17,7 @@
 """Imagefap.com database."""
 
 import enum
+import getpass
 import hashlib
 import html
 import http.client
@@ -216,6 +217,8 @@ class Error404(Error):
         self.url)
 
 
+# TODO: encrypt blobs
+# TODO: encrypt thumbnails
 class FapDatabase:
   """Imagefap.com database."""
 
@@ -235,13 +238,14 @@ class FapDatabase:
     random.seed()
     if not dir_path:
       raise AttributeError('Output directory path cannot be empty')
-    logging.info('Initializing database. Output directory will be: %r', dir_path)
+    logging.info('Database directory will be: %r', dir_path)
     # start with a clean DB; see README.md for format
     self._original_dir = dir_path                                            # what the user gave us
     self._db_dir = os.path.expanduser(self._original_dir)                    # where to put DB
     self._db_path = os.path.join(self._db_dir, _DEFAULT_DB_NAME)             # actual DB path
     self._blobs_dir = os.path.join(self._db_dir, _DEFAULT_BLOB_DIR_NAME)     # where to put blobs
     self._thumbs_dir = os.path.join(self._db_dir, DEFAULT_THUMBS_DIR_NAME)   # thumbnails dir
+    self._key: Optional[bytes] = None  # Fernet crypto key in use; None = crypto not in use
     self._db: _DatabaseType = {  # creates empty DB
         'configs': {
             'duplicates_sensitivity_regular': duplicates.METHOD_SENSITIVITY_DEFAULTS.copy(),
@@ -268,6 +272,9 @@ class FapDatabase:
     # typically during Python startup [...] Changes to the environment made after this time are
     # not reflected in os.environ, except for changes made by modifying os.environ directly."
     os.environ['IMAGEFAP_FAVORITES_DB_PATH'] = self._original_dir
+    if os.environ.get('IMAGEFAP_FAVORITES_DB_KEY', None) is not None:
+      logging.warning('DB loading pre-existing environment key')
+      self._key = os.environ['IMAGEFAP_FAVORITES_DB_KEY'].encode('utf-8')
 
   @property
   def configs(self) -> _ConfigsType:
@@ -331,26 +338,62 @@ class FapDatabase:
     if os.path.exists(self._db_path):
       with base.Timer() as tm_load:
         # we turned compression off: it was responsible for ~95% of save time
-        self._db: _DatabaseType = base.BinDeSerialize(file_path=self._db_path, compress=False)
-        # TODO: separate DB into files per key (blobs in a file users in another, etc);
-        #     hash each dict on load and only save the ones that were changed; if we pull it off,
-        #     that will probably be the best we can do for speed, short of migrating to an actual DB
+        try:
+          # try to load the DB with what we have first, no user intervention
+          self._db: _DatabaseType = base.BinDeSerialize(
+              file_path=self._db_path, compress=False, key=self._key)
+        except base.pickle.UnpicklingError:
+          # could not load it: if we don't have a key, we might ask for one
+          if self._key is not None:
+            raise
+          logging.info('Vanilla DB could not be loaded, will try a crypto DB')
+          self._key = base.DeriveKeyFromStaticPassword(
+              getpass.getpass(prompt='Database Password: '))
+          self._db: _DatabaseType = base.BinDeSerialize(
+              file_path=self._db_path, compress=False, key=self._key)
+          # the key seems to have worked, so we save it to environment: "changes will be effective
+          # only for the current process where it was assigned and it will not change the value
+          # permanently", so the variable won't leak to the larger operating system; Also:
+          # "This mapping is captured the first time the os module is imported, typically
+          # during Python startup [...] Changes to the environment made after this time are
+          # not reflected in os.environ, except for changes made by modifying os.environ directly."
+          os.environ['IMAGEFAP_FAVORITES_DB_KEY'] = self._key.decode('utf-8')
         # just a quick dirty check that we got what we expected
         if any(k not in self._db for k in _DB_MAIN_KEYS):
           raise Error('Loaded DB is invalid!')
         self.duplicates = duplicates.Duplicates(  # has to be reloaded!
             self._duplicates_registry, self._duplicates_key_index)
-      logging.info('Loaded DB from %r (%s)', self._db_path, tm_load.readable)
+      logging.info(
+          'Loaded %s DB from %r (%s)',
+          'a VANILLA (unencrypted)' if self._key is None else 'an ENCRYPTED',
+          self._db_path, tm_load.readable)
       return True
-    logging.warning('No DB found in %r', self._db_path)
+    # creating a new DB
+    logging.warning('No DB found in %r: we are creating a new one', self._db_path)
+    user_password1 = getpass.getpass(
+        prompt='NEW Database Password (`Enter` key for no encryption): ')
+    user_password2 = getpass.getpass(
+        prompt='CONFIRM Database Password (`Enter` key for no encryption): ')
+    if user_password1 != user_password2:
+      raise Error('Password mismatch: please type the same password twice!')
+    if not user_password1 or not user_password1.strip():
+      self._key = None
+      logging.warning('Database will be created WITHOUT a password, and any user can open it')
+    else:
+      self._key = base.DeriveKeyFromStaticPassword(user_password1)
+      os.environ['IMAGEFAP_FAVORITES_DB_KEY'] = self._key.decode('utf-8')  # see comment above!
+      logging.warning('Database will be created with a password')
     return False
 
   def Save(self) -> None:
     """Save DB to file."""
     with base.Timer() as tm_save:
       # we turned compression off: it was responsible for ~95% of save time
-      base.BinSerialize(self._db, file_path=self._db_path, compress=False)
-    logging.info('Saved DB to %r (%s)', self._db_path, tm_save.readable)
+      base.BinSerialize(self._db, file_path=self._db_path, compress=False, key=self._key)
+    logging.info(
+        'Saved %s DB to %r (%s)',
+        'a VANILLA (unencrypted)' if self._key is None else 'an ENCRYPTED',
+        self._db_path, tm_save.readable)
 
   def UserStr(self, user_id: int) -> str:
     """Produce standard user representation, like 'UserName (id)'."""

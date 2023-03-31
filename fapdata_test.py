@@ -52,6 +52,7 @@ class TestFapDatabase(unittest.TestCase):
     self.maxDiff = None
     mock_is_dir.return_value = False
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
+    os.environ['IMAGEFAP_FAVORITES_DB_KEY'] = 'some crypto key'
     db = fapdata.FapDatabase('~/Downloads/some-dir/')
     mock_mkdir.assert_called_once_with(os.path.expanduser('~/Downloads/some-dir/'))
     self.assertEqual(db._original_dir, '~/Downloads/some-dir/')
@@ -59,6 +60,7 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(db._db_dir, os.path.expanduser('~/Downloads/some-dir/'))
     self.assertEqual(db._db_path, os.path.expanduser('~/Downloads/some-dir/imagefap.database'))
     self.assertEqual(db._blobs_dir, os.path.expanduser('~/Downloads/some-dir/blobs/'))
+    self.assertEqual(db._key, b'some crypto key')
     self.assertTrue(all(k in db._db for k in fapdata._DB_MAIN_KEYS))
     self.assertDictEqual(db.duplicates.registry, {})
     db.users[1] = {'name': 'Luke'}   # type: ignore
@@ -85,7 +87,9 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(
         db.duplicates.registry, {('a', 'b'): {'sources': {}, 'verdicts': {'a': 'new'}}})
     self.assertDictEqual(db.duplicates.index, {'a': ('a', 'b'), 'b': ('a', 'b')})
+    # cleanup environ so they don't interfere in other tests
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
+    del os.environ['IMAGEFAP_FAVORITES_DB_KEY']
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
   def test_Constructor_Fail(self, mock_is_dir: mock.MagicMock) -> None:
@@ -95,6 +99,59 @@ class TestFapDatabase(unittest.TestCase):
       fapdata.FapDatabase('/yyy/', create_if_needed=False)
     with self.assertRaises(AttributeError):
       fapdata.FapDatabase('')
+
+  @mock.patch('fapfavorites.fapdata.base.INT_TIME')
+  @mock.patch('fapfavorites.fapdata.getpass.getpass')
+  def test_CreationCrypto(self, mock_getpass: mock.MagicMock, mock_time: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_time.return_value = 1675368670  # 02/feb/2023 20:11:10
+    mock_getpass.side_effect = ['p1', 'p1-err', '', '', 'p2', 'p2', 'p2-wrong', 'p2']
+    # test password mismatch and empty password
+    with tempfile.TemporaryDirectory() as db_path:
+      db = fapdata.FapDatabase(db_path)
+      with self.assertRaisesRegex(fapdata.Error, r'Password mismatch'):
+        db.Load()
+      db.Load()
+      self.assertIsNone(db._key)
+      self.assertNotIn('IMAGEFAP_FAVORITES_DB_KEY', os.environ)
+      db.Save()
+      db.Load()
+    del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
+    # test crypto
+    with tempfile.TemporaryDirectory() as db_path:
+      db = fapdata.FapDatabase(db_path)
+      db.Load()
+      self.assertEqual(db._key, b'WZcaSuzuHIacpB42jX0eyavf5j1LUmfpBbu6ZDYWv0s=')
+      self.assertEqual(
+          os.environ['IMAGEFAP_FAVORITES_DB_KEY'], db._key.decode('utf-8'))  # type: ignore
+      db.Save()
+      db.Load()
+      del db
+      del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
+      del os.environ['IMAGEFAP_FAVORITES_DB_KEY']
+      db = fapdata.FapDatabase(db_path)
+      with self.assertRaises(fapdata.base.bin_fernet.InvalidToken):
+        db.Load()
+      del db
+      db = fapdata.FapDatabase(db_path)
+      db.Load()
+      self.assertEqual(db._key, b'WZcaSuzuHIacpB42jX0eyavf5j1LUmfpBbu6ZDYWv0s=')
+      self.assertEqual(
+          os.environ['IMAGEFAP_FAVORITES_DB_KEY'], db._key.decode('utf-8'))  # type: ignore
+    self.assertListEqual(
+        mock_getpass.call_args_list,
+        [mock.call(prompt='NEW Database Password (`Enter` key for no encryption): '),
+         mock.call(prompt='CONFIRM Database Password (`Enter` key for no encryption): '),
+         mock.call(prompt='NEW Database Password (`Enter` key for no encryption): '),
+         mock.call(prompt='CONFIRM Database Password (`Enter` key for no encryption): '),
+         mock.call(prompt='NEW Database Password (`Enter` key for no encryption): '),
+         mock.call(prompt='CONFIRM Database Password (`Enter` key for no encryption): '),
+         mock.call(prompt='Database Password: '),
+         mock.call(prompt='Database Password: ')])
+    # cleanup environ so they don't interfere in other tests
+    del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
+    del os.environ['IMAGEFAP_FAVORITES_DB_KEY']
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
   def test_GetTag(self, mock_is_dir: mock.MagicMock) -> None:
@@ -629,6 +686,8 @@ class TestFapDatabase(unittest.TestCase):
       self.assertListEqual(mock_time.call_args_list, [mock.call() for _ in range(21)])
       self.assertEqual(db.users[2]['date_audit'], 1675368680)
       fapdata._FULL_IMAGE = None      # set to None for safety
+    # cleanup environ so they don't interfere in other tests
+    del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
 
 
 class _MockRegex:

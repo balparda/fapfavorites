@@ -83,7 +83,10 @@ def _GetLoadedDatabase(db_path: str, db_file_timestamp: int) -> fapdata.FapDatab
   """
   logging.info('Loading database in %r from timestamp %d', db_path, db_file_timestamp)
   database = fapdata.FapDatabase(db_path, create_if_needed=False)
-  database.Load()
+  if not database.Load():
+    raise fapdata.Error('Database does not exist. First create one with `favorites.py`.')
+  if not database.blobs_dir_exists or not database.thumbs_dir_exists:
+    raise fapdata.Error('Database blobs and/or thumbs directories not found!')
   return database
 
 

@@ -32,7 +32,7 @@ want the GIT packages to be installed:
 
 ```
 $ sudo apt-get install python3 python3-pip
-$ sudo pip3 install -U click types-requests sanitize_filename Pillow imagededup Django
+$ sudo pip3 install -U click types-requests sanitize_filename cryptography Pillow imagededup Django
 
 $ git clone https://github.com/balparda/baselib.git
 $ git clone https://github.com/balparda/fapfavorites.git

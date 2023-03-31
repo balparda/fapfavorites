@@ -27,6 +27,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent
 # Imagefap-Favorites Settings
 IMAGEFAP_FAVORITES_DB_PATH = os.environ.get(
     'IMAGEFAP_FAVORITES_DB_PATH', fapdata.DEFAULT_DB_DIRECTORY)
+IMAGEFAP_FAVORITES_DB_KEY = os.environ.get('IMAGEFAP_FAVORITES_DB_KEY', None)
 
 
 # Quick-start development settings - unsuitable for production

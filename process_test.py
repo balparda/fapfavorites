@@ -88,10 +88,10 @@ class TestProcess(unittest.TestCase):
       if e.code:  # pylint: disable=using-constant-test
         raise
     self.assertListEqual(
-        mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
+        mock_is_dir.call_args_list, [mock.call('/path/')])
     mock_django.assert_called_with(
         ['./process.py', 'runserver', '--noreload'])  # cspell:disable-line
-    load.assert_called_with()
+    load.assert_not_called()
     save.assert_not_called()
 
 
