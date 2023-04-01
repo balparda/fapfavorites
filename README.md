@@ -480,4 +480,5 @@ When compressed this structure takes less space than would seem at a first
 glance, especially taking into account that it is stored compressed, and
 has shown to be a minimal fraction compared to the downloaded images size.
 Typically it will take much less than 0.5% of the size of the actual images
-and usually the whole database file won't even reach 1Mb.
+and usually the whole database file won't even reach 1Mb. If you chose to
+encrypt your database all of this will be safely hidden by encryption.

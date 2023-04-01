@@ -16,6 +16,7 @@
 #
 """Imagefap.com database."""
 
+import base64
 import enum
 import getpass
 import hashlib
@@ -217,7 +218,6 @@ class Error404(Error):
         self.url)
 
 
-# TODO: encrypt blobs
 # TODO: encrypt thumbnails
 class FapDatabase:
   """Imagefap.com database."""
@@ -246,6 +246,7 @@ class FapDatabase:
     self._blobs_dir = os.path.join(self._db_dir, _DEFAULT_BLOB_DIR_NAME)     # where to put blobs
     self._thumbs_dir = os.path.join(self._db_dir, DEFAULT_THUMBS_DIR_NAME)   # thumbnails dir
     self._key: Optional[bytes] = None  # Fernet crypto key in use; None = crypto not in use
+    self._sha_encoder: Optional[base.BlockEncoder256] = None  # encoder for SHA256 digests
     self._db: _DatabaseType = {  # creates empty DB
         'configs': {
             'duplicates_sensitivity_regular': duplicates.METHOD_SENSITIVITY_DEFAULTS.copy(),
@@ -275,6 +276,7 @@ class FapDatabase:
     if os.environ.get('IMAGEFAP_FAVORITES_DB_KEY', None) is not None:
       logging.warning('DB loading pre-existing environment key')
       self._key = os.environ['IMAGEFAP_FAVORITES_DB_KEY'].encode('utf-8')
+      self._sha_encoder = base.BlockEncoder256(base64.urlsafe_b64decode(self._key))
 
   @property
   def configs(self) -> _ConfigsType:
@@ -358,6 +360,7 @@ class FapDatabase:
           # during Python startup [...] Changes to the environment made after this time are
           # not reflected in os.environ, except for changes made by modifying os.environ directly."
           os.environ['IMAGEFAP_FAVORITES_DB_KEY'] = self._key.decode('utf-8')
+          self._sha_encoder = base.BlockEncoder256(base64.urlsafe_b64decode(self._key))
         # just a quick dirty check that we got what we expected
         if any(k not in self._db for k in _DB_MAIN_KEYS):
           raise Error('Loaded DB is invalid!')
@@ -378,9 +381,11 @@ class FapDatabase:
       raise Error('Password mismatch: please type the same password twice!')
     if not user_password1 or not user_password1.strip():
       self._key = None
+      self._sha_encoder = None
       logging.warning('Database will be created WITHOUT a password, and any user can open it')
     else:
       self._key = base.DeriveKeyFromStaticPassword(user_password1)
+      self._sha_encoder = base.BlockEncoder256(base64.urlsafe_b64decode(self._key))
       os.environ['IMAGEFAP_FAVORITES_DB_KEY'] = self._key.decode('utf-8')  # see comment above!
       logging.warning('Database will be created with a password')
     return False
@@ -431,7 +436,8 @@ class FapDatabase:
   def _BlobPath(self, sha: str) -> str:
     """Get full file path for a blob hash (`sha`)."""
     try:
-      return os.path.join(self._blobs_dir, f'{sha}.{self.blobs[sha]["ext"]}')
+      disk_sha = sha if self._sha_encoder is None else self._sha_encoder.EncryptHexdigest256(sha)
+      return os.path.join(self._blobs_dir, f'{disk_sha}.{self.blobs[sha]["ext"]}')
     except KeyError as err:
       raise Error(f'Blob {sha!r} not found') from err
 
@@ -449,7 +455,8 @@ class FapDatabase:
   def GetBlob(self, sha: str) -> bytes:
     """Get the blob binary data for `sha` entry."""
     with open(self._BlobPath(sha), 'rb') as file_obj:
-      return file_obj.read()
+      raw_data = file_obj.read()
+    return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
 
   def GetTag(self, tag_id: int) -> list[tuple[int, str, TagObjType]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
@@ -1266,7 +1273,7 @@ class FapDatabase:
           image_bytes = self.GetBlob(sha)
         # save image and get data if we couldn't find it in DB yet
         try:
-          total_sz += _SaveImage(
+          total_sz += self._SaveImage(
               full_path,
               self._GetBinary(url_path, temp_file)[0] if image_bytes is None else image_bytes)
         except Error404 as err:
@@ -1387,6 +1394,22 @@ class FapDatabase:
     sz_thumb = os.path.getsize(output_path)
     self.blobs[sha]['sz_thumb'] = sz_thumb
     return sz_thumb
+
+  def _SaveImage(self, full_path: str, bin_data: bytes) -> int:
+    """Save bin_data, the image data, to full_path.
+
+    Args:
+      full_path: File path
+      bin_data: Image binary data
+
+    Returns:
+      number of bytes actually saved
+    """
+    bin_sz = len(bin_data)
+    with open(full_path, 'wb') as file_obj:
+      file_obj.write(bin_data if self._key is None else base.Encrypt(bin_data, self._key))
+    logging.info('Saved %s for image %r', base.HumanizedBytes(bin_sz), full_path)
+    return bin_sz
 
   def DeleteUserAndAlbums(self, user_id: int) -> tuple[int, int]:
     """Delete an user, together with favorites and orphaned blobs, thumbs, indexes and duplicates.
@@ -1743,23 +1766,6 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   sanitized_extension = _NormalizeExtension(extension)
   sanitized_image_name = f'{main_name}.{sanitized_extension}'
   return (full_res_urls[0], sanitized_image_name, sanitized_extension)
-
-
-def _SaveImage(full_path: str, bin_data: bytes) -> int:
-  """Save bin_data, the image data, to full_path.
-
-  Args:
-    full_path: File path
-    bin_data: Image binary data
-
-  Returns:
-    number of bytes actually saved
-  """
-  bin_sz = len(bin_data)
-  with open(full_path, 'wb') as file_obj:
-    file_obj.write(bin_data)
-  logging.info('Saved %s for image %r', base.HumanizedBytes(bin_sz), full_path)
-  return bin_sz
 
 
 def GetDatabaseTimestamp(db_path: str = DEFAULT_DB_DIRECTORY) -> int:

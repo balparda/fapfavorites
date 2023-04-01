@@ -52,7 +52,8 @@ class TestFapDatabase(unittest.TestCase):
     self.maxDiff = None
     mock_is_dir.return_value = False
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
-    os.environ['IMAGEFAP_FAVORITES_DB_KEY'] = 'some crypto key'
+    os.environ['IMAGEFAP_FAVORITES_DB_KEY'] = (
+        'LRtw2A4U9PAtihUow5p_eQex6IYKM7nUoPlf1fkKPgc=')  # cspell:disable-line
     db = fapdata.FapDatabase('~/Downloads/some-dir/')
     mock_mkdir.assert_called_once_with(os.path.expanduser('~/Downloads/some-dir/'))
     self.assertEqual(db._original_dir, '~/Downloads/some-dir/')
@@ -60,7 +61,8 @@ class TestFapDatabase(unittest.TestCase):
     self.assertEqual(db._db_dir, os.path.expanduser('~/Downloads/some-dir/'))
     self.assertEqual(db._db_path, os.path.expanduser('~/Downloads/some-dir/imagefap.database'))
     self.assertEqual(db._blobs_dir, os.path.expanduser('~/Downloads/some-dir/blobs/'))
-    self.assertEqual(db._key, b'some crypto key')
+    self.assertEqual(
+        db._key, b'LRtw2A4U9PAtihUow5p_eQex6IYKM7nUoPlf1fkKPgc=')  # cspell:disable-line
     self.assertTrue(all(k in db._db for k in fapdata._DB_MAIN_KEYS))
     self.assertDictEqual(db.duplicates.registry, {})
     db.users[1] = {'name': 'Luke'}   # type: ignore
