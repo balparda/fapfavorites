@@ -490,6 +490,60 @@ class TestDjangoViews(unittest.TestCase):
           mock.Mock(views.http.HttpRequest),
           '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
 
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('django.http.HttpResponse')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasThumbnail')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.GetThumbnail')
+  def test_ServeThumb(
+      self, mock_get_thumb: mock.MagicMock, mock_has_thumb: mock.MagicMock,
+      mock_response: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    mock_has_thumb.return_value = True
+    mock_get_thumb.return_value = b'image binary data'
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {}
+    views.ServeThumb(request, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_has_thumb.assert_called_once_with(
+        '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_get_thumb.assert_called_once_with(
+        '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  def test_ServeThumb_Existence_404(self, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    with self.assertRaises(views.http.Http404):
+      views.ServeThumb(mock.Mock(views.http.HttpRequest), 'hash-does-not-exist')
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasThumbnail')
+  def test_ServeThumb_Thumb_Not_On_Disk_404(
+      self, mock_has_thumb: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    mock_has_thumb.return_value = False
+    with self.assertRaises(views.http.Http404):
+      views.ServeThumb(
+          mock.Mock(views.http.HttpRequest),
+          '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasThumbnail')
+  def test_ServeThumb_Invalid_Extension_404(
+      self, mock_has_thumb: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+    """Test."""
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    mock_db.return_value = db
+    mock_has_thumb.return_value = True
+    db.blobs['5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8']['ext'] = 'invalid'
+    with self.assertRaises(views.http.Http404):
+      views.ServeThumb(
+          mock.Mock(views.http.HttpRequest),
+          '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+
 
 @mock.patch('fapfavorites.fapdata.os.path.isdir')
 def _TestDBFactory(mock_isdir: mock.MagicMock) -> views.fapdata.FapDatabase:

@@ -218,14 +218,13 @@ class Error404(Error):
         self.url)
 
 
-# TODO: encrypt thumbnails
 class FapDatabase:
   """Imagefap.com database."""
 
   def __init__(self, dir_path: str, create_if_needed: bool = True):
     """Construct a clean database. Does *not* load or save or create/check files at this stage.
 
-    Also initializes random number generator, as it should only be called once anyway.
+    Also initializes random number generator.
 
     Args:
       path: The directory path to load/save DB and images from/to
@@ -444,7 +443,8 @@ class FapDatabase:
   def _ThumbnailPath(self, sha: str) -> str:
     """Get full file path for a thumbnail, based on its blob's hash (`sha`)."""
     try:
-      return os.path.join(self._thumbs_dir, f'{sha}.{self.blobs[sha]["ext"]}')
+      disk_sha = sha if self._sha_encoder is None else self._sha_encoder.EncryptHexdigest256(sha)
+      return os.path.join(self._thumbs_dir, f'{disk_sha}.{self.blobs[sha]["ext"]}')
     except KeyError as err:
       raise Error(f'Thumbnail {sha!r} not found') from err
 
@@ -466,8 +466,7 @@ class FapDatabase:
     """Get the thumbnail binary data for `sha` entry."""
     with open(self._ThumbnailPath(sha), 'rb') as file_obj:
       raw_data = file_obj.read()
-      return raw_data
-    # return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
+    return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
 
   def GetTag(self, tag_id: int) -> list[tuple[int, str, TagObjType]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
@@ -1366,45 +1365,60 @@ class FapDatabase:
       os.mkdir(self._thumbs_dir)
     # open image and generate a thumbnail
     with Image.open(temp_file.name) as img:
+      # figure paths to use
       output_path = self._ThumbnailPath(sha)
-      # figure out the new size that will be used
-      width, height = img.width, img.height
-      if max((width, height)) <= _THUMBNAIL_MAX_DIMENSION:
-        # the image is already smaller than the putative thumbnail, so we just copy it as thumbnail
-        shutil.copyfile(temp_file.name, output_path)
-        sz_thumb = os.path.getsize(output_path)
+      output_prefix, output_name = os.path.split(output_path)
+      output_name = f'unencrypted.{output_name}'
+      unencrypted_path = os.path.join(output_prefix, output_name)
+      try:  # this try block is to ensure `unencrypted_path` gets deleted from disk
+        # figure out the new size that will be used
+        width, height = img.width, img.height
+        if max((width, height)) <= _THUMBNAIL_MAX_DIMENSION:
+          # the image is already smaller than the putative thumbnail: just copy it as thumbnail
+          shutil.copyfile(temp_file.name, unencrypted_path)
+          logging.info('Copied image as thumbnail for %r', sha)
+        else:
+          if width > height:
+            new_width, factor = _THUMBNAIL_MAX_DIMENSION, width / _THUMBNAIL_MAX_DIMENSION
+            new_height = math.floor(height / factor)
+          else:
+            new_height, factor = _THUMBNAIL_MAX_DIMENSION, height / _THUMBNAIL_MAX_DIMENSION
+            new_width = math.floor(width / factor)
+          if self.blobs[sha]['animated'] and self.blobs[sha]['ext'].lower() == 'gif':
+            # special process for animated images, specifically an animated `gif`
+
+            def _thumbnails(img_frames: Iterator[Image.Image]) -> Iterator[Image.Image]:
+              for frame in img_frames:
+                thumbnail = frame.copy()
+                thumbnail.thumbnail((new_width, new_height), Image.LANCZOS)
+                yield thumbnail
+
+            frames: Iterator[Image.Image] = _thumbnails(ImageSequence.Iterator(img))
+            first_frame = next(frames)   # handle first frame separately: will be used to save
+            first_frame.info = img.info  # copy sequence info into first frame
+            first_frame.save(unencrypted_path, save_all=True, append_images=list(frames))
+            logging.info('Saved animated thumbnail for %r', sha)
+          else:
+            # simpler process for regular (non-animated) images
+            img.thumbnail((new_width, new_height), resample=Image.LANCZOS)
+            img.save(unencrypted_path)
+            logging.info('Saved thumbnail for %r', sha)
+        # we get the size of the created file so we can return it
+        sz_thumb = os.path.getsize(unencrypted_path)
         self.blobs[sha]['sz_thumb'] = sz_thumb
-        logging.info('Copied image as thumbnail for %r', sha)
+        # we now encrypt the temporary file into its final destination (or copy if no encryption)
+        if self._key is None:
+          shutil.copyfile(unencrypted_path, output_path)
+        else:
+          with open(unencrypted_path, 'rb') as unencrypted_obj:
+            bin_data = unencrypted_obj.read()
+          with open(output_path, 'wb') as encrypted_obj:
+            encrypted_obj.write(base.Encrypt(bin_data, self._key))
         return sz_thumb
-      if width > height:
-        new_width, factor = _THUMBNAIL_MAX_DIMENSION, width / _THUMBNAIL_MAX_DIMENSION
-        new_height = math.floor(height / factor)
-      else:
-        new_height, factor = _THUMBNAIL_MAX_DIMENSION, height / _THUMBNAIL_MAX_DIMENSION
-        new_width = math.floor(width / factor)
-      if self.blobs[sha]['animated'] and self.blobs[sha]['ext'].lower() == 'gif':
-        # special process for animated images, specifically an animated `gif`
-
-        def _thumbnails(img_frames: Iterator[Image.Image]) -> Iterator[Image.Image]:
-          for frame in img_frames:
-            thumbnail = frame.copy()
-            thumbnail.thumbnail((new_width, new_height), Image.LANCZOS)
-            yield thumbnail
-
-        frames: Iterator[Image.Image] = _thumbnails(ImageSequence.Iterator(img))
-        first_frame = next(frames)   # handle first frame separately: will be used to save
-        first_frame.info = img.info  # copy sequence info into first frame
-        first_frame.save(output_path, save_all=True, append_images=list(frames))
-        logging.info('Saved animated thumbnail for %r', sha)
-      else:
-        # simpler process for regular (non-animated) images
-        img.thumbnail((new_width, new_height), resample=Image.LANCZOS)
-        img.save(output_path)
-        logging.info('Saved thumbnail for %r', sha)
-    # we get the size of the created file
-    sz_thumb = os.path.getsize(output_path)
-    self.blobs[sha]['sz_thumb'] = sz_thumb
-    return sz_thumb
+      finally:
+        # we really have to try to delete the unencrypted file
+        if os.path.exists(unencrypted_path):
+          os.remove(unencrypted_path)
 
   def _SaveImage(self, full_path: str, bin_data: bytes) -> int:
     """Save bin_data, the image data, to full_path.
