@@ -603,7 +603,7 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX)
       self.assertTrue(os.path.exists(db._BlobPath(
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
-      self.assertTrue(os.path.exists(db.ThumbnailPath(
+      self.assertTrue(os.path.exists(db._ThumbnailPath(
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
       self.assertEqual(
           db.LocationStr((101, 'url-2', 'name-to-use.jpg', 1, 10)),
@@ -617,6 +617,8 @@ class TestFapDatabase(unittest.TestCase):
       ##############################################################################################
       db.GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
       db.GetBlob('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')
+      db.GetThumbnail('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+      db.GetThumbnail('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')
       db.tags[12] = {'name': 'tag12', 'tags': {13: {'name': 'tag13', 'tags': {}}}}
       db.tags[22] = {'name': 'tag22', 'tags': {23: {'name': 'tag23', 'tags': {}}}}
       db.blobs['9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf']['tags'].update(

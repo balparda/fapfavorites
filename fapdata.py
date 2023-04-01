@@ -441,22 +441,33 @@ class FapDatabase:
     except KeyError as err:
       raise Error(f'Blob {sha!r} not found') from err
 
-  def ThumbnailPath(self, sha: str) -> str:
-    """Get full file path for a thumbnail, based on its blob hash (`sha`)."""
+  def _ThumbnailPath(self, sha: str) -> str:
+    """Get full file path for a thumbnail, based on its blob's hash (`sha`)."""
     try:
       return os.path.join(self._thumbs_dir, f'{sha}.{self.blobs[sha]["ext"]}')
     except KeyError as err:
-      raise Error(f'Blob {sha!r} not found') from err
+      raise Error(f'Thumbnail {sha!r} not found') from err
 
   def HasBlob(self, sha: str) -> bool:
     """Check if blob `sha` is available in blobs/ directory."""
     return os.path.exists(self._BlobPath(sha))
+
+  def HasThumbnail(self, sha: str) -> bool:
+    """Check if thumbnail `sha` is available in thumbs/ directory."""
+    return os.path.exists(self._ThumbnailPath(sha))
 
   def GetBlob(self, sha: str) -> bytes:
     """Get the blob binary data for `sha` entry."""
     with open(self._BlobPath(sha), 'rb') as file_obj:
       raw_data = file_obj.read()
     return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
+
+  def GetThumbnail(self, sha: str) -> bytes:
+    """Get the thumbnail binary data for `sha` entry."""
+    with open(self._ThumbnailPath(sha), 'rb') as file_obj:
+      raw_data = file_obj.read()
+      return raw_data
+    # return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
 
   def GetTag(self, tag_id: int) -> list[tuple[int, str, TagObjType]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
@@ -1355,7 +1366,7 @@ class FapDatabase:
       os.mkdir(self._thumbs_dir)
     # open image and generate a thumbnail
     with Image.open(temp_file.name) as img:
-      output_path = self.ThumbnailPath(sha)
+      output_path = self._ThumbnailPath(sha)
       # figure out the new size that will be used
       width, height = img.width, img.height
       if max((width, height)) <= _THUMBNAIL_MAX_DIMENSION:
@@ -1484,7 +1495,7 @@ class FapDatabase:
       except FileNotFoundError as err:
         logging.warning('Blob %r not found: %s', sha, err)
       try:
-        os.remove(self.ThumbnailPath(sha))
+        os.remove(self._ThumbnailPath(sha))
         logging.info('Deleted thumbnail %r from disk', sha)
       except FileNotFoundError as err:
         logging.warning('Thumbnail %r not found: %s', sha, err)

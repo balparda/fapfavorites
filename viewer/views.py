@@ -468,8 +468,6 @@ def _ServeImages(  # noqa: C901
         'sz': base.HumanizedBytes(blob['sz']),
         'dimensions': f'{blob["width"]}x{blob["height"]} (WxH)',
         'tags': ', '.join(sorted(db.TagLineageStr(t, add_id=False) for t in blob['tags'])),
-        'thumb': f'{sha}.{blob["ext"]}',  # this is just the file name, to be served as
-                                          # a static resource: see settings.py
         'has_duplicate': (img, sha) in exact_duplicates,
         'album_duplicate': (img, sha) in album_duplicates,
         'has_percept': (img, sha) in percept_verdicts,
@@ -845,8 +843,6 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
               'sz': base.HumanizedBytes(db.blobs[sha]['sz']),
               'dimensions': f'{db.blobs[sha]["width"]}x{db.blobs[sha]["height"]} (WxH)',
               'tags': ', '.join(sorted(db.TagLineageStr(t) for t in db.blobs[sha]['tags'])),
-              'thumb': f'{sha}.{db.blobs[sha]["ext"]}',  # this is just the file name, served
-                                                         # as a static resource (settings.py)
               'percept': db.blobs[sha]['percept'],
               'average': db.blobs[sha]['average'],
               'diff': db.blobs[sha]['diff'],
@@ -870,8 +866,6 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                           f'{_NormalizeHashScore(method, dup_obj["sources"][method][dup_key]):0.1f}'),  # type:ignore # pylint: disable=line-too-long # noqa: E501
                       'sha1': dup_key[0],
                       'sha2': dup_key[1],
-                      'thumb1': f'{dup_key[0]}.{db.blobs[dup_key[0]]["ext"]}',
-                      'thumb2': f'{dup_key[1]}.{db.blobs[dup_key[1]]["ext"]}',
                   } for dup_key in sorted(dup_obj['sources'][method].keys())
               ]
           } for method in sorted(dup_obj['sources'].keys())
@@ -885,7 +879,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
 # change, so it is perfectly acceptable to cache the hell out of this particular page
 @cache.cache_page(60 * 60)
 def ServeBlob(unused_request: http.HttpRequest, digest: str) -> http.HttpResponse:
-  """Serve the `blob` page, one image, given one SHA256 `digest`."""
+  """Serve the `blob` page, one blob image, given one SHA256 `digest`."""
   # check for errors in parameters
   db = _DBFactory()  # pylint: disable=invalid-name
   if not digest or digest not in db.blobs:
@@ -901,3 +895,24 @@ def ServeBlob(unused_request: http.HttpRequest, digest: str) -> http.HttpRespons
         f'one of {sorted(_IMAGE_TYPES.keys())!r}')
   # send to page
   return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
+
+
+# similar to blobs, but smaller...
+@cache.cache_page(60 * 60)
+def ServeThumb(unused_request: http.HttpRequest, digest: str) -> http.HttpResponse:
+  """Serve the `thumb` page, one thumbnail image, given one SHA256 `digest`."""
+  # check for errors in parameters
+  db = _DBFactory()  # pylint: disable=invalid-name
+  if not digest or digest not in db.blobs:
+    raise http.Http404(f'Unknown thumb {digest!r}')
+  if not db.HasThumbnail(digest):
+    raise http.Http404(f'Known thumb {digest!r} could not be found on disk')
+  # get thumbnail's blob and check for content type (extension)
+  blob = db.blobs[digest]
+  ext = blob['ext'].lower()
+  if ext not in _IMAGE_TYPES:
+    raise http.Http404(
+        f'Thumb {digest!r} image type (file extension) {ext!r} not '
+        f'one of {sorted(_IMAGE_TYPES.keys())!r}')
+  # send to page
+  return http.HttpResponse(content=db.GetThumbnail(digest), content_type=_IMAGE_TYPES[ext])

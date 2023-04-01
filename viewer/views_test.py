@@ -1035,7 +1035,6 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'sz': '55.26kb',
             'dimensions': '200x246 (WxH)',
             'tags': 'one, two, two/two-four',
-            'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
             'has_duplicate': True,
             'album_duplicate': True,
             'has_percept': True,
@@ -1059,7 +1058,6 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one, three/three-three, two',
-            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': False,
@@ -1076,7 +1074,6 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
             'tags': 'three, two, two/two-four',
-            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': True,
@@ -1095,7 +1092,6 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'sz': '434.54kb',
             'dimensions': '500x100 (WxH)',
             'tags': 'one, three/three-three, two/two-four',
-            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
@@ -1171,7 +1167,6 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
             'tags': 'three, two',
-            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': True,
@@ -1280,7 +1275,6 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
             'tags': 'three, two',
-            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': True,
@@ -1299,7 +1293,6 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'sz': '434.54kb',
             'dimensions': '100x500 (WxH)',
             'tags': 'three/three-three, two/two-four/deep',
-            'thumb': '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8.gif',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
@@ -1313,7 +1306,6 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one, three/three-three, two',
-            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': False,
@@ -1329,7 +1321,6 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'sz': '87.12kb',
             'dimensions': '300x222 (WxH)',
             'tags': 'two/two-four/deep',
-            'thumb': 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180.jpg',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
@@ -1343,7 +1334,6 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'sz': '434.54kb',
             'dimensions': '500x100 (WxH)',
             'tags': 'one, three/three-three, two/two-four',
-            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
@@ -1402,7 +1392,6 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one, three/three-three, two',
-            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': False,
@@ -1418,7 +1407,6 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'sz': '434.54kb',
             'dimensions': '500x100 (WxH)',
             'tags': 'one, three/three-three, two/two-four',
-            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
@@ -1478,7 +1466,6 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one, three/three-three, two',
-            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': False,
@@ -1494,7 +1481,6 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'sz': '87.12kb',
             'dimensions': '300x222 (WxH)',
             'tags': 'two/two-four/deep',
-            'thumb': 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180.jpg',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
@@ -1508,7 +1494,6 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'sz': '55.26kb',
             'dimensions': '200x246 (WxH)',
             'tags': 'one, two',
-            'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': True,
@@ -1532,7 +1517,6 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'sz': '434.54kb',
             'dimensions': '500x100 (WxH)',
             'tags': 'one, three/three-three, two/two-four',
-            'thumb': 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e.gif',
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
@@ -1694,7 +1678,6 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one (11), three/three-three (33), two (2)',
-            'thumb': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf.jpg',
             'percept': 'd99ee32e586716c8',
             'average': '091b5f7761323000',
             'diff': 'ffffbf88180060c8',
@@ -1746,7 +1729,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
             'tags': 'three (3), two (2)',
-            'thumb': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg',
             'percept': 'cd4fc618316732e7',
             'average': '303830301a1c387f',
             'diff': '60e2c3c2d2b1e2ce',
@@ -1768,7 +1750,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'sz': '44.25kb',
             'dimensions': '130x173 (WxH)',
             'tags': '',
-            'thumb': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png',
             'percept': 'd99ee32e586716c8',
             'average': 'ffffff9a180060c8',
             'diff': '6854541633d5c991',
@@ -1798,7 +1779,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'sz': '55.26kb',
             'dimensions': '200x246 (WxH)',
             'tags': 'one (1), two (2)',
-            'thumb': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg',
             'percept': 'cc8fc37638703ee1',
             'average': '3838381810307078',
             'diff': '626176372565c3f2',
@@ -1843,10 +1823,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '3.3',
                     'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
                     'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
-                    'thumb1': (
-                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
-                    'thumb2': (
-                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 },
             ],
         }, {
@@ -1859,10 +1835,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '4.3',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
                     'sha2': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                    'thumb1': (
-                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
-                    'thumb2': (
-                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
                 }, {
                     'key1': '0aaef1becbd966a2&hellip;',  # cspell:disable-line
                     'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
@@ -1870,10 +1842,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '2.9',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
                     'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
-                    'thumb1': (
-                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
-                    'thumb2': (
-                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 }, {
                     'key1': '321e59af9d70af77&hellip;',  # cspell:disable-line
                     'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
@@ -1881,10 +1849,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '7.1',
                     'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
                     'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
-                    'thumb1': (
-                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
-                    'thumb2': (
-                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 },
             ],
         }, {
@@ -1897,10 +1861,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '1.0',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
                     'sha2': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                    'thumb1': (
-                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
-                    'thumb2': (
-                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
                 },
             ],
         }, {
@@ -1913,10 +1873,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '10.0',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
                     'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
-                    'thumb1': (
-                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
-                    'thumb2': (
-                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 }, {
                     'key1': '321e59af9d70af77&hellip;',  # cspell:disable-line
                     'key2': 'e221b76f55946176&hellip;',  # cspell:disable-line
@@ -1924,10 +1880,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '0.0',
                     'sha1': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
                     'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
-                    'thumb1': (
-                        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6.png'),
-                    'thumb2': (
-                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 },
             ],
         }, {
@@ -1940,10 +1892,6 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'normalized_value': '6.7',
                     'sha1': '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
                     'sha2': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
-                    'thumb1': (
-                        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19.jpg'),
-                    'thumb2': (
-                        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e.jpg'),
                 },
             ],
         },

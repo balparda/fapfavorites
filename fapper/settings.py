@@ -50,7 +50,7 @@ INSTALLED_APPS = [
     # 'django.contrib.contenttypes',
     # 'django.contrib.sessions',
     # 'django.contrib.messages',
-    'django.contrib.staticfiles',
+    # 'django.contrib.staticfiles',
 ]
 
 MIDDLEWARE = [
@@ -128,11 +128,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
-STATIC_URL = 'static/'
+# STATIC_URL = 'static/'
 
-STATICFILES_DIRS = [
-    os.path.join(os.path.expanduser(IMAGEFAP_FAVORITES_DB_PATH), fapdata.DEFAULT_THUMBS_DIR_NAME),
-]
+# STATICFILES_DIRS = [
+#     os.path.join(os.path.expanduser(IMAGEFAP_FAVORITES_DB_PATH), fapdata.DEFAULT_THUMBS_DIR_NAME),
+# ]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

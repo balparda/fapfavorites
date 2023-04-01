@@ -36,8 +36,6 @@
       <p>&nbsp;</p>
     {% endif %}
 
-    {% load static %}
-
     <p>
       The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!<br/>
       The visual hashes in use are: <b><i>Pe</i></b>rceptual, <b><i>Di</i></b>ff, <b><i>Av</i></b>erage & <b><i>Wa</i></b>velet.  <!-- cspell:disable-line -->
@@ -64,7 +62,7 @@
           <tr>
             <td align='center' valign='center'>
               <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
-                <img src='{% static obj.thumb %}'/>
+                <img src='{% url "thumb" sha %}'/>
               </a>
             </td>
             <td>
@@ -163,11 +161,11 @@
           {% for score in source.scores %}
             <tr>
               <td align='center' class='regular_hash'>
-                <a href='#td_{{ score.sha1 }}'><img src='{% static score.thumb1 %}' height='60'/></a><br/>
+                <a href='#td_{{ score.sha1 }}'><img src='{% url "thumb" score.sha1 %}' height='60'/></a><br/>
                 {{ score.key1 }}
               </td>
               <td align='center' class='regular_hash'>
-                <a href='#td_{{ score.sha2 }}'><img src='{% static score.thumb2 %}' height='60'/></a><br/>
+                <a href='#td_{{ score.sha2 }}'><img src='{% url "thumb" score.sha2 %}' height='60'/></a><br/>
                 {{ score.key2 }}
               </td>
               <td>

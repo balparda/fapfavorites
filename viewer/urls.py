@@ -23,8 +23,9 @@ urlpatterns = [
     # the tags
     urls.path('tag/<int:tag_id>/', views.ServeTag, name='tag'),
 
-    # the blobs
+    # the blobs and thumbnails
     urls.path('blob/<sha256:digest>/', views.ServeBlob, name='blob'),
+    urls.path('thumb/<sha256:digest>/', views.ServeThumb, name='thumb'),
 
     # the duplicates
     urls.path('duplicates/', views.ServeDuplicates, name='duplicates'),
