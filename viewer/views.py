@@ -107,6 +107,9 @@ def ServeIndex(request: http.HttpRequest) -> http.HttpResponse:
       'dup_action': sum(1 for d in db.duplicates.registry.values()
                         if any(st == 'new' for st in d['verdicts'].values())),
       'n_images': len(db.blobs),
+      'identical': sum(1 for b in db.blobs.values() if len(b['loc']) > 1),
+      'id_action': sum(1 for b in db.blobs.values()
+                       if len(b['loc']) > 1 and any(v[1] == 'new' for v in b['loc'].values())),
       'database_stats': db.PrintStats(actually_print=False),
   }
   return shortcuts.render(request, 'viewer/index.html', context)
@@ -320,6 +323,7 @@ def _ServeImages(  # noqa: C901
     context dict
   """
   # TODO: better filtering with tri-state for options: only/allow/filter, i.e., yes/don't-care/no
+  # TODO: actually filter on identical verdicts
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
   # do we have to save tags?
@@ -383,18 +387,18 @@ def _ServeImages(  # noqa: C901
   show_landscapes = bool(int(request.GET.get('landscape', '1')))  # default: True
   locked_for_tagging = bool(int(request.GET.get('lock', '0')))    # default: False
   # find images that have duplicates
-  exact_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
-  album_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
+  exact_duplicates: dict[tuple[int, str], set[fapdata.LocationKeyType]] = {}
+  album_duplicates: dict[tuple[int, str], set[fapdata.LocationKeyType]] = {}
   percept_verdicts: dict[tuple[int, str], duplicates.DuplicatesVerdictType] = {}
-  percept_duplicates: dict[tuple[int, str], set[fapdata.LocationTupleType]] = {}
+  percept_duplicates: dict[tuple[int, str], set[fapdata.LocationKeyType]] = {}
   dup_hints: dict[tuple[int, str], list[str]] = {}  # the hints (mouse-over text) for the duplicates
   for img, sha in image_list:
     # collect images with identical twins
     if len(db.blobs[sha]['loc']) > 1:
-      exact_duplicates[(img, sha)] = db.blobs[sha]['loc']
-      hits: set[fapdata.LocationTupleType] = {
+      exact_duplicates[(img, sha)] = set(db.blobs[sha]['loc'].keys())
+      hits: set[fapdata.LocationKeyType] = {
           # reminder: user_id/folder_id can be 0 for tag page
-          loc for loc in db.blobs[sha]['loc'] if loc[3] == user_id and loc[4] == folder_id}
+          loc for loc in db.blobs[sha]['loc'].keys() if loc[0] == user_id and loc[1] == folder_id}
       if len(hits) > 1:
         # this image has twins in this same album
         album_duplicates[(img, sha)] = hits
@@ -411,14 +415,16 @@ def _ServeImages(  # noqa: C901
     # make the hints
     for loc in exact_duplicates.get((img, sha), set()):
       # reminder: user_id/folder_id can be 0 for tag page
-      is_current = loc[0] == img and loc[3] == user_id and loc[4] == folder_id
+      is_current = loc == (user_id, folder_id, img)
       dup_hints.setdefault((img, sha), []).append(
-          f'Exact: {db.LocationStr(loc)}{" <= THIS" if is_current else ""}')
+          f'Exact: {db.LocationStr(loc, db.blobs[sha]["loc"][loc])}'
+          f'{" <= THIS" if is_current else ""}')
     for loc in percept_duplicates.get((img, sha), set()):
       # reminder: user_id/folder_id can be 0 for tag page
-      is_current = loc[0] == img and loc[3] == user_id and loc[4] == folder_id
+      is_current = loc == (user_id, folder_id, img)
       dup_hints.setdefault((img, sha), []).append(
-          f'Visual: {db.LocationStr(loc)}{" <= THIS" if is_current else ""}')
+          f'Visual: {db.LocationStr(loc, db.blobs[db.image_ids_index[loc[2]]]["loc"][loc])}'
+          f'{" <= THIS" if is_current else ""}')
     if (img, sha) in dup_hints and dup_hints[(img, sha)]:
       dup_hints[(img, sha)].sort()
   # apply filters
@@ -451,20 +457,21 @@ def _ServeImages(  # noqa: C901
   for img, sha in image_list:
     blob = db.blobs[sha]
     # find the correct 'loc' entry (to get the name)
-    for i, _, name, uid, fid in sorted(blob['loc']):
-      if not user_id or not folder_id:  # reminder: user_id/folder_id can be 0 for tag page
-        break  # we're in the tag page: use the first name we find
-      if i == img and uid == user_id and fid == folder_id:
-        break
-    else:
-      # we might have raised an exception here, but this can happen in partially downloaded albums
-      logging.error('Blob %r in %s did not have a matching `loc` entry!',
-                    sha, db.AlbumStr(user_id, folder_id))
-      blobs_data[sha] = {}
-      continue
+    loc = (user_id, folder_id, img)
+    if loc not in blob['loc']:
+      if not user_id and not folder_id and blob['loc']:
+        # we are serving from the tag page, so we use the first available 'loc'
+        loc = sorted(blob['loc'].keys())[0]
+      else:
+        # we might have raised an exception here, but this can happen in partially downloaded albums
+        logging.error('Blob %r in %s did not have a matching `loc` entry!',
+                      sha, db.AlbumStr(user_id, folder_id) if user_id and folder_id else '-')
+        blobs_data[sha] = {}
+        continue
     # fill in the other fields, make them readable
     blobs_data[sha] = {
-        'name': name,
+        'name': blob['loc'][loc][0],
+        'verdict': blob['loc'][loc][1],
         'sz': base.HumanizedBytes(blob['sz']),
         'dimensions': f'{blob["width"]}x{blob["height"]} (WxH)',
         'tags': ', '.join(sorted(db.TagLineageStr(t, add_id=False) for t in blob['tags'])),
@@ -564,12 +571,15 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
     indexed_dict: dict[tuple[int, int, int], str] = {}
     for tag_sha in {  # create intermediary set to de-dup
         sha for sha, blob in db.blobs.items() if tag_child_ids.intersection(blob['tags'])}:
-      # for now, we pick up on the "minimum" 'loc' found for user/album/id
-      # TODO: take into consideration future implementation of identical sets verdicts
-      all_loc = [(user_id, album_id, img)
-                 for img, _, _, user_id, album_id in db.blobs[tag_sha]['loc']]
-      all_loc.sort()
-      user_id, album_id, img = all_loc[0]
+      # search for user/album/id to use
+      all_loc = sorted(db.blobs[tag_sha]['loc'].keys())
+      for user_id, album_id, img in all_loc:
+        if db.blobs[tag_sha]['loc'][(user_id, album_id, img)][1] == 'keep':
+          # we found a 'keep' verdict in the locations, so we use the first one
+          break
+      else:
+        # there is no 'keep' in the locations (probably all 'new'...) so we take the first one
+        user_id, album_id, img = all_loc[0]
       # the key to indexed_dict will help sort by: user / album / image position
       indexed_dict[
           (user_id, album_id, db.favorites[user_id][album_id]['images'].index(img))] = tag_sha
@@ -716,6 +726,17 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:  # noqa: C9
   if warning_message is not None:
     db.Save()
   # build stats
+  sorted_identical = sorted(sha for sha, blob in db.blobs.items() if len(blob['loc']) > 1)
+  id_total = sum(len(blob['loc']) for blob in db.blobs.values() if len(blob['loc']) > 1)
+  id_new_count = sum(
+      1 for blob in db.blobs.values() if len(blob['loc']) > 1
+      for st in blob['loc'].values() if st[1] == 'new')
+  id_keep_count = sum(
+      1 for blob in db.blobs.values() if len(blob['loc']) > 1
+      for st in blob['loc'].values() if st[1] == 'keep')
+  id_skip_count = sum(
+      1 for blob in db.blobs.values() if len(blob['loc']) > 1
+      for st in blob['loc'].values() if st[1] == 'skip')
   sorted_keys = sorted(db.duplicates.registry.keys())
   img_count = sum(len(dup_key) for dup_key in sorted_keys)
   new_count = sum(
@@ -732,6 +753,26 @@ def ServeDuplicates(request: http.HttpRequest) -> http.HttpResponse:  # noqa: C9
       for st in dup_obj['verdicts'].values() if st == 'skip')
   # send to page
   context: dict[str, Any] = {
+      'identical': {
+          sha: {
+              'name': _AbbreviatedKey((sha,)),
+              'size': len(db.blobs[sha]['loc']),
+              'action': any(st[1] == 'new' for st in db.blobs[sha]['loc'].values()),
+              'verdicts': ' / '.join(
+                  _VERDICT_ABBREVIATION[
+                      db.blobs[sha]['loc'][k][1]] for k in sorted(db.blobs[sha]['loc'].keys())),
+          }
+          for sha in sorted_identical
+      },
+      'id_action': sum(1 for b in db.blobs.values()
+                       if len(b['loc']) > 1 and any(st[1] == 'new' for st in b['loc'].values())),
+      'id_count': len(sorted_identical),
+      'id_new_count': (f'{id_new_count} ({(100.0 * id_new_count) / id_total:0.1f}%)'
+                       if id_total else '-'),
+      'id_keep_count': (f'{id_keep_count} ({(100.0 * id_keep_count) / id_total:0.1f}%)'
+                        if id_total else '-'),
+      'id_skip_count': (f'{id_skip_count} ({(100.0 * id_skip_count) / id_total:0.1f}%)'
+                        if id_total else '-'),
       'duplicates': {
           dup_key: {
               'name': _AbbreviatedKey(dup_key),
@@ -770,15 +811,19 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   # check for errors in parameters
   db = _DBFactory()  # pylint: disable=invalid-name
   error_message: Optional[str] = None
+  warning_message: Optional[str] = None
   if digest not in db.blobs:
     raise http.Http404(f'Unknown blob {digest!r}')
   sorted_keys = sorted(db.duplicates.registry.keys())
+  sorted_identical = sorted(sha for sha, blob in db.blobs.items() if len(blob['loc']) > 1)
   dup_obj: Optional[duplicates.DuplicateObjType] = None
   if digest in db.duplicates.index:
-    # this is a perceptual set, so get the object and its index in sorted_keys
+    # this is a perceptual set, so get the object and its index in sorted_keys, also
+    # being a perceptual set page "wins" over being an identical set page
     dup_key: duplicates.DuplicatesKeyType = db.duplicates.index[digest]
     dup_obj = db.duplicates.registry[dup_key]
     current_index = sorted_keys.index(dup_key)
+    current_identical: int = -1
   else:
     # not a perceptual set, so maybe it is a direct hash collision
     if len(db.blobs[digest]['loc']) <= 1:
@@ -787,24 +832,63 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
     # it is a hash collision, so use digest as `dup_key`, and flag `current_index` with -1 value
     dup_key: duplicates.DuplicatesKeyType = (digest,)
     current_index: int = -1
+    current_identical = sorted_identical.index(digest)
   # get user selected choice, if any and update database
   if request.POST:
-    if not dup_obj:
-      raise http.Http404(f'Trying to POST data on hash collision {digest!r} (not perceptual dup)')
+    loc_key = lambda k: f'{k[0]}_{k[1]}_{k[2]}'  # this is the way the page does 'loc' keys
+    # first of all, we have to reject an all-'skip' entry for the perceptual level
+    if (any(sha in request.POST for sha in dup_key) and
+        not any(request.POST.get(sha, 'skip').lower() != 'skip' for sha in dup_key)):
+      error_message = f'POST data for perceptual selections are all "skip": {request.POST!r}'
     for sha in dup_key:
-      # check that the selection is valid
-      if sha not in request.POST:
+      # check that the selection is superficially valid
+      if (sha not in request.POST and         # we either need a perceptual duplicate or ...
+          (len(db.blobs[sha]['loc']) <= 1 or  # ... we need an identical duplicate for this sha
+           loc_key(list(db.blobs[sha]['loc'].keys())[0]) not in request.POST)):
         error_message = f'Expected key {sha!r} in POST data, but didn\'t find it!'
         break
-      selected_option: duplicates.DuplicatesVerdictType = request.POST[sha]  # type: ignore
-      if selected_option not in duplicates.DUPLICATE_OPTIONS:
-        error_message = f'Key {sha!r} in POST data has invalid option {selected_option!r}!'
-        break
-      # set data in DB structure
-      dup_obj['verdicts'][sha] = selected_option
+      # start with the perceptual side
+      if sha in request.POST:
+        # in this case we have a perceptual duplicate selection to register
+        selected_option: duplicates.DuplicatesVerdictType = (  # type: ignore
+            request.POST[sha].lower())
+        if dup_obj is None or selected_option not in duplicates.DUPLICATE_OPTIONS:
+          error_message = f'Key {sha!r} in POST data has invalid option {selected_option!r}!'
+          break
+        # perceptual selection seems OK: set data in DB structure
+        dup_obj['verdicts'][sha] = selected_option
+      else:
+        # we don't have the perceptive option: pretend it is a 'keep' so the identical level works
+        selected_option = 'keep'
+      # now we check to see if we have an identical duplicate selection for this sha
+      if len(db.blobs[sha]['loc']) > 1:
+        # we should have identical duplicate selections for all 'loc'
+        identical_options = {k: request.POST.get(loc_key(k), 'missing').lower()
+                             for k in db.blobs[sha]['loc'].keys()}
+        if any(v not in duplicates.IDENTICAL_OPTIONS for v in identical_options.values()):
+          error_message = (f'Key {sha!r} in POST data has missing or invalid identical '
+                           f'duplicate selections: {identical_options!r}')
+          break
+        # we must now check the consistency of the options with the higher (perceptual) level
+        if selected_option == 'skip':
+          # all the options here should also be 'skip' or we have a consistency problem
+          if any(v != 'skip' for v in identical_options.values()):
+            warning_message = (f'Key {sha!r} in POST data is marked "skip" so we corrected all '
+                               f'child identical selections to "skip" (was {identical_options!r})')
+            identical_options = {k: 'skip' for k in db.blobs[sha]['loc'].keys()}
+        else:
+          # higher (perceptual) level is new/false/keep so we can have anything except all-'skip'
+          if not any(v != 'skip' for v in identical_options.values()):
+            error_message = (f'Key {sha!r} in POST data is {selected_option!r} but all child '
+                             f'identical selections are "skip": {identical_options!r}')
+            break
+        # if we got here, identical duplicate selections seem OK: set data in DB
+        for loc, opt in identical_options.items():
+          db.blobs[sha]['loc'][loc] = (db.blobs[sha]['loc'][loc][0], opt)  # type: ignore
     else:
-      # everything went smoothly (no break action above), so save the data
-      db.Save()
+      # everything went smoothly (no break action above), so save the data (but check for error)
+      if error_message is None:
+        db.Save()
   # send to page
 
   def _NormalizeHashScore(method: duplicates.DuplicatesHashType, value: int) -> float:
@@ -820,25 +904,32 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
   context: dict[str, Any] = {
       'digest': digest,
       'dup_key': _AbbreviatedKey(dup_key),
-      'current_index': current_index,  # can be -1 if indexing is disabled! (hard hash collision)
+      'has_any_identical': any(len(db.blobs[sha]['loc']) > 1 for sha in dup_key),
+      'current_index': current_index,  # can be -1 if this is an identical set page
       'previous_key': sorted_keys[current_index - 1] if current_index > 0 else None,
       'next_key': (sorted_keys[current_index + 1]
                    if -1 < current_index < (len(sorted_keys) - 1) else None),
+      'current_identical': current_identical,  # can be -1 if this is a perceptual set page
+      'previous_identical': (sorted_identical[current_identical - 1]
+                             if current_identical > 0 else None),
+      'next_identical': (sorted_identical[current_identical + 1]
+                         if -1 < current_identical < (len(sorted_identical) - 1) else None),
       'duplicates': {
           sha: {
               'action': dup_obj['verdicts'][sha] if dup_obj else '',
+              'has_identical': len(db.blobs[sha]['loc']) > 1,
               'loc': [
                   {
-                      'fap_id': i,
-                      'file_name': nm,
+                      'fap_id': img,
+                      'file_name': db.blobs[sha]['loc'][(uid, fid, img)][0],
+                      'verdict': db.blobs[sha]['loc'][(uid, fid, img)][1],
                       'user_id': uid,
                       'user_name': db.users[uid]['name'],
                       'folder_id': fid,
                       'folder_name': db.favorites[uid][fid]['name'],
-                      'imagefap': fapdata.IMG_URL(i),
+                      'imagefap': fapdata.IMG_URL(img),
                   }
-                  for i, _, nm, uid, fid in sorted(
-                      (loc for loc in db.blobs[sha]['loc']), key=lambda x: (x[0], x[3], x[4]))
+                  for uid, fid, img in sorted(db.blobs[sha]['loc'].keys())
               ],
               'sz': base.HumanizedBytes(db.blobs[sha]['sz']),
               'dimensions': f'{db.blobs[sha]["width"]}x{db.blobs[sha]["height"]} (WxH)',
@@ -870,6 +961,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
               ]
           } for method in sorted(dup_obj['sources'].keys())
       ] if dup_obj else [],
+      'warning_message': warning_message,
       'error_message': error_message,
   }
   return shortcuts.render(request, 'viewer/duplicate.html', context)

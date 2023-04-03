@@ -95,9 +95,72 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Visual Duplicates</h1>
+    <h1>Duplicates</h1>
 
-    <p><b>{{ dup_count }}</b> total duplicate groups, <b>{{ dup_action }}</b> need user action.</p>
+    {% if error_message %}
+      <p style='color: red;'><strong>{{ error_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
+    {% if warning_message %}
+      <p style='color: yellow;'><strong>{{ warning_message }}</strong></p>
+      <p>&nbsp;</p>
+    {% endif %}
+
+    <h2>Identical Duplicates</h2>
+
+    <p><b>{{ id_count }}</b> total identical groups, <b>{{ id_action }}</b> need user action.</p>
+
+    <table border='2'>
+      <tr>
+        <th>Identical&nbsp;Set<br/>(abbreviated hash - <i>these are links</i>)</th>
+        <th>Size</th>
+        <th>Needs&nbsp;Action?</th>
+        <th>
+            Verdicts<br/>
+            <b class='red'>N</b>ew/<b class='red'>K</b>eep/<b class='red'>S</b>kip</th> <!-- cspell:disable-line -->
+      </tr>
+      {% for key, obj in identical.items %}
+        <tr>
+          {% if obj.action %}
+            <td class='action_hash'>
+              <b><a href='{% url "duplicate" key %}' class='hash_link'>{{ obj.name }}</a></b>
+            </td>
+            <td align='center' class='action_hash'><b>{{ obj.size }}</b></td>
+            <td align='center' class='action_hash'>
+              <a href='{% url "duplicate" key %}' class='hash_link'><b>yes</b></a>
+            </td>
+            <td align='center' class='action_hash'><b>{{ obj.verdicts }}</b></td>
+          {% else %}
+            <td class='regular_hash'>
+              <a href='{% url "duplicate" key %}' class='hash_link'>{{ obj.name }}</a>
+            </td>
+            <td align='center' class='regular_hash'>{{ obj.size }}</td>
+            <td class='regular_hash'>&nbsp;</td>
+            <td align='center' class='regular_hash'><b>{{ obj.verdicts }}</b></td>
+          {% endif %}
+        </tr>
+      {% empty %}
+        <tr><td colspan='4'>No duplicate sets in database</td></tr>
+      {% endfor %}
+      {% if duplicates %}
+        <tr>
+          <td align='right'><b>TOTAL:</b></td>
+          <td align='center'><b>{{ id_count }}</b></td>
+          <td align='center'><b>{{ id_action }}</b></td>
+          <td align='left'>
+            <b>
+              New:&nbsp;{{ id_new_count }}<br/>
+              Keep:&nbsp;{{ id_keep_count }}<br/>
+              Skip:&nbsp;{{ id_skip_count }}
+            </b>
+          </td>
+        </tr>
+      {% endif %}
+    </table>
+
+    <h2>Visual/Perceptual Duplicates</h2>
+
+    <p><b>{{ dup_count }}</b> total perceptual duplicate groups, <b>{{ dup_action }}</b> need user action.</p>
 
     <table border='2'>
       <tr>

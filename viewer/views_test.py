@@ -53,7 +53,7 @@ class TestDjangoViews(unittest.TestCase):
   @mock.patch('fapfavorites.fapdata.FapDatabase')
   def test_DBFactory(self, mock_db: mock.MagicMock, mock_tm: mock.MagicMock) -> None:
     """Test."""
-    mock_tm.return_value = 100
+    mock_tm.return_value = 100  # different from other test_DBFactory*() to not trigger cache!
     db = mock.MagicMock()
     mock_db.return_value = db
     self.assertEqual(views._DBFactory(), db)
@@ -61,6 +61,28 @@ class TestDjangoViews(unittest.TestCase):
     mock_db.assert_called_once_with(
         views.conf.settings.IMAGEFAP_FAVORITES_DB_PATH, create_if_needed=False)
     db.Load.assert_called_once_with()
+
+  @mock.patch('fapfavorites.fapdata.GetDatabaseTimestamp')
+  @mock.patch('fapfavorites.fapdata.FapDatabase')
+  def test_DBFactory_Fail_Dir(self, mock_db: mock.MagicMock, mock_tm: mock.MagicMock) -> None:
+    """Test."""
+    mock_tm.return_value = 101  # different from other test_DBFactory*() to not trigger cache!
+    db = mock.MagicMock()
+    mock_db.return_value = db
+    db.thumbs_dir_exists = False
+    with self.assertRaisesRegex(fapdata.Error, r'blobs and/or thumbs directories'):
+      views._DBFactory()
+
+  @mock.patch('fapfavorites.fapdata.GetDatabaseTimestamp')
+  @mock.patch('fapfavorites.fapdata.FapDatabase')
+  def test_DBFactory_Fail_Load(self, mock_db: mock.MagicMock, mock_tm: mock.MagicMock) -> None:
+    """Test."""
+    mock_tm.return_value = 102  # different from other test_DBFactory*() to not trigger cache!
+    db = mock.MagicMock()
+    mock_db.return_value = db
+    db.Load.return_value = False
+    with self.assertRaisesRegex(fapdata.Error, r'Database does not exist'):
+      views._DBFactory()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -94,10 +116,10 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {'delete_input': '3'}
     request.GET = {}
     views.ServeUsers(request)
-    mock_delete.assert_called_once_with(3)
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/users.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _USERS_CONTEXT)
+    mock_delete.assert_called_once_with(3)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -114,10 +136,10 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {'delete_input': '11'}
     request.GET = {}
     views.ServeFavorites(request, 1)
-    mock_delete.assert_called_once_with(1, 11)
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/favorites.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _FAVORITES_CONTEXT)
+    mock_delete.assert_called_once_with(1, 11)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeFavorites_User_404(self, mock_db: mock.MagicMock) -> None:
@@ -148,9 +170,9 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeFavorite(request, 1, 10)
     new_tags = {sha: db.blobs[sha]['tags'] for sha in _FAVORITE_CONTEXT_ALL_ON['blobs_data']}
     self.assertDictEqual(new_tags, _FAVORITE_NEW_TAGS)
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _FAVORITE_CONTEXT_ALL_ON)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -169,9 +191,9 @@ class TestDjangoViews(unittest.TestCase):
         'lock': '1',
     }
     views.ServeFavorite(request, 1, 10)
-    mock_save.assert_not_called()
     mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _FAVORITE_CONTEXT_ALL_OFF)
+    mock_save.assert_not_called()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeFavorite_User_404(self, mock_db: mock.MagicMock) -> None:
@@ -200,9 +222,9 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {'named_child': 'new-tag-foo'}
     request.GET = {}
     views.ServeTag(request, 0)
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_ROOT_CONTEXT)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -220,9 +242,9 @@ class TestDjangoViews(unittest.TestCase):
     views.ServeTag(request, 2)
     new_tags = {sha: db.blobs[sha]['tags'] for sha in db.blobs.keys()}
     self.assertDictEqual(new_tags, _TAG_NEW_TAGS)
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CONTEXT_DELETE)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -237,9 +259,9 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {'rename_tag': 'The One'}
     request.GET = {}
     views.ServeTag(request, 1)
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CONTEXT_RENAME)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -267,9 +289,9 @@ class TestDjangoViews(unittest.TestCase):
         '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {3},
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {33},
     })
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/tag.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _TAG_LEAF_CLEAR_TAG)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeTag_404(self, mock_db: mock.MagicMock) -> None:
@@ -369,7 +391,10 @@ class TestDjangoViews(unittest.TestCase):
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
-  def test_ServeDuplicate_Blob(self, mock_render: mock.MagicMock, mock_db: mock.MagicMock) -> None:
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeDuplicate_Blob(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
     """Test."""
     self.maxDiff = None
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
@@ -381,6 +406,7 @@ class TestDjangoViews(unittest.TestCase):
         request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
     mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATE_BLOB_CONTEXT)
+    mock_save.assert_not_called()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.shortcuts.render')
@@ -394,16 +420,21 @@ class TestDjangoViews(unittest.TestCase):
     mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {
-        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'keep',
-        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'false',
-        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': 'false',
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': 'false',
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'skip',
+        '1_11_110': 'skip',
+        '2_20_202': 'keep',  # this one should be 'skip' and we expect it to be corrected in-call
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': 'keep',
+        '1_10_100': 'keep',
+        '1_10_104': 'skip',
+        '2_20_203': 'skip',
     }
     request.GET = {}
     views.ServeDuplicate(
         request, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e')
-    mock_save.assert_called_once_with()
     mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
     self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATE_SET_CONTEXT)
+    mock_save.assert_called_once_with()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeDuplicate_Blob_404(self, mock_db: mock.MagicMock) -> None:
@@ -423,18 +454,60 @@ class TestDjangoViews(unittest.TestCase):
           'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180')
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
-  def test_ServeDuplicate_Update_404(self, mock_db: mock.MagicMock) -> None:
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeDuplicate_Update_Valid(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
     """Test."""
-    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    mock_db.return_value = db
     request = mock.Mock(views.http.HttpRequest)
     request.POST = {
-        # this is a blob-only (hash collision) duplicate, and should not support POST
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'keep',
+        # this is a blob-only (hash collision) duplicate
+        '1_10_101': 'skip',
+        '1_11_111': 'keep',
+        '2_20_201': 'skip',
     }
     request.GET = {}
-    with self.assertRaises(views.http.Http404):
-      views.ServeDuplicate(
-          request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+    views.ServeDuplicate(
+        request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _DUPLICATE_IDENTICAL_SET)
+    mock_save.assert_called_once_with()
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeDuplicate_Update_Invalid_All_Skip(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    mock_db.return_value = db
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {
+        # this is a blob-only (hash collision) duplicate
+        '1_10_101': 'skip',
+        '1_11_111': 'skip',
+        '2_20_201': 'skip',
+    }
+    request.GET = {}
+    views.ServeDuplicate(
+        request, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
+    mock_render.assert_called_once_with(request, 'viewer/duplicate.html', mock.ANY)
+    duplicate_response_all_skip = copy.deepcopy(_DUPLICATE_IDENTICAL_SET)
+    duplicate_response_all_skip['duplicates'][
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf']['loc'][2][
+            'verdict'] = 'new'
+    duplicate_response_all_skip['error_message'] = (
+        'Key \'9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf\' in POST data '
+        'is \'keep\' but all child identical selections are "skip": '
+        '{(1, 10, 101): \'skip\', (1, 11, 111): \'skip\', (2, 20, 201): \'skip\'}')
+    self.assertDictEqual(mock_render.call_args[0][2], duplicate_response_all_skip)
+    mock_save.assert_not_called()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   @mock.patch('django.http.HttpResponse')
@@ -451,11 +524,11 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {}
     request.GET = {}
     views.ServeBlob(request, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
     mock_has_blob.assert_called_once_with(
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
     mock_get_blob.assert_called_once_with(
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
-    mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeBlob_Existence_404(self, mock_db: mock.MagicMock) -> None:
@@ -505,11 +578,11 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {}
     request.GET = {}
     views.ServeThumb(request, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
+    mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
     mock_has_thumb.assert_called_once_with(
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
     mock_get_thumb.assert_called_once_with(
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8')
-    mock_response.assert_called_once_with(content=b'image binary data', content_type='image/gif')
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeThumb_Existence_404(self, mock_db: mock.MagicMock) -> None:
@@ -632,7 +705,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'ext': 'jpg',
             'height': 200,
             'loc': {
-                (102, 'url-102', 'name-102.jpg', 1, 10),
+                (1, 10, 102): ('name-102.jpg', 'new'),
             },
             'percept': 'cd4fc618316732e7',
             'average': '303830301a1c387f',
@@ -651,8 +724,8 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'ext': 'png',
             'height': 173,
             'loc': {
-                (110, 'url-110', 'name-110.png', 1, 11),
-                (202, 'url-202', 'name-202.png', 2, 20),
+                (1, 11, 110): ('name-110.png', 'skip'),
+                (2, 20, 202): ('name-202.png', 'keep'),
             },
             'percept': 'd99ee32e586716c8',
             'average': 'ffffff9a180060c8',
@@ -675,7 +748,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'height': 500,
             'tags': {246, 33},
             'loc': {
-                (200, 'url-200', 'name-200.gif', 2, 20),
+                (2, 20, 200): ('name-200.gif', 'new'),
             },
             'percept': 'e699669966739866',
             'average': 'ffffff9a180060c8',
@@ -693,9 +766,9 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'ext': 'jpg',
             'height': 200,
             'loc': {
-                (101, 'url-101', 'name-101.jpg', 1, 10),
-                (111, 'url-111', 'name-111.jpg', 1, 11),
-                (201, 'url-201', 'name-201.jpg', 2, 20),
+                (1, 10, 101): ('name-101.jpg', 'skip'),
+                (1, 11, 111): ('name-111.jpg', 'keep'),
+                (2, 20, 201): ('name-201.jpg', 'new'),
             },
             'percept': 'd99ee32e586716c8',
             'average': '091b5f7761323000',
@@ -714,7 +787,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'ext': 'jpg',
             'height': 222,
             'loc': {
-                (112, 'url-112', 'name-112.jpg', 1, 11),
+                (1, 11, 112): ('name-112.jpg', 'new'),
             },
             'percept': '89991f6f62a63479',
             'average': '091b5f7761323000',
@@ -733,9 +806,9 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'ext': 'jpg',
             'height': 246,
             'loc': {
-                (100, 'url-100', 'name-100.jpg', 1, 10),
-                (104, 'url-104', 'name-104.jpg', 1, 10),  # dup in same album as above!
-                (203, 'url-203', 'name-203.jpg', 2, 20),
+                (1, 10, 100): ('name-100.jpg', 'skip'),
+                (1, 10, 104): ('name-104.jpg', 'new'),  # dup in same album as above!
+                (2, 20, 203): ('name-203.jpg', 'skip'),
             },
             'percept': 'cc8fc37638703ee1',
             'average': '3838381810307078',
@@ -757,7 +830,7 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             'height': 100,
             'tags': {1, 24, 33},
             'loc': {
-                (103, 'url-103', 'name-103.gif', 1, 10),
+                (1, 10, 103): ('name-103.gif', 'new'),
             },
             'percept': 'e699669966739866',
             'average': 'ffffffffffffe7e7',
@@ -912,6 +985,8 @@ _INDEX_CONTEXT: dict[str, Any] = {
     'tags': 9,
     'duplicates': 2,
     'dup_action': 1,
+    'id_action': 2,
+    'identical': 3,
     'n_images': 7,
     'database_stats': [
         ('Database is located in \'/foo/imagefap.database\', and is 97.66kb '
@@ -925,7 +1000,7 @@ _INDEX_CONTEXT: dict[str, Any] = {
         '',
         '3 users',
         '3 favorite galleries (oldest: 2023/Jan/06-10:13:20-UTC / newer: 2023/Feb/02-01:06:40-UTC)',
-        '7 unique images (12 total, 5 exact duplicates)',
+        '7 unique images (12 total, 8 exact duplicates)',
         '3 unique failed images in all user albums',
         '3 unique images are now disappeared from imagefap site',
         '5 perceptual duplicates in 2 groups',
@@ -1084,6 +1159,42 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
         ],
     ],
     'blobs_data': {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
+            'name':
+            'name-102.jpg',
+            'sz': '53.36kb',
+            'dimensions': '198x200 (WxH)',
+            'tags': 'three, two, two/two-four',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': True,
+            'imagefap': 'https://www.imagefap.com/photo/102/',
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
+                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [],
+            'verdict': 'new',
+        },
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'name': 'name-101.jpg',
+            'sz': '101b',
+            'dimensions': '160x200 (WxH)',
+            'tags': 'one/one-one, three/three-three, two',
+            'has_duplicate': True,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/101/',
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101) <= THIS\n'
+                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'date': '2023/Feb/02-17:59:30-UTC',
+            'gone': [],
+            'verdict': 'skip',
+        },
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
             'name': 'name-104.jpg',
             'sz': '55.26kb',
@@ -1106,40 +1217,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'gone': [
                 (104, '2023/Feb/02-17:59:30-UTC', 'URL_EXTRACTION'),
             ],
-        },
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
-            'name': 'name-101.jpg',
-            'sz': '101b',
-            'dimensions': '160x200 (WxH)',
-            'tags': 'one/one-one, three/three-three, two',
-            'has_duplicate': True,
-            'album_duplicate': False,
-            'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/101/',
-            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
-                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101) <= THIS\n'
-                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
-            'date': '2023/Feb/02-17:59:30-UTC',
-            'gone': [],
-        },
-        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
-            'name':
-            'name-102.jpg',
-            'sz': '53.36kb',
-            'dimensions': '198x200 (WxH)',
-            'tags': 'three, two, two/two-four',
-            'has_duplicate': False,
-            'album_duplicate': False,
-            'has_percept': True,
-            'imagefap': 'https://www.imagefap.com/photo/102/',
-            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
-                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
-                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
-                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
-            'date': '2023/Feb/02-20:12:50-UTC',
-            'gone': [],
+            'verdict': 'new',
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1155,6 +1233,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'gone': [
                 (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
             ],
+            'verdict': 'new',
         },
     },
     'form_tags': [
@@ -1233,6 +1312,7 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [],
+            'verdict': 'new',
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
@@ -1303,9 +1383,9 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
     'count': 5,
     'stacked_blobs': [
         [
-            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
             (0, '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
             (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
             (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
         ], [
             (0, '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8'),
@@ -1341,6 +1421,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
                                 'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [],
+            'verdict': 'new',
         },
         '5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8': {
             'name': 'name-200.gif',
@@ -1354,6 +1435,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
+            'verdict': 'new',
         },
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'name': 'name-101.jpg',
@@ -1369,6 +1451,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
+            'verdict': 'skip',
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'name': 'name-112.jpg',
@@ -1382,6 +1465,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
+            'verdict': 'new',
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1397,6 +1481,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'gone': [
                 (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
             ],
+            'verdict': 'new',
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
@@ -1425,8 +1510,8 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
     'count': 2,
     'stacked_blobs': [
         [
-            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
             (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
             (0, ''),
             (0, ''),
         ],
@@ -1455,6 +1540,7 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
+            'verdict': 'skip',
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1470,6 +1556,7 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'gone': [
                 (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
             ],
+            'verdict': 'new',
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
@@ -1500,8 +1587,8 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
     'stacked_blobs': [
         [
             (0, 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
-            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
             (0, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
             (0, 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
         ],
     ],
@@ -1529,6 +1616,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
+            'verdict': 'skip',
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'name': 'name-112.jpg',
@@ -1542,6 +1630,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
+            'verdict': 'new',
         },
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
             'name': 'name-100.jpg',
@@ -1565,6 +1654,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'gone': [
                 (104, '2023/Feb/02-17:59:30-UTC', 'URL_EXTRACTION'),
             ],
+            'verdict': 'skip',
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1580,6 +1670,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'gone': [
                 (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
             ],
+            'verdict': 'new',
         },
     },
     'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
@@ -1621,6 +1712,26 @@ _DUPLICATES_CONTEXT_RE_RUN: dict[str, Any] = {
             'verdicts': 'F / F',
         },
     },
+    'identical': {
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
+            'action': False,
+            'name': '321e59af9d70af77&hellip;',  # cspell:disable-line
+            'size': 2,
+            'verdicts': 'S / K',
+        },
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'action': True,
+            'name': '9b162a339a3a6f9a&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / K / N',
+        },
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
+            'action': True,
+            'name': 'e221b76f55946176&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / N / S',
+        },
+    },
     'dup_action': 1,
     'dup_count': 2,
     'img_count': 5,
@@ -1628,6 +1739,11 @@ _DUPLICATES_CONTEXT_RE_RUN: dict[str, Any] = {
     'false_count': '2 (40.0%)',
     'keep_count': '1 (20.0%)',
     'skip_count': '1 (20.0%)',
+    'id_action': 2,
+    'id_count': 3,
+    'id_keep_count': '2 (25.0%)',
+    'id_new_count': '2 (25.0%)',
+    'id_skip_count': '4 (50.0%)',
     'configs': {
         'duplicates_sensitivity_animated': {
             'average': -1,
@@ -1649,6 +1765,26 @@ _DUPLICATES_CONTEXT_RE_RUN: dict[str, Any] = {
 }
 
 _DUPLICATES_CONTEXT_DELETE_PENDING: dict[str, Any] = {
+    'identical': {
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
+            'action': False,
+            'name': '321e59af9d70af77&hellip;',  # cspell:disable-line
+            'size': 2,
+            'verdicts': 'S / K',
+        },
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'action': True,
+            'name': '9b162a339a3a6f9a&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / K / N',
+        },
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
+            'action': True,
+            'name': 'e221b76f55946176&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / N / S',
+        },
+    },
     'duplicates': {
         ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
          'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'): {
@@ -1672,12 +1808,37 @@ _DUPLICATES_CONTEXT_DELETE_PENDING: dict[str, Any] = {
     'false_count': '2 (50.0%)',
     'keep_count': '1 (25.0%)',
     'skip_count': '1 (25.0%)',
+    'id_action': 2,
+    'id_count': 3,
+    'id_keep_count': '2 (25.0%)',
+    'id_new_count': '2 (25.0%)',
+    'id_skip_count': '4 (50.0%)',
     'configs': _DUPLICATES_CONTEXT_RE_RUN['configs'],
     'warning_message': 'Deleted 0 duplicate groups containing 1 duplicate images',
     'error_message': None,
 }
 
 _DUPLICATES_CONTEXT_DELETE_ALL: dict[str, Any] = {
+    'identical': {
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
+            'action': False,
+            'name': '321e59af9d70af77&hellip;',  # cspell:disable-line
+            'size': 2,
+            'verdicts': 'S / K',
+        },
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'action': True,
+            'name': '9b162a339a3a6f9a&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / K / N',
+        },
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
+            'action': True,
+            'name': 'e221b76f55946176&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / N / S',
+        },
+    },
     'dup_action': 0,
     'dup_count': 0,
     'duplicates': {},
@@ -1686,12 +1847,37 @@ _DUPLICATES_CONTEXT_DELETE_ALL: dict[str, Any] = {
     'keep_count': '-',
     'new_count': '-',
     'skip_count': '-',
+    'id_action': 2,
+    'id_count': 3,
+    'id_keep_count': '2 (25.0%)',
+    'id_new_count': '2 (25.0%)',
+    'id_skip_count': '4 (50.0%)',
     'configs': _DUPLICATES_CONTEXT_RE_RUN['configs'],
     'warning_message': 'Deleted 2 duplicate groups containing 5 duplicate images',
     'error_message': None,
 }
 
 _DUPLICATES_CONTEXT_EDIT_PARAMETERS: dict[str, Any] = {
+    'identical': {
+        '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
+            'action': False,
+            'name': '321e59af9d70af77&hellip;',  # cspell:disable-line
+            'size': 2,
+            'verdicts': 'S / K',
+        },
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'action': True,
+            'name': '9b162a339a3a6f9a&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / K / N',
+        },
+        'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
+            'action': True,
+            'name': 'e221b76f55946176&hellip;',  # cspell:disable-line
+            'size': 3,
+            'verdicts': 'S / N / S',
+        },
+    },
     'dup_action': 0,
     'dup_count': 0,
     'duplicates': {},
@@ -1700,6 +1886,11 @@ _DUPLICATES_CONTEXT_EDIT_PARAMETERS: dict[str, Any] = {
     'keep_count': '-',
     'new_count': '-',
     'skip_count': '-',
+    'id_action': 2,
+    'id_count': 3,
+    'id_keep_count': '2 (25.0%)',
+    'id_new_count': '2 (25.0%)',
+    'id_skip_count': '4 (50.0%)',
     'configs': {
         'duplicates_sensitivity_animated': {
             'average': 0,
@@ -1724,8 +1915,12 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
     'digest': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
     'dup_key': '9b162a339a3a6f9a&hellip;',  # cspell:disable-line
     'current_index': -1,
+    'current_identical': 1,
     'previous_key': None,
     'next_key': None,
+    'has_any_identical': True,
+    'next_identical': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+    'previous_identical': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
     'duplicates': {
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
             'action': '',
@@ -1736,6 +1931,7 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
             'average': '091b5f7761323000',
             'diff': 'ffffbf88180060c8',
             'wavelet': '737394c5d3e66431',
+            'has_identical': True,
             'loc': [
                 {
                     'fap_id': 101,
@@ -1745,6 +1941,7 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
                     'folder_id': 10,
                     'folder_name': 'luke-folder-10',
                     'imagefap': 'https://www.imagefap.com/photo/101/',
+                    'verdict': 'skip',
                 }, {
                     'fap_id': 111,
                     'file_name': 'name-111.jpg',
@@ -1753,6 +1950,7 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
                     'folder_id': 11,
                     'folder_name': 'luke-folder-11',
                     'imagefap': 'https://www.imagefap.com/photo/111/',
+                    'verdict': 'keep',
                 }, {
                     'fap_id': 201,
                     'file_name': 'name-201.jpg',
@@ -1761,12 +1959,14 @@ _DUPLICATE_BLOB_CONTEXT: dict[str, Any] = {
                     'folder_id': 20,
                     'folder_name': 'ben-folder-20',
                     'imagefap': 'https://www.imagefap.com/photo/201/',
+                    'verdict': 'new',
                 },
             ],
         },
     },
     'sources': [],
     'error_message': None,
+    'warning_message': None,
 }
 
 _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
@@ -1777,9 +1977,13 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
     'previous_key': None,
     'next_key': ('5b1d83a7317f2bb145eea34e865bf413c600c5d4c0f36b61a404813fee4a53e8',
                  'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+    'previous_identical': None,
+    'has_any_identical': True,
+    'current_identical': -1,
+    'next_identical': None,
     'duplicates': {
         '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
-            'action': 'keep',
+            'action': 'false',
             'sz': '53.36kb',
             'dimensions': '198x200 (WxH)',
             'tags': 'three (3), two (2)',
@@ -1787,6 +1991,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'average': '303830301a1c387f',
             'diff': '60e2c3c2d2b1e2ce',
             'wavelet': '303838383a1f3e7f',
+            'has_identical': False,
             'loc': [
                 {
                     'fap_id': 102,
@@ -1796,11 +2001,12 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'folder_id': 10,
                     'folder_name': 'luke-folder-10',
                     'imagefap': 'https://www.imagefap.com/photo/102/',
+                    'verdict': 'new',
                 },
             ],
         },
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
-            'action': 'false',
+            'action': 'skip',
             'sz': '44.25kb',
             'dimensions': '130x173 (WxH)',
             'tags': '',
@@ -1808,6 +2014,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'average': 'ffffff9a180060c8',
             'diff': '6854541633d5c991',
             'wavelet': 'ffffbf88180060c8',
+            'has_identical': True,
             'loc': [
                 {
                     'fap_id': 110,
@@ -1817,6 +2024,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'folder_id': 11,
                     'folder_name': 'luke-folder-11',
                     'imagefap': 'https://www.imagefap.com/photo/110/',
+                    'verdict': 'skip',
                 }, {
                     'fap_id': 202,
                     'file_name': 'name-202.png',
@@ -1825,11 +2033,12 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'folder_id': 20,
                     'folder_name': 'ben-folder-20',
                     'imagefap': 'https://www.imagefap.com/photo/202/',
+                    'verdict': 'skip',
                 },
             ],
         },
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
-            'action': 'false',
+            'action': 'keep',
             'sz': '55.26kb',
             'dimensions': '200x246 (WxH)',
             'tags': 'one (1), two (2)',
@@ -1837,6 +2046,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
             'average': '3838381810307078',
             'diff': '626176372565c3f2',
             'wavelet': '3e3f3f1b10307878',
+            'has_identical': True,
             'loc': [
                 {
                     'fap_id': 100,
@@ -1846,6 +2056,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'folder_id': 10,
                     'folder_name': 'luke-folder-10',
                     'imagefap': 'https://www.imagefap.com/photo/100/',
+                    'verdict': 'keep',
                 }, {
                     'fap_id': 104,
                     'file_name': 'name-104.jpg',
@@ -1854,6 +2065,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'folder_id': 10,
                     'folder_name': 'luke-folder-10',
                     'imagefap': 'https://www.imagefap.com/photo/104/',
+                    'verdict': 'skip',
                 }, {
                     'fap_id': 203,
                     'file_name': 'name-203.jpg',
@@ -1862,6 +2074,7 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
                     'folder_id': 20,
                     'folder_name': 'ben-folder-20',
                     'imagefap': 'https://www.imagefap.com/photo/203/',
+                    'verdict': 'skip',
                 },
             ],
         },
@@ -1951,6 +2164,68 @@ _DUPLICATE_SET_CONTEXT: dict[str, Any] = {
         },
     ],
     'error_message': None,
+    'warning_message': ('Key \'321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6\' '
+                        'in POST data is marked "skip" so we corrected all child identical '
+                        'selections to "skip" '
+                        '(was {(1, 11, 110): \'skip\', (2, 20, 202): \'keep\'})'),
+}
+
+_DUPLICATE_IDENTICAL_SET = {
+    'current_identical': 1,
+    'current_index': -1,
+    'digest': '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+    'dup_key': '9b162a339a3a6f9a&hellip;',  # cspell:disable-line
+    'has_any_identical': True,
+    'next_identical': 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+    'next_key': None,
+    'previous_identical': '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
+    'previous_key': None,
+    'sources': [],
+    'duplicates': {
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
+            'action': '',
+            'average': '091b5f7761323000',
+            'diff': 'ffffbf88180060c8',
+            'dimensions': '160x200 (WxH)',
+            'has_identical': True,
+            'percept': 'd99ee32e586716c8',
+            'sz': '101b',
+            'tags': 'one/one-one (11), three/three-three (33), two (2)',
+            'wavelet': '737394c5d3e66431',
+            'loc': [
+                {
+                    'fap_id': 101,
+                    'file_name': 'name-101.jpg',
+                    'folder_id': 10,
+                    'folder_name': 'luke-folder-10',
+                    'imagefap': 'https://www.imagefap.com/photo/101/',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'verdict': 'skip',
+                }, {
+                    'fap_id': 111,
+                    'file_name': 'name-111.jpg',
+                    'folder_id': 11,
+                    'folder_name': 'luke-folder-11',
+                    'imagefap': 'https://www.imagefap.com/photo/111/',
+                    'user_id': 1,
+                    'user_name': 'Luke',
+                    'verdict': 'keep',
+                }, {
+                    'fap_id': 201,
+                    'file_name': 'name-201.jpg',
+                    'folder_id': 20,
+                    'folder_name': 'ben-folder-20',
+                    'imagefap': 'https://www.imagefap.com/photo/201/',
+                    'user_id': 2,
+                    'user_name': 'Ben',
+                    'verdict': 'skip',
+                },
+            ],
+        },
+    },
+    'error_message': None,
+    'warning_message': None,
 }
 
 

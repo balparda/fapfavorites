@@ -75,7 +75,9 @@ class _FailureLevel(enum.Enum):
   FULL_RES = 3
 
 
-LocationTupleType = tuple[int, str, str, int, int]
+LocationKeyType = tuple[int, int, int]  # (user_id, folder_id, image_id)
+LocationValueType = tuple[str, duplicates.IdenticalVerdictType]
+_LocationType = dict[LocationKeyType, LocationValueType]
 FailedTupleType = tuple[int, int, Optional[str], Optional[str]]
 _GoneTupleType = tuple[int, _FailureLevel, str]
 _GoneType = dict[int, _GoneTupleType]
@@ -115,12 +117,10 @@ class TagObjType(TypedDict):
   tags: dict[int, dict]
 
 
-# TODO: create an exact duplicate verdict registry (maybe inside blob K/S/N, no F)
-#     so user can point out which copy should be shown
 class _BlobObjType(TypedDict):
   """Blob object type."""
 
-  loc: set[LocationTupleType]
+  loc: _LocationType
   tags: set[int]
   sz: int
   sz_thumb: int
@@ -414,13 +414,13 @@ class FapDatabase:
     except KeyError as err:
       raise Error(f'Album {user_id}/{folder_id} not found') from err
 
-  def LocationStr(self, loc: LocationTupleType) -> str:
+  def LocationStr(self, key: LocationKeyType, value: LocationValueType) -> str:
     """Produce standard location repr, like 'UserName/FolderName/ImageName (uid/fid/img_id)'."""
     try:
-      return (f'{self.users[loc[3]]["name"]}/{self.favorites[loc[3]][loc[4]]["name"]}/{loc[2]} '
-              f'({loc[3]}/{loc[4]}/{loc[0]})')
+      return (f'{self.users[key[0]]["name"]}/{self.favorites[key[0]][key[1]]["name"]}/{value[0]} '
+              f'({key[0]}/{key[1]}/{key[2]})')
     except KeyError as err:
-      raise Error(f'Location {loc!r} had inconsistencies') from err
+      raise Error(f'Invalid location {key!r}/{value!r}') from err
 
   def TagStr(self, tag_id: int, add_id: bool = True) -> str:
     """Produce standard tag representation, like 'TagName (id)'."""
@@ -433,7 +433,7 @@ class FapDatabase:
     return f'{name} ({tag_id})' if add_id else name
 
   def _BlobPath(self, sha: str) -> str:
-    """Get full file path for a blob hash (`sha`)."""
+    """Get full disk file path for a blob hash (`sha`)."""
     try:
       disk_sha = sha if self._sha_encoder is None else self._sha_encoder.EncryptHexdigest256(sha)
       return os.path.join(self._blobs_dir, f'{disk_sha}.{self.blobs[sha]["ext"]}')
@@ -441,7 +441,7 @@ class FapDatabase:
       raise Error(f'Blob {sha!r} not found') from err
 
   def _ThumbnailPath(self, sha: str) -> str:
-    """Get full file path for a thumbnail, based on its blob's hash (`sha`)."""
+    """Get full disk file path for a thumbnail, based on its blob's hash (`sha`)."""
     try:
       disk_sha = sha if self._sha_encoder is None else self._sha_encoder.EncryptHexdigest256(sha)
       return os.path.join(self._thumbs_dir, f'{disk_sha}.{self.blobs[sha]["ext"]}')
@@ -457,13 +457,13 @@ class FapDatabase:
     return os.path.exists(self._ThumbnailPath(sha))
 
   def GetBlob(self, sha: str) -> bytes:
-    """Get the blob binary data for `sha` entry."""
+    """Get the blob binary data for `sha` entry (decrypts it if needed)."""
     with open(self._BlobPath(sha), 'rb') as file_obj:
       raw_data = file_obj.read()
     return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
 
   def GetThumbnail(self, sha: str) -> bytes:
-    """Get the thumbnail binary data for `sha` entry."""
+    """Get the thumbnail binary data for `sha` entry (decrypts it if needed)."""
     with open(self._ThumbnailPath(sha), 'rb') as file_obj:
       raw_data = file_obj.read()
     return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
@@ -686,8 +686,9 @@ class FapDatabase:
                f'(oldest: {base.STD_TIME_STRING(min_date) if min_date else "pending"} / '
                f'newer: {base.STD_TIME_STRING(max_date) if max_date else "pending"})')
     _PrintLine(
-        f'{len(self.blobs)} unique images ({sum(len(b["loc"]) for _, b in self.blobs.items())} '
-        f'total, {sum(len(b["loc"]) - 1 for _, b in self.blobs.items())} exact duplicates)')
+        f'{len(self.blobs)} unique images ({sum(len(b["loc"]) for b in self.blobs.values())} '
+        f'total, {sum(len(b["loc"]) for b in self.blobs.values() if len(b["loc"]) > 1)} '
+        'exact duplicates)')
     unique_failed: set[int] = set()
     for failed in (
         fav['failed_images'] for user in self.favorites.values() for fav in user.values()):
@@ -808,8 +809,8 @@ class FapDatabase:
     _PrintLine()
     for sha in sorted(self.blobs.keys()):
       blob = self.blobs[sha]
-      locations = ' or '.join(self.LocationStr(loc)
-                              for loc in sorted(blob['loc'], key=lambda x: (x[0], x[3], x[4])))
+      locations = ' or '.join(
+          self.LocationStr(loc, blob['loc'][loc]) for loc in sorted(blob['loc']))
       _PrintLine(f'{sha}: {locations}, {base.HumanizedDecimal(blob["width"] * blob["height"])} '
                  f'({blob["width"]}, {blob["height"]}){" animated" if blob["animated"] else ""}')
       if blob['tags']:
@@ -1092,7 +1093,7 @@ class FapDatabase:
       user_id: int,
       folder_id: int,
       img_id: int,
-      temp_file: tempfile._TemporaryFileWrapper) -> tuple[Optional[bytes], str, str, str]:
+      temp_file: tempfile._TemporaryFileWrapper) -> tuple[Optional[bytes], str, str]:
     """Find entry for user_id/folder_id/img_id or create one, if none is found.
 
     Args:
@@ -1103,7 +1104,7 @@ class FapDatabase:
           so this method can call write() and flush() on it
 
     Returns:
-      (image_bytes, sha256_hexdigest, imagefap_full_res_url, file_name_sanitized)
+      (image_bytes, sha256_hexdigest, file_name_sanitized)
       image_bytes can be None if the image's hash is known!
 
     Raises:
@@ -1127,40 +1128,30 @@ class FapDatabase:
       sz_bytes = len(image_bytes)
       if sha in self.blobs:
         # in this case we haven't seen this img_id, but the actual binary (sha) was seen in
-        # some other album, so we do some checks and add to the 'loc' entry
-        if (self.blobs[sha]['sz'] != sz_bytes or self.blobs[sha]['percept'] != percept_hash or
-            self.blobs[sha]['width'] != width or self.blobs[sha]['height'] != height or
-            self.blobs[sha]['animated'] != is_animated):
-          logging.error(  # this would be truly weird case, especially for the sz data!
-              'Mismatch in %r: stored %d/%s/%s/%d/%d/%r versus new %d/%s/%s/%d/%d/%r',
-              sha, self.blobs[sha]['sz'], self.blobs[sha]['percept'], self.blobs[sha]['ext'],
-              self.blobs[sha]['width'], self.blobs[sha]['height'], self.blobs[sha]['animated'],
-              sz_bytes, percept_hash, extension, width, height, is_animated)
-        self.blobs[sha]['loc'].add(
-            (img_id, url_path, sanitized_image_name, user_id, folder_id))
+        # some other album, presumably, so we add it to the 'loc' entry
+        if (user_id, folder_id, img_id) not in self.blobs[sha]['loc']:
+          self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
         self.blobs[sha]['date'] = base.INT_TIME()
       else:
         # in this case this is a truly new image: never seen img_id or sha
         self.blobs[sha] = {
-            'loc': {(img_id, url_path, sanitized_image_name, user_id, folder_id)},
+            'loc': {(user_id, folder_id, img_id): (sanitized_image_name, 'new')},
             'tags': set(), 'sz': sz_bytes, 'sz_thumb': 0, 'ext': extension, 'percept': percept_hash,
             'average': average_hash, 'diff': diff_hash, 'wavelet': wavelet_hash, 'cnn': cnn_hash,
             'width': width, 'height': height, 'animated': is_animated,
             'date': base.INT_TIME(), 'gone': {}}
-      return (image_bytes, sha, url_path, sanitized_image_name)
+      return (image_bytes, sha, sanitized_image_name)
     # we have seen this img_id before, and can skip a lot of computation
-    # first: could it be we saw it in this same user_id/folder_id?
-    for iid, url, loc_nm, uid, fid in self.blobs[sha]['loc']:
-      if img_id == iid and user_id == uid and folder_id == fid:
-        # this is an exact match (img_id/user_id/folder_id) and we won't download or search for URL
-        return (None, sha, url, loc_nm)
+    # first: could it be we have seen it in this same user_id/folder_id?
+    if (user_id, folder_id, img_id) in self.blobs[sha]['loc']:
+      # this is an exact match and we won't download or search for URL
+      return (None, sha, self.blobs[sha]['loc'][(user_id, folder_id, img_id)][0])
     # in this last case we know the img_id but it seems to be duplicated in another album,
-    # so we have to get the img_id metadata (url, name) at least, and add to the database
-    url_path, sanitized_image_name, _ = _ExtractFullImageURL(img_id)  # 404 bubble through
-    self.blobs[sha]['loc'].add(
-        (img_id, url_path, sanitized_image_name, user_id, folder_id))
+    # so we have to get the image name at least so we can add it to the database
+    _, sanitized_image_name, _ = _ExtractFullImageURL(img_id)  # 404 bubble through
+    self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
     self.blobs[sha]['date'] = base.INT_TIME()
-    return (None, sha, url_path, sanitized_image_name)
+    return (None, sha, sanitized_image_name)
 
   def _CheckWorkHysteresis(self, force_download: bool, tm_last: int, task_message: str) -> bool:
     """Check if work should be done, or if task has recently been finished.
@@ -1239,6 +1230,9 @@ class FapDatabase:
 
     Returns:
       int size of all bytes downloaded
+
+    Raises:
+      Error: on inconsistencies
     """
     # check if work needs to be done
     try:
@@ -1262,8 +1256,8 @@ class FapDatabase:
       with tempfile.NamedTemporaryFile(delete=True) as temp_file:
         # add image to database
         try:
-          image_bytes, sha, url_path, sanitized_image_name = (
-              self._FindOrCreateBlobLocationEntry(user_id, folder_id, img_id, temp_file))
+          image_bytes, sha, sanitized_image_name = self._FindOrCreateBlobLocationEntry(
+              user_id, folder_id, img_id, temp_file)
         except Error404 as err:
           # we had a 404 error, but this already comes will all fields ready
           self.favorites[user_id][folder_id]['images'].remove(img_id)
@@ -1279,21 +1273,11 @@ class FapDatabase:
           exists_count += 1
           continue
         # if we still don't have the image data, check if we have the data in the DB
-        if image_bytes is None and self.HasBlob(sha):
-          image_bytes = self.GetBlob(sha)
-        # save image and get data if we couldn't find it in DB yet
-        try:
-          total_sz += self._SaveImage(
-              full_path,
-              self._GetBinary(url_path, temp_file)[0] if image_bytes is None else image_bytes)
-        except Error404 as err:
-          # we had a 404 error, and it needs extra fields
-          err.image_id = img_id
-          err.image_name = sanitized_image_name
-          self.favorites[user_id][folder_id]['images'].remove(img_id)
-          self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
-          logging.error('FAILED IMAGE: %s', err)
-          continue
+        if image_bytes is None and not self.HasBlob(sha):
+          raise Error(f'We have SHA {sha!r} in the DB but no image on disk: should never happen!')
+        # save image
+        total_sz += self._SaveImage(
+            full_path, self.GetBlob(sha) if image_bytes is None else image_bytes)
         saved_count += 1
         # if we saved a blob, we should also generate a thumbnail
         if date_key == 'date_blobs':
@@ -1463,7 +1447,7 @@ class FapDatabase:
     del self.users[user_id]
     return (img_count, duplicate_count)
 
-  def DeleteAlbum(self, user_id: int, folder_id: int) -> tuple[int, int]:  # noqa: C901
+  def DeleteAlbum(self, user_id: int, folder_id: int) -> tuple[int, int]:
     """Delete an user favorites album, together with orphaned blobs, thumbs, indexes and duplicates.
 
     Args:
@@ -1489,14 +1473,7 @@ class FapDatabase:
       # get the blob
       sha = self.image_ids_index[img_id]
       # remove the location entry from the blob
-      for loc_key in self.blobs[sha]['loc']:
-        if loc_key[0] == img_id and loc_key[3] == user_id and loc_key[4] == folder_id:
-          logging.info('Deleting image entry %s/%s', self.LocationStr(loc_key), sha)
-          break  # found the entry, as expected
-      else:
-        raise Error(f'Invalid image {img_id} in folder {self.AlbumStr(user_id, folder_id)}; '
-                    'inconsistency should not happen!')
-      self.blobs[sha]['loc'].remove(loc_key)
+      del self.blobs[sha]['loc'][(user_id, folder_id, img_id)]
       # now we either still have locations for this blob, or it is orphaned
       if self.blobs[sha]['loc']:
         # we still have locations using this blob: the blob stays and we might remove index
@@ -1564,11 +1541,22 @@ class FapDatabase:
     Returns:
       int count of new individual duplicate images found
     """
+    self._IdenticalVerdictsMaintenance()
     return self.duplicates.FindDuplicates(
         self._hashes_encodings_map,
         {sha for sha, blob in self.blobs.items() if blob['animated']},
         self.configs['duplicates_sensitivity_regular'],
         self.configs['duplicates_sensitivity_animated'])
+
+  def _IdenticalVerdictsMaintenance(self):
+    """Goes over locations and resets single entries to 'new'."""
+    for blob in self.blobs.values():
+      if len(blob['loc']) == 1:
+        # single verdicts make no sense, so reset to 'new'
+        loc_key = tuple(blob['loc'].keys())[0]
+        img_name, verdict = blob['loc'][loc_key]
+        if verdict != 'new':
+          blob['loc'][loc_key] = (img_name, 'new')
 
   def Audit(self, user_id: int, checkpoint_size: int, force_audit: bool) -> None:  # noqa: C901
     """Audit an user to find any missing images.
@@ -1607,7 +1595,7 @@ class FapDatabase:
           logging.info('Image %d (%s) recently audited: SKIP (%s)',
                        original_id, sha, base.STD_TIME_STRING(tm_last))
           continue
-        for img_id in sorted({loc[0] for loc in self.blobs[sha]['loc']}):  # de-dup with set
+        for img_id in sorted({loc[2] for loc in self.blobs[sha]['loc'].keys()}):  # de-dup with set
           # this is one known location of this image, so read the image page
           # we can't use the full-res URL directly because it expires;
           # also, using _FapHTMLRead() here will help pace the audit with pauses

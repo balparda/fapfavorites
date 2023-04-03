@@ -412,10 +412,11 @@ from a structure like:
   'blobs': {
     # stored blob metadata: where has each blob been seen and what tags have been attached
     file_sha_256_hex_digest: {
-      'loc': {  # the locations where this blob has been found
-        (imagefap_image_id-1, imagefap_full_res_url-1, imagefap_file_name_sanitized-1, user_id-1, folder_id-1),
-        (imagefap_image_id-2, imagefap_full_res_url-2, imagefap_file_name_sanitized-2, user_id-2, folder_id-2),
-        ... this is a set of every occurrence of the blob in the downloaded favorites ...
+      'loc': {  # the locations where this blob has been found, and the verdicts to keep/skip
+        (user_id-1, folder_id-1, imagefap_image_id-1): (imagefap_file_name_sanitized-1, Literal['new', 'keep', 'skip']),
+        (user_id-2, folder_id-2, imagefap_image_id-2): (imagefap_file_name_sanitized-1, Literal['new', 'keep', 'skip']),
+        ... this is a dict of every occurrence of the blob in the downloaded favorites ...
+        ... (see definition of new/keep/skip in duplicates structure below) ...
       },
       'tags': {tag_id-1, tag_id-2, ...},  # tags for this blob
       'sz': int_size_bytes,          # size of blob file

@@ -36,6 +36,9 @@ DuplicatesKeyType = tuple[str, ...]
 DuplicatesVerdictType = Literal['new', 'false', 'keep', 'skip']
 DUPLICATE_OPTIONS: set[DuplicatesVerdictType] = {'new', 'false', 'keep', 'skip'}
 
+IdenticalVerdictType = Literal['new', 'keep', 'skip']
+IDENTICAL_OPTIONS: set[IdenticalVerdictType] = {'new', 'keep', 'skip'}
+
 DuplicatesHashType = Literal['percept', 'average', 'diff', 'wavelet', 'cnn']
 DUPLICATE_HASHES: tuple[DuplicatesHashType, ...] = ('percept', 'average', 'diff', 'wavelet', 'cnn')
 

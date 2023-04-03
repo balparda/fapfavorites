@@ -538,22 +538,16 @@ class TestFapDatabase(unittest.TestCase):
       # mock some more data
       db._db['blobs'] = {
           '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
-              'loc': {(801, 'url-1', 'some-name.jpg', 2, 20),
-                      (101, 'url-2', 'name-to-use.jpg', 1, 10)},
+              'loc': {(2, 20, 801): ('some-name.jpg', 'new'),
+                      (1, 10, 101): ('name-to-use.jpg', 'new')},
               'tags': set(), 'sz': 101, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
               'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
               'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['108.png'],
               'width': 160, 'height': 200, 'animated': False, 'date': 1675360670, 'gone': {}},
-          'sha-107': {
-              'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
-              'tags': set(), 'sz': 107, 'sz_thumb': 0, 'ext': 'jpg', 'percept': 'd99ee32e586716c8',
-              'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
-              'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['107.png'],
-              'width': 107, 'height': 1070, 'animated': False, 'date': 1675360670, 'gone': {}},
       }
       db._db['image_ids_index'] = {
           101: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-          801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf', 107: 'sha-107'}
+          801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'}
       read_html.side_effect = ['img-100', 'img-102', 'img-105', 'img-106',
                                'img-107', 'img-108', 'img-109']
       os.mkdir(os.path.join(db_path, 'blobs/'))
@@ -574,6 +568,9 @@ class TestFapDatabase(unittest.TestCase):
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 10, 2, False), 111226)
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 11, 2, False), 0)
       self.assertEqual(db.ReadFavoritesIntoBlobs(1, 13, 2, False), 652075)
+      db.blobs['4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207'].update({
+          'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8', 'percept': 'd99ee32e586716c8',
+          'wavelet': 'd99ee32e586716c8', 'cnn': test_cnn['107.png']})  # type: ignore
       self.assertEqual(db.FindDuplicates(), 3)
       self.assertListEqual(
           read_html.call_args_list,
@@ -595,6 +592,12 @@ class TestFapDatabase(unittest.TestCase):
         del blob['cnn']  # type: ignore
       self.assertDictEqual(db.blobs, _BLOBS)
       self.assertDictEqual(db.image_ids_index, _INDEX)
+      db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19']['loc'][
+          (1, 10, 102)] = ('name-102.jpg', 'keep')
+      db._IdenticalVerdictsMaintenance()
+      self.assertTupleEqual(
+          db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19']['loc'][
+              (1, 10, 102)], ('name-102.jpg', 'new'))
       for dup_val in db.duplicates.registry.values():
         for method_val in list(dup_val['sources'].values()):
           for dup_keys in list(method_val.keys()):
@@ -605,14 +608,18 @@ class TestFapDatabase(unittest.TestCase):
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
       self.assertTrue(os.path.exists(db._ThumbnailPath(
           '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6')))
+      self.assertTrue(
+          db.HasBlob('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'))
+      self.assertTrue(
+          db.HasThumbnail('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'))
       self.assertEqual(
-          db.LocationStr((101, 'url-2', 'name-to-use.jpg', 1, 10)),
+          db.LocationStr((1, 10, 101), ('name-to-use.jpg', 'new')),
           'Luke/new-f-0/name-to-use.jpg (1/10/101)')
       self.assertEqual(
-          db.LocationStr((107, 'url-1', 'some-name.gif', 1, 11)),
+          db.LocationStr((1, 11, 107), ('some-name.gif', 'skip')),
           'Luke/known-folder-1/some-name.gif (1/11/107)')
       with self.assertRaises(fapdata.Error):
-        db.LocationStr((999, 'url-1', 'some-name.gif', 9, 99))
+        db.LocationStr((9, 99, 999), ('some-name.gif', 'new'))
       fapdata._FAVORITE_IMAGE = None  # set to None for safety
       ##############################################################################################
       db.GetBlob('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf')
@@ -636,17 +643,17 @@ class TestFapDatabase(unittest.TestCase):
       db.favorites[2] = {20: {'images': [107, 801]}}  # type: ignore
       db.image_ids_index[103] = 'sha-103'
       db.image_ids_index[104] = 'sha-104'
-      db.blobs['sha-103'] = {'ext': 'jpg', 'loc': {(103, '', 'nm103', 1, 11)}}  # type: ignore
-      db.blobs['sha-104'] = {'ext': 'jpg', 'loc': {(104, '', 'nm104', 1, 11)}}  # type: ignore
-      self.assertTupleEqual(db.DeleteAlbum(1, 13), (3, 0))
+      db.blobs['sha-103'] = {'ext': 'jpg', 'loc': {(1, 11, 103): ('nm103', 'new')}}  # type: ignore
+      db.blobs['sha-104'] = {'ext': 'jpg', 'loc': {(1, 11, 104): ('nm104', 'new')}}  # type: ignore
+      self.assertTupleEqual(db.DeleteAlbum(1, 13), (4, 1))
       self.assertDictEqual(db.favorites, _FAVORITES_TRIMMED)
       for blob in _BLOBS_TRIMMED.values():
         if 'cnn' in blob:
           del blob['cnn']  # type: ignore
       self.assertDictEqual(db.blobs, _BLOBS_TRIMMED)
       self.assertDictEqual(db.image_ids_index, _INDEX_TRIMMED)
-      self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
-      self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
+      self.assertDictEqual(db.duplicates.registry, {})
+      self.assertDictEqual(db.duplicates.index, {})
       self.assertTupleEqual(db.DeleteUserAndAlbums(1), (4, 0))
       self.assertDictEqual(
           db.users, {2: {'date_albums': 0, 'date_finished': 0, 'date_audit': 0, 'name': 'Ben'}})
@@ -656,13 +663,22 @@ class TestFapDatabase(unittest.TestCase):
           del blob['cnn']  # type: ignore
       self.assertDictEqual(db.blobs, _BLOBS_NO_LUKE)
       self.assertDictEqual(db.image_ids_index, _INDEX_NO_LUKE)
-      self.assertDictEqual(db.duplicates.registry, _DUPLICATES_TRIMMED)
-      self.assertDictEqual(db.duplicates.index, _DUPLICATES_INDEX_TRIMMED)
-      self.assertTupleEqual(db.DeletePendingDuplicates(), (1, 2))
+      self.assertDictEqual(db.duplicates.registry, {})
+      self.assertDictEqual(db.duplicates.index, {})
+      self.assertTupleEqual(db.DeletePendingDuplicates(), (0, 0))
       self.assertTupleEqual(db.DeleteAllDuplicates(), (0, 0))
       read_html.reset_mock(side_effect=True)  # reset calls and side_effect
       # Audit ######################################################################################
-      db.blobs['sha-107']['loc'].add((777, 'url-777', 'some-name-7.gif', 1, 77))
+      db.blobs[  # type: ignore
+          '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207'] = {
+              'animated': False, 'average': 'd99ee32e586716c8', 'date': 1675368670,
+              'diff': 'd99ee32e586716c8', 'ext': 'png', 'gone': {}, 'height': 225,
+              'loc': {(1, 13, 107): ('name-107.png', 'new'),
+                      (1, 77, 777): ('some-name-7.gif', 'new')},
+              'percept': 'd99ee32e586716c8', 'sz': 72577, 'sz_thumb': 72577, 'tags': set(),
+              'wavelet': 'd99ee32e586716c8', 'width': 170}
+      db.image_ids_index[107] = '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207'
+      db.image_ids_index[777] = '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207'
       mock_time.return_value = 1675368680  # 02/feb/2023 20:11:20
       read_html.side_effect = ['img-107', 'img-777', 'img-801']
       fapdata._FULL_IMAGE = _MockRegex({
@@ -733,58 +749,58 @@ _FAVORITES_TRIMMED: fapdata._FavoriteType = {  # type: ignore
 _BLOBS: fapdata._BlobType = {
     '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
         'animated': False, 'ext': 'jpg', 'height': 200,
-        'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
+        'loc': {(1, 10, 102): ('name-102.jpg', 'new')},
         'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
         'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
         'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'date': 1675368670, 'gone': {},
     },
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': {
         'animated': False, 'ext': 'png', 'height': 173,
-        'loc': {(108, 'url-108', 'na-me-108.png', 1, 13)},
+        'loc': {(1, 13, 108): ('na-me-108.png', 'new')},
         'percept': 'd99ee32e586716c8', 'average': 'ffffff9a180060c8', 'diff': '6854541633d5c991',
         'wavelet': 'ffffbf88180060c8', 'cnn': np.array([1, 2, 3]),
         'sz': 45309, 'sz_thumb': 45309, 'tags': set(), 'width': 130, 'date': 1675368670, 'gone': {},
     },
+    '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207': {
+        'animated': False, 'average': 'd99ee32e586716c8', 'date': 1675368670,
+        'diff': 'd99ee32e586716c8', 'ext': 'png', 'gone': {}, 'height': 225,
+        'loc': {(1, 13, 107): ('name-107.png', 'new')}, 'cnn': np.array([1, 2, 3]),
+        'percept': 'd99ee32e586716c8', 'sz': 72577, 'sz_thumb': 72577, 'tags': set(),
+        'wavelet': 'd99ee32e586716c8', 'width': 170,
+    },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
-        'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
+        'loc': {(1, 10, 101): ('name-to-use.jpg', 'new'), (2, 20, 801): ('some-name.jpg', 'new')},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
         'sz': 101, 'sz_thumb': 0, 'tags': set(), 'width': 160, 'date': 1675360670, 'gone': {},
     },
     'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
         'animated': False, 'ext': 'jpg', 'height': 222,
-        'loc': {(106, 'url-106', 'name-106.jpg', 1, 13)},
+        'loc': {(1, 13, 106): ('name-106.jpg', 'new')},
         'percept': '89991f6f62a63479', 'average': '091b5f7761323000', 'diff': '737394c5d3e66431',
         'wavelet': '091b7f7f71333018', 'cnn': np.array([1, 2, 3]),
         'sz': 89216, 'sz_thumb': 11890, 'tags': set(), 'width': 300, 'date': 1675368670, 'gone': {},
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
-        'loc': {(100, 'url-100', 'name-100.jpg', 1, 10), (105, 'url-105', 'name-105.jpg', 1, 13)},
+        'loc': {(1, 10, 100): ('name-100.jpg', 'new'), (1, 13, 105): ('name-105.jpg', 'new')},
         'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
         'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
         'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'date': 1675368670, 'gone': {},
     },
     'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
         'animated': True, 'ext': 'gif', 'height': 100, 'tags': set(),
-        'loc': {(109, 'url-109', 'name-109.gif', 1, 13)},
+        'loc': {(1, 13, 109): ('name-109.gif', 'new')},
         'percept': 'e699669966739866', 'average': 'ffffffffffffe7e7', 'diff': '000000000000080c',
         'wavelet': 'ffffffffffffe7e7', 'cnn': np.array([1, 2, 3]), 'date': 1675368670, 'gone': {},
         'sz': 444973, 'sz_thumb': 302143, 'width': 500},
-    'sha-107': {
-        'animated': False, 'ext': 'jpg', 'height': 1070,
-        'loc': {(107, 'url-1', 'some-name.gif', 2, 20), (107, 'url-107', 'name-107.png', 1, 13)},
-        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
-        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368670, 'gone': {},
-    },
 }
 
 _BLOBS_TRIMMED: fapdata._BlobType = {  # type: ignore
     '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
         'animated': False, 'ext': 'jpg', 'height': 200,
-        'loc': {(102, 'url-102', 'name-102.jpg', 1, 10)},
+        'loc': {(1, 10, 102): ('name-102.jpg', 'new')},
         'percept': 'cd4fc618316732e7', 'average': '303830301a1c387f', 'diff': '60e2c3c2d2b1e2ce',
         'wavelet': '303838383a1f3e7f', 'cnn': np.array([1, 2, 3]),
         'sz': 54643, 'sz_thumb': 54643, 'tags': set(), 'width': 168, 'date': 1675368670,
@@ -792,64 +808,51 @@ _BLOBS_TRIMMED: fapdata._BlobType = {  # type: ignore
     },
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
-        'loc': {(101, 'url-2', 'name-to-use.jpg', 1, 10), (801, 'url-1', 'some-name.jpg', 2, 20)},
+        'loc': {(1, 10, 101): ('name-to-use.jpg', 'new'), (2, 20, 801): ('some-name.jpg', 'new')},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
         'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'date': 1675360670, 'gone': {},
     },
     'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
         'animated': False, 'ext': 'jpg', 'height': 246,
-        'loc': {(100, 'url-100', 'name-100.jpg', 1, 10)},
+        'loc': {(1, 10, 100): ('name-100.jpg', 'new')},
         'percept': 'cc8fc37638703ee1', 'average': '3838381810307078', 'diff': '626176372565c3f2',
         'wavelet': '3e3f3f1b10307878', 'cnn': np.array([1, 2, 3]),
         'sz': 56583, 'sz_thumb': 56583, 'tags': set(), 'width': 200, 'date': 1675368670, 'gone': {},
     },
-    'sha-107': {
-        'animated': False, 'ext': 'jpg', 'height': 1070,
-        'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
-        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368670, 'gone': {},
-    },
-    'sha-103': {'ext': 'jpg', 'loc': {(103, '', 'nm103', 1, 11)}},
-    'sha-104': {'ext': 'jpg', 'loc': {(104, '', 'nm104', 1, 11)}},
+    'sha-103': {'ext': 'jpg', 'loc': {(1, 11, 103): ('nm103', 'new')}},
+    'sha-104': {'ext': 'jpg', 'loc': {(1, 11, 104): ('nm104', 'new')}},
 }
 
 _BLOBS_NO_LUKE: fapdata._BlobType = {
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
         'animated': False, 'ext': 'jpg', 'height': 200,
-        'loc': {(801, 'url-1', 'some-name.jpg', 2, 20)},
+        'loc': {(2, 20, 801): ('some-name.jpg', 'new')},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
         'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
         'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'date': 1675360670, 'gone': {},
-    },
-    'sha-107': {
-        'animated': False, 'ext': 'jpg', 'height': 1070,
-        'loc': {(107, 'url-1', 'some-name.gif', 2, 20)},
-        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
-        'wavelet': 'd99ee32e586716c8', 'cnn': np.array([1, 2, 3]),
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368670, 'gone': {},
     },
 }
 
 _BLOBS_AUDITED: fapdata._BlobType = {  # type: ignore
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
-        'animated': False, 'ext': 'jpg', 'height': 200,
-        'loc': {(801, 'url-1', 'some-name.jpg', 2, 20)},
+        'animated': False, 'ext': 'jpg', 'height': 200, 'wavelet': 'd99ee32e586716c8',
+        'loc': {(2, 20, 801): ('some-name.jpg', 'new')},
         'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
-        'wavelet': 'd99ee32e586716c8',
         'sz': 101, 'sz_thumb': 0, 'tags': {12, 23}, 'width': 160, 'date': 1675360670,
         'gone': {801: (1675368680, fapdata._FailureLevel.URL_EXTRACTION,
                        'https://www.imagefap.com/photo/801/')},
     },
-    'sha-107': {
-        'animated': False, 'ext': 'jpg', 'height': 1070,
-        'loc': {(107, 'url-1', 'some-name.gif', 2, 20),
-                (777, 'url-777', 'some-name-7.gif', 1, 77)},
-        'percept': 'd99ee32e586716c8', 'average': 'd99ee32e586716c8', 'diff': 'd99ee32e586716c8',
-        'wavelet': 'd99ee32e586716c8',
-        'sz': 107, 'sz_thumb': 72577, 'tags': set(), 'width': 107, 'date': 1675368680,
-        'gone': {777: (1675368680, fapdata._FailureLevel.FULL_RES, 'url-777')},
+    '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207': {
+        'animated': False, 'average': 'd99ee32e586716c8', 'date': 1675368670,
+        'diff': 'd99ee32e586716c8', 'ext': 'png', 'height': 225,
+        'loc': {(1, 13, 107): ('name-107.png', 'new'), (1, 77, 777): ('some-name-7.gif', 'new')},
+        'percept': 'd99ee32e586716c8', 'sz': 72577, 'sz_thumb': 72577, 'tags': set(),
+        'wavelet': 'd99ee32e586716c8', 'width': 170,
+        'gone': {
+            107: (1675368680, fapdata._FailureLevel.FULL_RES, 'url-107'),
+            777: (1675368680, fapdata._FailureLevel.FULL_RES, 'url-777'),
+        },
     },
 }
 
@@ -859,7 +862,7 @@ _INDEX: fapdata._ImagesIdIndexType = {
     102: '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
     105: 'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
     106: 'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180',
-    107: 'sha-107',
+    107: '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
     108: '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
     109: 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e',
     801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'
@@ -871,79 +874,51 @@ _INDEX_TRIMMED: fapdata._ImagesIdIndexType = {
     102: '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19',
     103: 'sha-103',
     104: 'sha-104',
-    107: 'sha-107',
     801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'
 }
 
 _INDEX_NO_LUKE: fapdata._ImagesIdIndexType = {
-    107: 'sha-107',
     801: '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'
 }
 
 _DUPLICATES: fapdata.duplicates.DuplicatesType = {
     ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-     'sha-107'): {
+     '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): {
         'sources': {
             'average': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0,
+                ('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
             },
             'cnn': {
                 ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
+                 '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207'): 0.0,
                 ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                 'sha-107'): 0.0,
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0,
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
+                ('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
             },
             'diff': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0,
+                ('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
             },
             'percept': {
                 ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
+                 '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207'): 0.0,
                 ('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-                 'sha-107'): 0.0,
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0,
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
+                ('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
             },
             'wavelet': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0,
+                ('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+                 '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'): 0.0,
             },
         },
         'verdicts': {
             '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': 'new',
+            '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207': 'new',
             '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
-            'sha-107': 'new',
-        },
-    },
-}
-
-_DUPLICATES_TRIMMED: fapdata.duplicates.DuplicatesType = {
-    ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf', 'sha-107'): {
-        'sources': {
-            'average': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0},
-            'cnn': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0},
-            'diff': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0},
-            'percept': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0},
-            'wavelet': {
-                ('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-                 'sha-107'): 0.0},
-        },
-        'verdicts': {
-            '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': 'new',
-            'sha-107': 'new',
         },
     },
 }
@@ -951,25 +926,16 @@ _DUPLICATES_TRIMMED: fapdata.duplicates.DuplicatesType = {
 _DUPLICATES_INDEX: fapdata.duplicates.DuplicatesKeyIndexType = {
     '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6': (
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-        'sha-107'),
+        '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
     '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': (
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-        'sha-107'),
-    'sha-107': (
+        '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
+    '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207': (
         '321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6',
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-        'sha-107'),
-}
-
-_DUPLICATES_INDEX_TRIMMED: fapdata.duplicates.DuplicatesKeyIndexType = {
-    '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': (
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-        'sha-107'),
-    'sha-107': (
-        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
-        'sha-107'),
+        '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+        '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
 }
 
 _TEST_TAGS_1 = {  # this has many places where there are missing keys
@@ -1143,13 +1109,13 @@ SHA256_HASH: ID1/'NAME1' or ID2/'NAME2' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED
 
 _PRINTED_STATS_FULL = """
 Database is located in '%s/imagefap.database', and is 1.74kb (0.258%% of total images size)
-674.74kb total (unique) images size (101b min, 434.54kb max, 96.39kb mean with 152.34kb standard deviation, 1 are animated)
-Pixel size (width, height): 22.49k pixels min (130, 173), 114.49k pixels max (107, 1070), 52.62k mean with 30.92k standard deviation
-530.42kb total thumbnail size (0b min, 295.06kb max, 75.77kb mean with 99.91kb standard deviation), 78.6% of total images size
+745.51kb total (unique) images size (101b min, 434.54kb max, 106.50kb mean with 147.14kb standard deviation, 1 are animated)
+Pixel size (width, height): 22.49k pixels min (130, 173), 66.60k pixels max (300, 222), 41.73k mean with 14.64k standard deviation
+530.42kb total thumbnail size (0b min, 295.06kb max, 75.77kb mean with 99.91kb standard deviation), 71.1% of total images size
 
 2 users
 3 favorite galleries (oldest: 2023/Feb/02-17:57:50-UTC / newer: 2023/Feb/02-20:11:10-UTC)
-7 unique images (10 total, 3 exact duplicates)
+7 unique images (9 total, 4 exact duplicates)
 1 unique failed images in all user albums
 1 unique images are now disappeared from imagefap site
 3 perceptual duplicates in 1 groups
@@ -1162,12 +1128,12 @@ ID: USER_NAME
            FILE STATS FOR FAVORITES
 
 1: 'Luke'
-    730.00kb files size (101b min, 434.54kb max, 91.25kb mean with 141.78kb standard deviation)
+    800.77kb files size (101b min, 434.54kb max, 100.10kb mean with 137.43kb standard deviation)
     => 10: 'new-f-0' (3 / 0 / 9 / 2023/Feb/02-20:11:10-UTC)
            108.72kb files size (101b min, 55.26kb max, 36.24kb mean with 31.31kb standard deviation)
     => 11: 'known-folder-1' (2 / 1 / 8 / 2023/Feb/02-17:57:50-UTC)
     => 13: 'new&f-3' (5 / 0 / 2 / 2023/Feb/02-20:11:10-UTC)
-           621.28kb files size (107b min, 434.54kb max, 124.25kb mean with 176.23kb standard deviation)
+           692.05kb files size (44.25kb min, 434.54kb max, 138.41kb mean with 166.33kb standard deviation)
 
 2: 'Ben'
     0b files size (- min, - max, - mean with - standard deviation)
@@ -1180,12 +1146,12 @@ SHA256_HASH: ID1/'NAME1' or ID2/'NAME2' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED
 0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19: Luke/new-f-0/name-102.jpg (1/10/102), 33.60k (168, 200)
 321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6: Luke/new&f-3/na-me-108.png (1/13/108), 22.49k (130, 173)
     => {tag13 (13), tag22 (22)}
+4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207: Luke/new&f-3/name-107.png (1/13/107), 38.25k (170, 225)
 9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf: Luke/new-f-0/name-to-use.jpg (1/10/101) or Ben/foo-bar/some-name.jpg (2/20/801), 32.00k (160, 200)
     => {tag12 (12), tag23 (23)}
 dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180: Luke/new&f-3/name-106.jpg (1/13/106), 66.60k (300, 222)
 e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e: Luke/new-f-0/name-100.jpg (1/10/100) or Luke/new&f-3/name-105.jpg (1/13/105), 49.20k (200, 246)
 ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e: Luke/new&f-3/name-109.gif (1/13/109), 50.00k (500, 100) animated
-sha-107: Luke/new&f-3/name-107.png (1/13/107) or Ben/foo-bar/some-name.gif (2/20/107), 114.49k (107, 1070)
 """.splitlines()[1:]  # noqa: E501
 
 
