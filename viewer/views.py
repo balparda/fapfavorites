@@ -323,7 +323,6 @@ def _ServeImages(  # noqa: C901
     context dict
   """
   # TODO: better filtering with tri-state for options: only/allow/filter, i.e., yes/don't-care/no
-  # TODO: actually filter on identical verdicts
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
   # do we have to save tags?
@@ -429,12 +428,14 @@ def _ServeImages(  # noqa: C901
       dup_hints[(img, sha)].sort()
   # apply filters
   if not show_duplicates:
-    image_list = [(img, sha) for img, sha in image_list
-                  if not ((img, sha) in album_duplicates and
-                          img != min(n[0] for n in album_duplicates[(img, sha)]))]
+    # start by eliminating the perceptual duplicates: remove the 'skip' ones
     image_list = [(img, sha) for img, sha in image_list
                   if not ((img, sha) in percept_verdicts and
                           percept_verdicts[(img, sha)] == 'skip')]
+    # album operations (user_id & folder_id not zero): use the verdict to remove 'skip' identical
+    image_list = ([(img, sha) for img, sha in image_list
+                   if not db.blobs[sha]['loc'][(user_id, folder_id, img)][1] == 'skip']
+                  if user_id and folder_id else image_list)
   if not show_portraits:
     image_list = [(img, sha) for img, sha in image_list
                   if not db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1]
@@ -460,8 +461,9 @@ def _ServeImages(  # noqa: C901
     loc = (user_id, folder_id, img)
     if loc not in blob['loc']:
       if not user_id and not folder_id and blob['loc']:
-        # we are serving from the tag page, so we use the first available 'loc'
-        loc = sorted(blob['loc'].keys())[0]
+        # we are serving from the tag page, so use the min available 'loc' that isn't marked 'skip';
+        # in the hack below we are using the fact the sorted 'keep' comes before 'new'
+        loc = min((v[1], k[0], k[1], k[2]) for k, v in blob['loc'].items() if v[1] != 'skip')[1:]
       else:
         # we might have raised an exception here, but this can happen in partially downloaded albums
         logging.error('Blob %r in %s did not have a matching `loc` entry!',
@@ -478,7 +480,7 @@ def _ServeImages(  # noqa: C901
         'has_duplicate': (img, sha) in exact_duplicates,
         'album_duplicate': (img, sha) in album_duplicates,
         'has_percept': (img, sha) in percept_verdicts,
-        'imagefap': fapdata.IMG_URL(img),
+        'imagefap': fapdata.IMG_URL(img) if img else fapdata.IMG_URL(loc[2]),
         'duplicate_hints': (
             '\n'.join(dup_hints[(img, sha)])
             if (img, sha) in dup_hints and dup_hints[(img, sha)] else ''),

@@ -196,6 +196,26 @@ class TestDjangoViews(unittest.TestCase):
     mock_save.assert_not_called()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeFavorite_Filter_Duplicates(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {
+        'portrait': '1',  # by default, no duplicates
+        'landscape': '1',
+    }
+    views.ServeFavorite(request, 1, 10)
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
+    self.assertDictEqual(mock_render.call_args[0][2], _FAVORITE_CONTEXT_FILTER_DUPLICATES)
+    mock_save.assert_not_called()
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeFavorite_User_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
@@ -1330,6 +1350,91 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
     'error_message': None,
 }
 
+_FAVORITE_CONTEXT_FILTER_DUPLICATES: dict[str, Any] = {
+    'user_id': 1,
+    'user_name': 'Luke',
+    'folder_id': 10,
+    'name': 'luke-folder-10',
+    'show_duplicates': False,
+    'dup_url': 'dup=0',
+    'show_portraits': True,
+    'portrait_url': 'portrait=1',
+    'show_landscapes': True,
+    'landscape_url': 'landscape=1',
+    'locked_for_tagging': False,
+    'tagging_url': 'lock=0',
+    'pages': 9,
+    'date': '2023/Feb/02-01:06:40-UTC',
+    'count': 2,
+    'stacked_blobs': [
+        [
+            (102, '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+            (103, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
+    'count_disappeared': 1,
+    'stacked_disappeared': [
+        [
+            (103, 'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+            (0, ''),
+            (0, ''),
+            (0, ''),
+        ],
+    ],
+    'blobs_data': {
+        '0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19': {
+            'name': 'name-102.jpg',
+            'sz': '53.36kb',
+            'dimensions': '198x200 (WxH)',
+            'tags': 'three, two',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': True,
+            'imagefap': 'https://www.imagefap.com/photo/102/',
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
+                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [],
+            'verdict': 'new',
+        },
+        'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
+            'name': 'name-103.gif',
+            'sz': '434.54kb',
+            'dimensions': '500x100 (WxH)',
+            'tags': 'one, three/three-three, two/two-four',
+            'has_duplicate': False,
+            'album_duplicate': False,
+            'has_percept': False,
+            'imagefap': 'https://www.imagefap.com/photo/103/',
+            'duplicate_hints': '',
+            'date': '2023/Feb/02-20:12:50-UTC',
+            'gone': [
+                (103, '2023/Feb/02-20:12:50-UTC', 'IMAGE_PAGE'),
+            ],
+            'verdict': 'new',
+        },
+    },
+    'form_tags': _FAVORITE_CONTEXT_ALL_ON['form_tags'],
+    'failed_count': 1,
+    'failed_data': [
+        {
+            'id': 144,
+            'img_page': 'https://www.imagefap.com/photo/144/',
+            'time': '2023/Feb/02-17:48:30-UTC',
+            'name': 'failed0.jpg',
+            'url': 'f-url-0',
+        },
+    ],
+    'warning_message': None,
+    'error_message': None,
+}
+
 _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'tags': [
         (4, 'new-tag-foo', 'new-tag-foo', 0),
@@ -1412,7 +1517,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': True,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/102/',
             'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
                                 'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
                                 'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
@@ -1431,27 +1536,27 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/200/',
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
             'verdict': 'new',
         },
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
-            'name': 'name-101.jpg',
+            'name': 'name-111.jpg',
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one, three/three-three, two',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/111/',
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
-            'verdict': 'skip',
+            'verdict': 'keep',
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'name': 'name-112.jpg',
@@ -1461,7 +1566,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/112/',
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
@@ -1475,7 +1580,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/103/',
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
@@ -1527,20 +1632,20 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
     ],
     'blobs_data': {
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
-            'name': 'name-101.jpg',
+            'name': 'name-111.jpg',
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one, three/three-three, two',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/111/',
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
-            'verdict': 'skip',
+            'verdict': 'keep',
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1550,7 +1655,7 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/103/',
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
@@ -1603,20 +1708,20 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
     ],
     'blobs_data': {
         '9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf': {
-            'name': 'name-101.jpg',
+            'name': 'name-111.jpg',
             'sz': '101b',
             'dimensions': '160x200 (WxH)',
             'tags': 'one/one-one, three/three-three, two',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/111/',
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
-            'verdict': 'skip',
+            'verdict': 'keep',
         },
         'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180': {
             'name': 'name-112.jpg',
@@ -1626,21 +1731,21 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/112/',
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
             'verdict': 'new',
         },
         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e': {
-            'name': 'name-100.jpg',
+            'name': 'name-104.jpg',
             'sz': '55.26kb',
             'dimensions': '200x246 (WxH)',
             'tags': 'one, two',
             'has_duplicate': True,
             'album_duplicate': False,
             'has_percept': True,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/104/',
             'duplicate_hints': ('Exact: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
                                 'Exact: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
                                 'Exact: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
@@ -1654,7 +1759,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'gone': [
                 (104, '2023/Feb/02-17:59:30-UTC', 'URL_EXTRACTION'),
             ],
-            'verdict': 'skip',
+            'verdict': 'new',
         },
         'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e': {
             'name': 'name-103.gif',
@@ -1664,7 +1769,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'has_duplicate': False,
             'album_duplicate': False,
             'has_percept': False,
-            'imagefap': 'https://www.imagefap.com/photo/0/',
+            'imagefap': 'https://www.imagefap.com/photo/103/',
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
