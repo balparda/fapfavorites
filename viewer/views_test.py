@@ -216,6 +216,59 @@ class TestDjangoViews(unittest.TestCase):
     mock_save.assert_not_called()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeFavorite_Filter_Landscapes_Only(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {
+        'dup': '1',
+        'portrait': '2',   # by default, no duplicates
+        'landscape': '2',  # when both are set to '2' landscapes will "win"
+    }
+    views.ServeFavorite(request, 1, 10)
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
+    # the context should be similar to _FAVORITE_CONTEXT_ALL_ON: check only some fields
+    self.assertSetEqual(
+        set(mock_render.call_args[0][2]['blobs_data'].keys()),
+        {'ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'})
+    self.assertEqual(mock_render.call_args[0][2]['portrait_url'], 'portrait=0')
+    self.assertEqual(mock_render.call_args[0][2]['landscape_url'], 'landscape=2')
+    mock_save.assert_not_called()
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeFavorite_Filter_Portraits_Only(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {
+        'dup': '1',
+        'portrait': '2',   # by default, no duplicates
+        'landscape': '0',
+    }
+    views.ServeFavorite(request, 1, 10)
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
+    # the context should be similar to _FAVORITE_CONTEXT_ALL_ON: check only some fields
+    self.assertSetEqual(
+        set(mock_render.call_args[0][2]['blobs_data'].keys()),
+        {'9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'})
+    self.assertEqual(mock_render.call_args[0][2]['portrait_url'], 'portrait=2')
+    self.assertEqual(mock_render.call_args[0][2]['landscape_url'], 'landscape=0')
+    mock_save.assert_not_called()
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
   def test_ServeFavorite_User_404(self, mock_db: mock.MagicMock) -> None:
     """Test."""
     mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter

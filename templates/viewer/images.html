@@ -21,28 +21,30 @@
   </tr>
   <tr>
     <td>
-      {% if show_portraits %}
-        <a href='{{ page_url }}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}' class='filter_show'>
-          Portrait-Aspect Images: <i><b>ON</i></b>
-        </a>
-      {% else %}
-        <a href='{{ page_url }}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}' class='filter_hide'>
-          Portrait-Aspect Images: <i><b>OFF</i></b>
-        </a>
+      Portrait-Aspect&nbsp;Images:&nbsp;
+      {% if not show_portraits %}
+        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=2&{{ landscape_url }}&{{ tagging_url }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if show_portraits == 1 %}
+        <a href='{{ page_url }}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<i><b>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=2&{{ landscape_url }}&{{ tagging_url }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if show_portraits == 2 %}
+        <a href='{{ page_url }}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<i><b>Only&nbsp;Show</b></i>
       {% endif %}
     </td>
     <td>(images with <b>height</b> more than 10% larger than <b>width</b>)</td>
   </tr>
   <tr>
     <td>
-      {% if show_landscapes %}
-        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}' class='filter_show'>
-          Landscape-Aspect Images: <i><b>ON</i></b>
-        </a>
-      {% else %}
-        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}' class='filter_hide'>
-          Landscape-Aspect Images: <i><b>OFF</i></b>
-        </a>
+      Landscape-Aspect&nbsp;Images:&nbsp;
+      {% if not show_landscapes %}
+        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=2&{{ tagging_url }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if show_landscapes == 1 %}
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=2&{{ tagging_url }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if show_landscapes == 2 %}
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Only&nbsp;Show</b></i>
       {% endif %}
     </td>
     <td>(images with <b>width</b> more than 10% larger than <b>height</b>)</td>

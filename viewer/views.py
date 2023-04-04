@@ -322,7 +322,6 @@ def _ServeImages(  # noqa: C901
   Returns:
     context dict
   """
-  # TODO: better filtering with tri-state for options: only/allow/filter, i.e., yes/don't-care/no
   warning_message: Optional[str] = None
   error_message: Optional[str] = None
   # do we have to save tags?
@@ -381,10 +380,16 @@ def _ServeImages(  # noqa: C901
         # setting this message should trigger a DB Save() in the calling page
         warning_message = f'{len(selected_images)} images had tag {tag_name} cleared'
   # retrieve the `GET` data
-  show_duplicates = bool(int(request.GET.get('dup', '0')))        # default: False
-  show_portraits = bool(int(request.GET.get('portrait', '1')))    # default: True
-  show_landscapes = bool(int(request.GET.get('landscape', '1')))  # default: True
-  locked_for_tagging = bool(int(request.GET.get('lock', '0')))    # default: False
+  show_duplicates = bool(int(request.GET.get('dup', '0')))      # default: False
+  show_portraits = int(request.GET.get('portrait', '1'))        # default: 1 == "yes"
+  show_landscapes = int(request.GET.get('landscape', '1'))      # default: 1 == "yes"
+  locked_for_tagging = bool(int(request.GET.get('lock', '0')))  # default: False
+  show_portraits = 0 if show_portraits < 0 else show_portraits
+  show_portraits = 2 if show_portraits > 2 else show_portraits
+  show_landscapes = 0 if show_landscapes < 0 else show_landscapes
+  show_landscapes = 2 if show_landscapes > 2 else show_landscapes
+  show_portraits = 0 if show_landscapes == 2 else show_portraits   # when both are set to '2'...
+  show_landscapes = 0 if show_portraits == 2 else show_landscapes  # ...landscapes will "win"
   # find images that have duplicates
   exact_duplicates: dict[tuple[int, str], set[fapdata.LocationKeyType]] = {}
   album_duplicates: dict[tuple[int, str], set[fapdata.LocationKeyType]] = {}
@@ -436,12 +441,18 @@ def _ServeImages(  # noqa: C901
     image_list = ([(img, sha) for img, sha in image_list
                    if not db.blobs[sha]['loc'][(user_id, folder_id, img)][1] == 'skip']
                   if user_id and folder_id else image_list)
-  if not show_portraits:
+  if not show_portraits:      # 0 == "Don't Show"/"Filter"
     image_list = [(img, sha) for img, sha in image_list
                   if not db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1]
-  if not show_landscapes:
+  elif show_portraits == 2:   # 2 == "Show Only This"
+    image_list = [(img, sha) for img, sha in image_list
+                  if db.blobs[sha]['height'] / db.blobs[sha]['width'] > 1.1]
+  if not show_landscapes:     # 0 == "Don't Show"/"Filter"
     image_list = [(img, sha) for img, sha in image_list
                   if not db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1]
+  elif show_landscapes == 2:  # 2 == "Show Only This"
+    image_list = [(img, sha) for img, sha in image_list
+                  if db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1]
   # stack the hashes in rows of _IMG_COLUMNS columns
   stacked_blobs = [image_list[i:(i + _IMG_COLUMNS)]
                    for i in range(0, len(image_list), _IMG_COLUMNS)]
@@ -492,9 +503,9 @@ def _ServeImages(  # noqa: C901
       'show_duplicates': show_duplicates,
       'dup_url': f'dup={int(show_duplicates)}',
       'show_portraits': show_portraits,
-      'portrait_url': f'portrait={int(show_portraits)}',
+      'portrait_url': f'portrait={show_portraits}',
       'show_landscapes': show_landscapes,
-      'landscape_url': f'landscape={int(show_landscapes)}',
+      'landscape_url': f'landscape={show_landscapes}',
       'locked_for_tagging': locked_for_tagging,
       'tagging_url': f'lock={int(locked_for_tagging)}',
       'count': len(image_list),
