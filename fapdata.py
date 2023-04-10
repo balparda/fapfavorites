@@ -34,7 +34,7 @@ import socket
 import statistics
 import tempfile
 import time
-from typing import Iterator, Literal, Optional, TypedDict
+from typing import Iterator, Optional, TypedDict
 import urllib.error
 import urllib.request
 
@@ -104,7 +104,6 @@ class _FavoriteObjType(TypedDict):
 
   name: str
   pages: int
-  date_straight: int
   date_blobs: int
   images: list[int]
   failed_images: set[FailedTupleType]
@@ -174,7 +173,6 @@ _FIND_NAME_IN_FAVORITES = re.compile(
     r'<a\s+class=.blk_header.\s+href="\/profile\.php\?user=(.*)"\s+style="')
 _FIND_USER_ID_RE = re.compile(  # cspell:disable-next-line
     r'<a\s+class=.blk_header.\s+href="\/showfavorites.php\?userid=([0-9]+)".*>')
-_FIND_ACTUAL_NAME = re.compile(r'<td\s+class=.blk_profile_hdr.*>(.*)\sProfile\s+<\/td>')
 _FIND_NAME_IN_FOLDER = re.compile(
     r'<a\s+class=.blk_favorites.\s+href=".*none;">(.*)<\/a><\/td><\/tr>')
 _FIND_FOLDERS = re.compile(
@@ -204,13 +202,19 @@ class Error404(Error):
 
   def __str__(self) -> str:
     """Get string representation."""
-    failure = self.FailureTuple()
-    return (f'Error404(ID: {failure[0]}, @{base.STD_TIME_STRING(failure[1])}, '
-            f'{"-" if failure[2] is None else failure[2]!r}, '
-            f'{"-" if failure[3] is None else failure[3]!r})')
+    return (f'Error404(ID: {0 if self.image_id is None else self.image_id}, '
+            f'@{base.STD_TIME_STRING(self.timestamp)}, '
+            f'{"-" if self.image_name is None else self.image_name!r}, '
+            f'{"-" if self.url is None else self.url!r})')
 
-  def FailureTuple(self) -> FailedTupleType:
-    """Get a failure tuple for this 404."""
+  def FailureTuple(self, log: bool = False) -> FailedTupleType:
+    """Get a failure tuple for this 404.
+
+    Args:
+      log: (Default False) If true will log the failed image to stderr
+    """
+    if log:
+      logging.error('FAILED IMAGE: %s', self)
     return (
         0 if self.image_id is None else self.image_id,
         self.timestamp,
@@ -261,11 +265,21 @@ class FapDatabase:
     }
     self.duplicates = duplicates.Duplicates(self._duplicates_registry, self._duplicates_key_index)
     # check output directory, create if needed
+    if (not create_if_needed and
+        (not os.path.isdir(self._db_dir) or
+         not self.blobs_dir_exists or
+         not self.thumbs_dir_exists)):
+      raise Error(f'Output directories {self._original_dir!r}/ + /blobs & /thumb do not exist')
     if not os.path.isdir(self._db_dir):
-      if not create_if_needed:
-        raise Error(f'Output directory {self._original_dir!r} does not exist')
       logging.info('Creating output directory %r', self._original_dir)
       os.mkdir(self._db_dir)
+    # create blobs & thumbnails directories, if needed
+    if not self.blobs_dir_exists:
+      logging.info('Creating blob directory %r', self._blobs_dir)
+      os.mkdir(self._blobs_dir)
+    if not self.thumbs_dir_exists:
+      logging.info('Creating thumbnails directory %r', self._thumbs_dir)
+      os.mkdir(self._thumbs_dir)
     # save to environment: "changes will be effective only for the current process where it was
     # assigned and it will not change the value permanently", so the variable won't leak to the
     # larger system; Also: "This mapping is captured the first time the os module is imported,
@@ -432,19 +446,49 @@ class FapDatabase:
     name = '/'.join(n for _, n, _ in self.GetTag(tag_id))
     return f'{name} ({tag_id})' if add_id else name
 
-  def _BlobPath(self, sha: str) -> str:
-    """Get full disk file path for a blob hash (`sha`)."""
+  def _BlobPath(self, sha: str, extension_hint: Optional[str] = None) -> str:
+    """Get full disk file path for a blob hash (`sha`).
+
+    Args:
+      sha: the SHA-256
+      extension_hint: (Default None) optional file extension to use; if *not* given the SHA must
+          be available in the blobs database so extension can be known; if given will return a
+          valid path even if SHA is still not listed in the database
+
+    Returns:
+      full file path of the blob file on disk (encrypted or not)
+
+    Raises:
+      Error: if SHA does not exist in self.blobs and `extension_hint` was not provided
+    """
     try:
       disk_sha = sha if self._sha_encoder is None else self._sha_encoder.EncryptHexdigest256(sha)
-      return os.path.join(self._blobs_dir, f'{disk_sha}.{self.blobs[sha]["ext"]}')
+      return os.path.join(
+          self._blobs_dir,
+          f'{disk_sha}.{self.blobs[sha]["ext"] if extension_hint is None else extension_hint}')
     except KeyError as err:
       raise Error(f'Blob {sha!r} not found') from err
 
-  def _ThumbnailPath(self, sha: str) -> str:
-    """Get full disk file path for a thumbnail, based on its blob's hash (`sha`)."""
+  def _ThumbnailPath(self, sha: str, extension_hint: Optional[str] = None) -> str:
+    """Get full disk file path for a thumbnail, based on its blob's hash (`sha`).
+
+    Args:
+      sha: the SHA-256
+      extension_hint: (Default None) optional file extension to use; if *not* given the SHA must
+          be available in the blobs database so extension can be known; if given will return a
+          valid path even if SHA is still not listed in the database
+
+    Returns:
+      full file path of the thumbnail file on disk (encrypted or not)
+
+    Raises:
+      Error: if SHA does not exist in self.blobs and `extension_hint` was not provided
+    """
     try:
       disk_sha = sha if self._sha_encoder is None else self._sha_encoder.EncryptHexdigest256(sha)
-      return os.path.join(self._thumbs_dir, f'{disk_sha}.{self.blobs[sha]["ext"]}')
+      return os.path.join(
+          self._thumbs_dir,
+          f'{disk_sha}.{self.blobs[sha]["ext"] if extension_hint is None else extension_hint}')
     except KeyError as err:
       raise Error(f'Thumbnail {sha!r} not found') from err
 
@@ -678,8 +722,7 @@ class FapDatabase:
           f'{(100.0 * all_thumb_size) / all_files_size:0.1f}% of total images size')
     _PrintLine()
     _PrintLine(f'{len(self.users)} users')
-    all_dates = [max(f['date_straight'], f['date_blobs'])
-                 for u in self.favorites.values() for f in u.values()]
+    all_dates = [fav['date_blobs'] for user in self.favorites.values() for fav in user.values()]
     min_date = min(all_dates) if all_dates else 0
     max_date = max(all_dates) if all_dates else 0
     _PrintLine(f'{sum(len(f) for _, f in self.favorites.items())} favorite galleries '
@@ -740,8 +783,7 @@ class FapDatabase:
         file_sizes: list[int] = [
             self.blobs[self.image_ids_index[i]]['sz']
             for i in obj['images'] if i in self.image_ids_index]
-        date_str = (base.STD_TIME_STRING(max(obj["date_straight"], obj["date_blobs"]))
-                    if obj["date_straight"] or obj["date_blobs"] else "pending")
+        date_str = base.STD_TIME_STRING(obj['date_blobs']) if obj['date_blobs'] else 'pending'
         _PrintLine(f'    => {fid}: {obj["name"]!r} ({len(obj["images"])} / '
                    f'{len(obj["failed_images"])} / {obj["pages"]} / {date_str})')
         if file_sizes:
@@ -833,15 +875,9 @@ class FapDatabase:
       status = 'Known'
     else:
       status = 'New'
-      url: str = _FAVORITES_URL(user_id, 0)  # use the favorites page
-      logging.info('Fetching favorites page: %s', url)
-      user_html = _FapHTMLRead(url)
-      user_names: list[str] = _FIND_NAME_IN_FAVORITES.findall(user_html)
-      if len(user_names) != 1:
-        raise Error(f'Could not find user name for {user_id}')
+      actual_name = _GetUserDisplayName(user_id)  # will also serve as user_id check
       self.users[user_id] = {
-          'name': html.unescape(user_names[0]), 'date_albums': 0,
-          'date_finished': 0, 'date_audit': 0}
+          'name': actual_name, 'date_albums': 0, 'date_finished': 0, 'date_audit': 0}
     logging.info('%s user %s added', status, self.UserStr(user_id))
     return self.users[user_id]['name']
 
@@ -863,21 +899,8 @@ class FapDatabase:
         logging.info('Known user %s', self.UserStr(uid))
         return (uid, user['name'])
     # not found: we have to find in actual site
-    url: str = _USER_PAGE_URL(user_name)
-    logging.info('Fetching user page: %s', url)
-    user_html = _FapHTMLRead(url)
-    user_ids: list[str] = _FIND_USER_ID_RE.findall(user_html)
-    if len(user_ids) != 1:
-      raise Error(f'Could not find ID for user {user_name!r}')
-    uid = int(user_ids[0])
-    actual_name: list[str] = _FIND_ACTUAL_NAME.findall(user_html)
-    if len(actual_name) != 1:
-      raise Error(f'Could not find actual display name for user {user_name!r}')
-    self.users[uid] = {
-        'name': html.unescape(actual_name[0]), 'date_albums': 0,
-        'date_finished': 0, 'date_audit': 0}
-    logging.info('New user %s added', self.UserStr(uid))
-    return (uid, self.users[uid]['name'])
+    uid = ConvertUserName(user_name)
+    return (uid, self.AddUserByID(uid))
 
   def AddFolderByID(self, user_id: int, folder_id: int) -> str:
     """Add folder by ID and find folder name in the process.
@@ -905,7 +928,7 @@ class FapDatabase:
       _CheckFolderIsForImages(user_id, folder_id)  # raises Error if not valid
       self.favorites.setdefault(user_id, {})[folder_id] = {
           'name': html.unescape(folder_names[0]), 'pages': 0,
-          'date_straight': 0, 'date_blobs': 0, 'images': [], 'failed_images': set()}
+          'date_blobs': 0, 'images': [], 'failed_images': set()}
     logging.info('%s folder %s added', status, self.AlbumStr(user_id, folder_id))
     return self.favorites[user_id][folder_id]['name']
 
@@ -929,27 +952,13 @@ class FapDatabase:
           logging.info('Known folder %s', self.AlbumStr(user_id, fid))
           return (fid, f_data['name'])
     # not found: we have to find in actual site
-    page_num: int = 0
-    while True:
-      url: str = _FAVORITES_URL(user_id, page_num)
-      logging.info('Fetching favorites page: %s', url)
-      fav_html = _FapHTMLRead(url)
-      favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
-      if not favorites_page:
-        raise Error(f'Could not find picture folder {favorites_name!r} for user {user_id}')
-      for f_id, f_name in favorites_page:
-        i_f_id, f_name = int(f_id), html.unescape(f_name)
-        if f_name.lower() == favorites_name.lower():
-          # found it!
-          _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
-          self.favorites.setdefault(user_id, {})[i_f_id] = {
-              'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0,
-              'images': [], 'failed_images': set()}
-          logging.info('New folder %s added', self.AlbumStr(user_id, i_f_id))
-          return (i_f_id, f_name)
-      page_num += 1
+    folder_id, folder_name = ConvertFavoritesName(user_id, favorites_name)
+    self.favorites.setdefault(user_id, {})[folder_id] = {
+        'name': folder_name, 'pages': 0, 'date_blobs': 0, 'images': [], 'failed_images': set()}
+    logging.info('New folder %s added', self.AlbumStr(user_id, folder_id))
+    return (folder_id, folder_name)
 
-  def AddAllUserFolders(self, user_id: int, force_download: bool) -> set[int]:  # noqa: C901
+  def AddAllUserFolders(self, user_id: int, force_download: bool) -> set[int]:
     """Add all user's folders that are images galleries.
 
     Args:
@@ -1000,8 +1009,7 @@ class FapDatabase:
         # we seem to have a valid new favorite here
         found_folder_ids.add(i_f_id)
         self.favorites[user_id][i_f_id] = {
-            'name': f_name, 'pages': 0, 'date_straight': 0, 'date_blobs': 0,
-            'images': [], 'failed_images': set()}
+            'name': f_name, 'pages': 0, 'date_blobs': 0, 'images': [], 'failed_images': set()}
         logging.info('New picture folder %s added', self.AlbumStr(user_id, i_f_id))
       page_num += 1
     # mark the albums checking as done, log & return
@@ -1011,7 +1019,7 @@ class FapDatabase:
                  len(found_folder_ids), page_num, known_favorites, non_galleries)
     return found_folder_ids
 
-  def AddFolderPics(  # noqa: C901
+  def AddFolderPics(
       self, user_id: int, folder_id: int, force_download: bool) -> list[int]:
     """Read a folder and collect/compile all image IDs that are found, for all pages.
 
@@ -1028,130 +1036,24 @@ class FapDatabase:
     """
     try:
       # check for the timestamps: should we even do this work?
-      tm_download: int = max(self.favorites[user_id][folder_id]['date_straight'],
-                             self.favorites[user_id][folder_id]['date_blobs'])
       if not self._CheckWorkHysteresis(
-          force_download, tm_download,
+          force_download, self.favorites[user_id][folder_id]['date_blobs'],
           f'Reading album {self.AlbumStr(user_id, folder_id)} pages & IDs'):
         return self.favorites[user_id][folder_id]['images']
-      img_list: list[int] = self.favorites[user_id][folder_id]['images']
+      seen_img_list: list[int] = self.favorites[user_id][folder_id]['images']
       seen_pages: int = self.favorites[user_id][folder_id]['pages']
     except KeyError as err:
       raise Error(f'This user/folder was not added to DB yet: {user_id}/{folder_id}') from err
-    # do the paging backtracking, if adequate; this is guaranteed to work because
-    # the site only adds images to the *end* of the images favorites; on the other
-    # hand there is the issue of the "disappearing" images, so we have to backtrack
-    # to make sure we don't loose any...
-    page_num: int = 0
-    new_count: int = 0
-    img_set: set[int] = set(img_list)
-    if seen_pages >= _PAGE_BACKTRACKING_THRESHOLD:
-      logging.warning('Backtracking from last seen page (%d) to save time', seen_pages)
-      page_num = seen_pages - 1  # remember the site numbers pages starting on zero
-      while page_num >= 0:
-        new_ids = _ExtractFavoriteIDs(page_num, user_id, folder_id)
-        if set(new_ids).intersection(img_set):
-          # found last page that matters to backtracking (because it has images we've seen before)
-          break
-        page_num -= 1
-    # get the pages of links, until they end
-    while True:
-      new_ids = _ExtractFavoriteIDs(page_num, user_id, folder_id)
-      if not new_ids:
-        # we should be able to stop (break) here, but the Imagefap site has this horrible bug
-        # where we might have empty pages in the middle of the album and then have images again,
-        # and because of this we should try a few more pages just to make sure, even if most times
-        # it will be a complete waste of our time...
-        new_ids = _ExtractFavoriteIDs(page_num + 1, user_id, folder_id)  # extra safety page 1
-        if not new_ids:
-          new_ids = _ExtractFavoriteIDs(page_num + 2, user_id, folder_id)  # extra safety page 1
-          if not new_ids:
-            break  # after 2 extra safety pages, we hope we can now safely give up...
-          page_num += 2  # we found something (2nd extra page), remember to increment page counter
-          logging.warning('Album %s had 2 EMPTY PAGES in the middle of the page list!',
-                          self.AlbumStr(user_id, folder_id))
-        else:
-          page_num += 1  # we found something (1st extra page), remember to increment page counter
-          logging.warning('Album %s had 1 EMPTY PAGES in the middle of the page list!',
-                          self.AlbumStr(user_id, folder_id))
-      # add the images to the end, preserve order, but skip the ones already there
-      for i in new_ids:
-        if i not in img_set:
-          img_list.append(i)
-          new_count += 1
-      img_set = set(img_list)
-      page_num += 1
+    # get the list and save the results
+    img_list, page_num, new_count = _GetFolderPics(
+        user_id, folder_id, img_list_hint=seen_img_list, seen_pages_hint=seen_pages)
+    self.favorites[user_id][folder_id]['images'] = img_list
     self.favorites[user_id][folder_id]['pages'] = page_num  # (pages start on zero)
     logging.info(
         'Found a total of %d image IDs in %d pages (%d are new in set, %d need downloading)',
         len(img_list), page_num, new_count,
         sum(1 for i in img_list if i not in self.image_ids_index))
     return img_list
-
-  def _FindOrCreateBlobLocationEntry(
-      self,
-      user_id: int,
-      folder_id: int,
-      img_id: int,
-      temp_file: tempfile._TemporaryFileWrapper) -> tuple[Optional[bytes], str, str]:
-    """Find entry for user_id/folder_id/img_id or create one, if none is found.
-
-    Args:
-      user_id: User int ID
-      folder_id: Folder int ID
-      img_id: Imagefap int image ID
-      temp_file: Temporary file, like created with tempfile.NamedTemporaryFile, in *virgin* state,
-          so this method can call write() and flush() on it
-
-    Returns:
-      (image_bytes, sha256_hexdigest, file_name_sanitized)
-      image_bytes can be None if the image's hash is known!
-
-    Raises:
-      Error404: with url and added image ID and name on a 404
-    """
-    # figure out if we have it in the index
-    sha = self.image_ids_index.get(img_id, None)
-    if sha is None:
-      # we don't know about this specific img_id yet: get image's full resolution URL + name
-      url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)  # 404 bubble through
-      # get actual binary data
-      try:
-        (image_bytes, sha, percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
-         width, height, is_animated) = self._GetBinary(url_path, temp_file)
-      except Error404 as err:
-        err.image_id = img_id
-        err.image_name = sanitized_image_name
-        raise  # (let Error404 bubble through after adding the image ID and name...)
-      # create DB entries and return
-      self.image_ids_index[img_id] = sha
-      sz_bytes = len(image_bytes)
-      if sha in self.blobs:
-        # in this case we haven't seen this img_id, but the actual binary (sha) was seen in
-        # some other album, presumably, so we add it to the 'loc' entry
-        if (user_id, folder_id, img_id) not in self.blobs[sha]['loc']:
-          self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
-        self.blobs[sha]['date'] = base.INT_TIME()
-      else:
-        # in this case this is a truly new image: never seen img_id or sha
-        self.blobs[sha] = {
-            'loc': {(user_id, folder_id, img_id): (sanitized_image_name, 'new')},
-            'tags': set(), 'sz': sz_bytes, 'sz_thumb': 0, 'ext': extension, 'percept': percept_hash,
-            'average': average_hash, 'diff': diff_hash, 'wavelet': wavelet_hash, 'cnn': cnn_hash,
-            'width': width, 'height': height, 'animated': is_animated,
-            'date': base.INT_TIME(), 'gone': {}}
-      return (image_bytes, sha, sanitized_image_name)
-    # we have seen this img_id before, and can skip a lot of computation
-    # first: could it be we have seen it in this same user_id/folder_id?
-    if (user_id, folder_id, img_id) in self.blobs[sha]['loc']:
-      # this is an exact match and we won't download or search for URL
-      return (None, sha, self.blobs[sha]['loc'][(user_id, folder_id, img_id)][0])
-    # in this last case we know the img_id but it seems to be duplicated in another album,
-    # so we have to get the image name at least so we can add it to the database
-    _, sanitized_image_name, _ = _ExtractFullImageURL(img_id)  # 404 bubble through
-    self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
-    self.blobs[sha]['date'] = base.INT_TIME()
-    return (None, sha, sanitized_image_name)
 
   def _CheckWorkHysteresis(self, force_download: bool, tm_last: int, task_message: str) -> bool:
     """Check if work should be done, or if task has recently been finished.
@@ -1175,8 +1077,8 @@ class FapDatabase:
     logging.info(task_message)
     return True
 
-  def DownloadFavorites(self, user_id: int, folder_id: int,
-                        checkpoint_size: int, force_download: bool) -> int:
+  def DownloadAll(  # noqa: C901
+      self, user_id: int, folder_id: int, checkpoint_size: int, force_download: bool) -> int:
     """Actually get the images in a picture folder.
 
     Args:
@@ -1185,48 +1087,6 @@ class FapDatabase:
       checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
           if zero will not checkpoint at all
       force_download: If True will download even if recently downloaded
-
-    Returns:
-      int size of all bytes downloaded
-    """
-    return self._DownloadAll(
-        user_id, folder_id, checkpoint_size, force_download, self._db_dir, 'date_straight')
-
-  def ReadFavoritesIntoBlobs(self, user_id: int, folder_id: int,
-                             checkpoint_size: int, force_download: bool) -> int:
-    """Actually get the images in a picture folder.
-
-    Args:
-      user_id: User ID
-      folder_id: Folder ID
-      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
-          if zero will not checkpoint at all
-      force_download: If True will download even if recently downloaded
-
-    Returns:
-      int size of all bytes downloaded
-    """
-    # create blobs directory, if needed
-    if not self.blobs_dir_exists:
-      logging.info('Creating blob directory %r', self._blobs_dir)
-      os.mkdir(self._blobs_dir)
-    # delegate the actual work
-    return self._DownloadAll(
-        user_id, folder_id, checkpoint_size, force_download, self._blobs_dir, 'date_blobs')
-
-  def _DownloadAll(self, user_id: int, folder_id: int,  # noqa: C901
-                   checkpoint_size: int, force_download: bool, output_dir: str,
-                   date_key: Literal['date_blobs', 'date_straight']) -> int:
-    """Actually get the images in a picture folder.
-
-    Args:
-      user_id: User ID
-      folder_id: Folder ID
-      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
-          if zero will not checkpoint at all
-      force_download: If True will download even if recently downloaded
-      output_dir: Output directory to use
-      date_key: Date key to use (either 'date_blobs' or 'date_straight')
 
     Returns:
       int size of all bytes downloaded
@@ -1236,9 +1096,8 @@ class FapDatabase:
     """
     # check if work needs to be done
     try:
-      tm_download: int = self.favorites[user_id][folder_id][date_key]
       if not self._CheckWorkHysteresis(
-          force_download, tm_download,
+          force_download, self.favorites[user_id][folder_id]['date_blobs'],
           f'Downloading album {self.AlbumStr(user_id, folder_id)} images'):
         return 0
       logging.info('*NO* checkpoints used (work may be lost!)' if checkpoint_size == 0 else
@@ -1248,115 +1107,130 @@ class FapDatabase:
     # download all full resolution images we don't yet have
     total_sz: int = 0
     thumb_sz: int = 0
+    total_thumb_sz: int = 0
     saved_count: int = 0
     known_count: int = 0
     exists_count: int = 0
+    failed_count: int = 0
     for img_id in list(self.favorites[user_id][folder_id]['images']):  # copy b/c we might change it
+      # figure out if we have it in the index, i.e., if we've seen img_id before
+      sha = self.image_ids_index.get(img_id, None)
+      sanitized_image_name: Optional[str] = None
+      if sha is not None and self.HasBlob(sha):
+        # we have seen this img_id before, and can skip a lot of stuff
+        # also: we only have to add it if it is not an exact match user_id+folder_id+img_id
+        if (user_id, folder_id, img_id) in self.blobs[sha]['loc']:
+          # and we are done for this image, since it is a complete duplicate
+          known_count += 1
+          continue
+        # in this last case we know the img_id but it seems to be duplicated in another album,
+        # so we have to get the image name at least so we can add it to the database
+        try:
+          _, sanitized_image_name, _ = _ExtractFullImageURL(img_id)
+          self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
+          self.blobs[sha]['date'] = base.INT_TIME()
+          known_count += 1
+        except Error404 as err:
+          err.image_id = img_id  # (in this case we will never have an image name to add)
+          self.favorites[user_id][folder_id]['images'].remove(img_id)
+          self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple(log=True))
+          failed_count += 1
+        # either way we are done with this image
+        continue
+      # we don't know about this specific img_id yet: we need more information
+      try:
+        # get image's full resolution URL + name
+        url_path, sanitized_image_name, extension = _ExtractFullImageURL(img_id)
+        # get the binary data so we can compute the SHA for this image
+        image_bytes, sha = _GetBinary(url_path)
+      except Error404 as err:
+        err.image_id = img_id
+        err.image_name = sanitized_image_name  # this might be None or this might be filled in
+        self.favorites[user_id][folder_id]['images'].remove(img_id)
+        self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple(log=True))
+        failed_count += 1
+        continue
+      # we now have binary data and a SHA for sure: check if SHA is in DB
+      if sha in self.blobs and self.HasBlob(sha):
+        # we already have this image, so we just add it to 'loc' and to the index
+        self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
+        self.blobs[sha]['date'] = base.INT_TIME()
+        self.image_ids_index[img_id] = sha
+        exists_count += 1
+        continue
+      # now we know we have a truly new image that needs perceptual hashes, thumbnail, etc
       # create a temporary file so we can do all the clear-text operations we need on the file
       with tempfile.NamedTemporaryFile(delete=True) as temp_file:
-        # add image to database
-        try:
-          image_bytes, sha, sanitized_image_name = self._FindOrCreateBlobLocationEntry(
-              user_id, folder_id, img_id, temp_file)
-        except Error404 as err:
-          # we had a 404 error, but this already comes will all fields ready
-          self.favorites[user_id][folder_id]['images'].remove(img_id)
-          self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple())
-          logging.error('FAILED IMAGE: %s', err)
-          continue
-        known_count += 1 if image_bytes is None else 0
-        full_path = (os.path.join(output_dir, sanitized_image_name)
-                     if date_key == 'date_straight' else self._BlobPath(sha))
-        # check for output path existence so we don't clobber images that are already there
-        if os.path.exists(full_path):
-          logging.info('Image already exists at %r', full_path)
-          exists_count += 1
-          continue
-        # if we still don't have the image data, check if we have the data in the DB
-        if image_bytes is None and not self.HasBlob(sha):
-          raise Error(f'We have SHA {sha!r} in the DB but no image on disk: should never happen!')
-        # save image
-        total_sz += self._SaveImage(
-            full_path, self.GetBlob(sha) if image_bytes is None else image_bytes)
+        # write the data we already have to the temp file
+        temp_file.write(image_bytes)
+        temp_file.flush()
+        # generate thumbnail and get dimensions and other image info;
+        # do this *first* because the extension can change here on PIL's advice
+        thumb_sz, width, height, is_animated, extension = self._MakeThumbnailForBlob(
+            sha, extension, temp_file)
+        total_thumb_sz += thumb_sz
+        # write binary data to the final disk destination
+        total_sz += self._SaveImage(self._BlobPath(sha, extension_hint=extension), image_bytes)
+        # calculate image hashes
+        percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash = self.duplicates.Encode(
+            temp_file.name)
+        # create blob and index entries
+        self.blobs[sha] = {
+            'loc': {(user_id, folder_id, img_id): (sanitized_image_name, 'new')},
+            'tags': set(), 'sz': len(image_bytes), 'sz_thumb': thumb_sz, 'ext': extension,
+            'percept': percept_hash, 'average': average_hash, 'diff': diff_hash,
+            'wavelet': wavelet_hash, 'cnn': cnn_hash, 'width': width, 'height': height,
+            'animated': is_animated, 'date': base.INT_TIME(), 'gone': {}}
+        self.image_ids_index[img_id] = sha
         saved_count += 1
-        # if we saved a blob, we should also generate a thumbnail
-        if date_key == 'date_blobs':
-          thumb_sz += self._MakeThumbnailForBlob(sha, temp_file)
-        # checkpoint database, if needed
-        if checkpoint_size and not saved_count % checkpoint_size:
-          self.Save()
-    # all images were downloaded, the end
-    self.favorites[user_id][folder_id][date_key] = base.INT_TIME()  # marks album as done
-    print(
-        f'Saved {saved_count} images to disk ({base.HumanizedBytes(total_sz)}) and '
-        f'{base.HumanizedBytes(thumb_sz)} in thumbnails; also {known_count} images were '
-        f'already in DB and {exists_count} images were already saved to destination')
+      # temp file is closed; checkpoint database, if needed
+      if checkpoint_size and not saved_count % checkpoint_size:
+        self.Save()
+    # all images were downloaded, the end, log and save
+    self.favorites[user_id][folder_id]['date_blobs'] = base.INT_TIME()  # marks album as done
+    self.Save()
+    print(f'Album {self.AlbumStr(user_id, folder_id)}: '
+          f'Saved {saved_count} images to disk ({base.HumanizedBytes(total_sz)}) and '
+          f'{base.HumanizedBytes(total_thumb_sz)} in thumbnails; also {known_count} images were '
+          f'already in DB and {exists_count} images were already saved to destination, '
+          f'and we had {failed_count} image failures')
     return total_sz
 
-  def _GetBinary(
-      self,
-      url: str,
-      temp_file: tempfile._TemporaryFileWrapper) -> tuple[
-          bytes, str, str, str, str, str, np.ndarray, int, int, bool]:
-    """Get an image by URL and compute data that depends only on the binary representation.
-
-    Args:
-      url: Image URL path
-      temp_file: Temporary file, like created with tempfile.NamedTemporaryFile, in *virgin* state,
-          so this method can call write() and flush() on it
-
-    Returns:
-      (image_bytes, image_sha256_hexdigest,
-       percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash,
-       width, height, is_animated)
-
-    Raises:
-      Error: for invalid URLs or empty images
-    """
-    # get the full image binary
-    logging.info('Fetching full-res image: %s', url)
-    img_data = _FapBinRead(url)  # (let Error404 bubble through...)
-    if not img_data:
-      raise Error(f'Empty full-res URL: {url}')
-    # save image data to the temp_file and get basic characteristics
-    # it is important to note that Image.open() does not rely on filename (extension) to know
-    # what type of image it is, so we can get away with any generic temp_file name
-    temp_file.write(img_data)
-    temp_file.flush()
-    with Image.open(temp_file.name) as img:
-      width, height = img.width, img.height
-      is_animated: bool = getattr(img, 'is_animated', False)
-    # do perceptual hashing; deep down, the perceptual_hashers[...].encode_image() will also
-    # eventually rely on Image.open() to parse the image, so again we don't rely on file extension
-    percept, average, diff, wavelet, cnn = self.duplicates.Encode(temp_file.name)
-    return (img_data, hashlib.sha256(img_data).hexdigest(),
-            percept, average, diff, wavelet, cnn, width, height, is_animated)
-
-  def _MakeThumbnailForBlob(self, sha: str, temp_file: tempfile._TemporaryFileWrapper) -> int:
+  def _MakeThumbnailForBlob(
+      self, sha: str,
+      extension: str,
+      temp_file: tempfile._TemporaryFileWrapper) -> tuple[int, int, int, bool, str]:
     """Make equivalent thumbnail for `sha` entry. Will overwrite destination.
 
     Args:
       sha: the SHA256 key
+      extension: the extension of the original blob (image)
       temp_file: Temporary file, like created with tempfile.NamedTemporaryFile, in saved state,
           so this method can call open it to read the original binary data
 
     Returns:
-      int size of saved file
+      (int size of saved file, original width, original height, is animated image, actual extension)
+
+    Raises:
+      Error: if image has inconsistencies
     """
-    # create thumbnails directory, if needed
-    if not self.thumbs_dir_exists:
-      logging.info('Creating thumbnails directory %r', self._thumbs_dir)
-      os.mkdir(self._thumbs_dir)
     # open image and generate a thumbnail
     with Image.open(temp_file.name) as img:
+      # check that extension (coming from imagefap) matches the perception PIL has of the image
+      if img.format is not None:
+        fmt = _NormalizeExtension(img.format)
+        if extension != fmt:
+          logging.error('Extension is marked %r while PIL identified image as %r', extension, fmt)
+          extension = fmt  # change it to what PIL advises
       # figure paths to use
-      output_path = self._ThumbnailPath(sha)
+      output_path = self._ThumbnailPath(sha, extension_hint=extension)
       output_prefix, output_name = os.path.split(output_path)
       output_name = f'unencrypted.{output_name}'
       unencrypted_path = os.path.join(output_prefix, output_name)
       try:  # this try block is to ensure `unencrypted_path` gets deleted from disk
         # figure out the new size that will be used
         width, height = img.width, img.height
+        is_animated: bool = getattr(img, 'is_animated', False)
         if max((width, height)) <= _THUMBNAIL_MAX_DIMENSION:
           # the image is already smaller than the putative thumbnail: just copy it as thumbnail
           shutil.copyfile(temp_file.name, unencrypted_path)
@@ -1368,7 +1242,7 @@ class FapDatabase:
           else:
             new_height, factor = _THUMBNAIL_MAX_DIMENSION, height / _THUMBNAIL_MAX_DIMENSION
             new_width = math.floor(width / factor)
-          if self.blobs[sha]['animated'] and self.blobs[sha]['ext'].lower() == 'gif':
+          if is_animated and extension == 'gif':
             # special process for animated images, specifically an animated `gif`
 
             def _thumbnails(img_frames: Iterator[Image.Image]) -> Iterator[Image.Image]:
@@ -1389,7 +1263,6 @@ class FapDatabase:
             logging.info('Saved thumbnail for %r', sha)
         # we get the size of the created file so we can return it
         sz_thumb = os.path.getsize(unencrypted_path)
-        self.blobs[sha]['sz_thumb'] = sz_thumb
         # we now encrypt the temporary file into its final destination (or copy if no encryption)
         if self._key is None:
           shutil.copyfile(unencrypted_path, output_path)
@@ -1398,7 +1271,7 @@ class FapDatabase:
             bin_data = unencrypted_obj.read()
           with open(output_path, 'wb') as encrypted_obj:
             encrypted_obj.write(base.Encrypt(bin_data, self._key))
-        return sz_thumb
+        return (sz_thumb, width, height, is_animated, extension)
       finally:
         # we really have to try to delete the unencrypted file
         if os.path.exists(unencrypted_path):
@@ -1644,6 +1517,231 @@ class FapDatabase:
     logging.info(
         'Audit for user %s finished, %d images checked, with %d image errors',
         self.UserStr(user_id), checked_count, problem_count)
+
+
+def ConvertUserName(user_name: str) -> int:
+  """Convert imagefap user name to user ID.
+
+  Args:
+    user_name: User name
+
+  Returns:
+    imagefap user ID
+
+  Raises:
+    Error: invalid name or user not found
+  """
+  user_name = user_name.strip()
+  if not user_name:
+    raise Error('Empty user name')
+  url: str = _USER_PAGE_URL(user_name)
+  logging.info('Fetching user page: %s', url)
+  user_html = _FapHTMLRead(url)
+  user_ids: list[str] = _FIND_USER_ID_RE.findall(user_html)
+  if len(user_ids) != 1:
+    raise Error(f'Could not find ID for user {user_name!r}')
+  return int(user_ids[0])
+
+
+def _GetUserDisplayName(user_id: int) -> str:
+  """Convert imagefap user name to user ID.
+
+  Args:
+    user_id: User ID
+
+  Returns:
+    imagefap actual display name
+
+  Raises:
+    Error: invalid ID or display name not found
+  """
+  if not user_id:
+    raise Error('Empty user ID')
+  url: str = _FAVORITES_URL(user_id, 0)  # use the favorites page
+  logging.info('Fetching favorites page: %s', url)
+  user_html = _FapHTMLRead(url)
+  user_names: list[str] = _FIND_NAME_IN_FAVORITES.findall(user_html)
+  if len(user_names) != 1:
+    raise Error(f'Could not find user name for {user_id}')
+  return html.unescape(user_names[0])
+
+
+def ConvertFavoritesName(user_id: int, favorites_name: str) -> tuple[int, str]:
+  """Convert imagefap favorites album name to album ID.
+
+  Args:
+    user_id: User ID
+    favorites_name: Favorites album name
+
+  Returns:
+    (imagefap favorites album ID, actual favorites album name)
+
+  Raises:
+    Error: empty inputs, picture folder not found, or is not a picture folder
+  """
+  favorites_name = favorites_name.strip()
+  if not user_id or not favorites_name:
+    raise Error('Empty user ID or favorites name')
+  page_num: int = 0
+  while True:
+    url: str = _FAVORITES_URL(user_id, page_num)
+    logging.info('Fetching favorites page: %s', url)
+    fav_html = _FapHTMLRead(url)
+    favorites_page: list[tuple[str, str]] = _FIND_FOLDERS.findall(fav_html)
+    if not favorites_page:
+      raise Error(f'Could not find picture folder {favorites_name!r} for user {user_id}')
+    for f_id, f_name in favorites_page:
+      i_f_id, f_name = int(f_id), html.unescape(f_name)
+      if f_name.lower() == favorites_name.lower():
+        # found it!
+        _CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
+        return (i_f_id, f_name)
+    page_num += 1
+
+
+def _GetFolderPics(
+    user_id: int,
+    folder_id: int,
+    img_list_hint: Optional[list[int]] = None,
+    seen_pages_hint: int = 0) -> tuple[list[int], int, int]:
+  """Read a folder and collect/compile all image IDs that are found, for all pages.
+
+  This always goes through all favorite pages, as we want to always
+  find new images, and it counts how many are new.
+
+  Args:
+    user_id: User int ID
+    folder_id: Folder int ID
+    img_list_hint: (default None) Optional. If given will suppose the image list given has already
+        been seen in this album. Useful for continuing work.
+    seen_pages_hint: (default 0) Optional. If given will suppose this is the number of the last page
+        seen in this album. Useful for continuing work.
+
+  Returns:
+    (list of all image ids, number of last seen page, new images count)
+  """
+  # do the paging backtracking, if adequate; this is guaranteed to work because
+  # the site only adds images to the *end* of the images favorites; on the other
+  # hand there is the issue of the "disappearing" images, so we have to backtrack
+  # to make sure we don't loose any...
+  page_num: int = 0
+  new_count: int = 0
+  img_list = [] if img_list_hint is None else img_list_hint
+  seen_pages = seen_pages_hint
+  img_set: set[int] = set(img_list)
+  if seen_pages >= _PAGE_BACKTRACKING_THRESHOLD:
+    logging.warning('Backtracking from last seen page (%d) to save time', seen_pages)
+    page_num = seen_pages - 1  # remember the site numbers pages starting on zero
+    while page_num >= 0:
+      new_ids = _ExtractFavoriteIDs(page_num, user_id, folder_id)
+      if set(new_ids).intersection(img_set):
+        # found last page that matters to backtracking (because it has images we've seen before)
+        break
+      page_num -= 1
+  # get the pages of links, until they end
+  while True:
+    new_ids = _ExtractFavoriteIDs(page_num, user_id, folder_id)
+    if not new_ids:
+      # we should be able to stop (break) here, but the Imagefap site has this horrible bug
+      # where we might have empty pages in the middle of the album and then have images again,
+      # and because of this we should try a few more pages just to make sure, even if most times
+      # it will be a complete waste of our time...
+      new_ids = _ExtractFavoriteIDs(page_num + 1, user_id, folder_id)  # extra safety page 1
+      if not new_ids:
+        new_ids = _ExtractFavoriteIDs(page_num + 2, user_id, folder_id)  # extra safety page 2
+        if not new_ids:
+          break  # after 2 extra safety pages, we hope we can now safely give up...
+        page_num += 2  # we found something (2nd extra page), remember to increment page counter
+        logging.warning('Album %d/%d had 2 EMPTY PAGES in the middle of the page list!',
+                        user_id, folder_id)
+      else:
+        page_num += 1  # we found something (1st extra page), remember to increment page counter
+        logging.warning('Album %d/%d had 1 EMPTY PAGES in the middle of the page list!',
+                        user_id, folder_id)
+    # add the images to the end, preserve order, but skip the ones already there
+    for img_id in new_ids:
+      if img_id not in img_set:
+        img_list.append(img_id)
+        new_count += 1
+    img_set = set(img_list)
+    page_num += 1
+  # finished, return results
+  return (img_list, page_num, new_count)
+
+
+def _GetBinary(url: str) -> tuple[bytes, str]:
+  """Get an image by URL and compute SHA for binary data.
+
+  Args:
+    url: Image URL path
+
+  Returns:
+    (image_bytes, image_sha256_hexdigest)
+
+  Raises:
+    Error: for invalid URLs or empty images
+  """
+  # get the full image binary
+  logging.info('Fetching full-res image: %s', url)
+  img_data = _FapBinRead(url)  # (let Error404 bubble through...)
+  if not img_data:
+    raise Error(f'Empty full-res URL: {url}')
+  return (img_data, hashlib.sha256(img_data).hexdigest())
+
+
+def DownloadFavorites(user_id: int, folder_id: int, output_path: str) -> None:
+  """Actually get the images in a picture folder.
+
+  Args:
+    user_id: User ID
+    folder_id: Folder ID
+    output_path: Path to output images to (may be created if non-existent)
+
+  Raises:
+    Error: on empty inputs
+  """
+  if not user_id or not folder_id or not output_path.strip():
+    raise Error('Empty inputs: you must provide user, folder, and output directory')
+  # create thumbnails directory, if needed
+  output_path = os.path.expanduser(output_path.strip())
+  if not os.path.exists(output_path):
+    logging.info('Creating output directory %r', output_path)
+    os.mkdir(output_path)
+  # download all full resolution images we don't yet have
+  total_sz: int = 0
+  saved_count: int = 0
+  failed_count: int = 0
+  skipped_count: int = 0
+  img_ids, pages_count, _ = _GetFolderPics(user_id, folder_id)
+  logging.info('Got %d images in %d pages from album', len(img_ids), pages_count)
+  for img_id in img_ids:
+    sanitized_image_name: Optional[str] = None
+    try:
+      # get image's full resolution URL + name
+      url_path, sanitized_image_name, _ = _ExtractFullImageURL(img_id)
+      image_path = os.path.join(output_path, sanitized_image_name)
+      # check if we already have this image
+      if os.path.exists(image_path):
+        skipped_count += 1
+        logging.warning('Image %r already exists at destination: SKIP', image_path)
+        continue
+      # get the binary data so we can compute the SHA for this image
+      image_bytes, _ = _GetBinary(url_path)
+    except Error404 as err:
+      err.image_id = img_id
+      err.image_name = sanitized_image_name
+      logging.error('Image failure: %s', err)
+      failed_count += 1
+      continue
+    # write image to the final disk destination
+    with open(image_path, 'wb') as file_obj:
+      file_obj.write(image_bytes)
+    logging.info('Saved %s for image %r', base.HumanizedBytes(len(image_bytes)), image_path)
+    total_sz += len(image_bytes)
+    saved_count += 1
+  # all images were downloaded, the end
+  print(f'Saved {saved_count} images to disk ({base.HumanizedBytes(total_sz)}), '
+        f'skipped {skipped_count} name collisions, and had {failed_count} image failures')
 
 
 def _LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> bytes:

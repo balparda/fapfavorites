@@ -19,6 +19,8 @@ class TestFavorites(unittest.TestCase):
   """Tests for favorites.py."""
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapdata.ConvertUserName')
+  @mock.patch('fapfavorites.favorites.fapdata.ConvertFavoritesName')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Save')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
@@ -26,8 +28,8 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderPics')
-  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadFavorites')
-  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.ReadFavoritesIntoBlobs')
+  @mock.patch('fapfavorites.favorites.fapdata.DownloadFavorites')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadAll')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
@@ -37,22 +39,27 @@ class TestFavorites(unittest.TestCase):
       add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
       add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
       add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
+    convert_name.return_value = 10
+    convert_favorites.return_value = (20, 'some name')
     try:
       favorites.Main(  # pylint: disable=no-value-for-parameter
-          ['get', '--id', '10', '--folder', '20', '--output', '/path/', '--no-db'])
+          ['get', '--user', 'foo', '--name', 'bar', '--output', '/path/'])
     except SystemExit as err:
       if err.code:  # pylint: disable=using-constant-test
         raise
-    mock_is_dir.assert_called_with('/path/')
-    add_user_by_id.assert_called_with(10)
-    add_folder_by_id.assert_called_with(10, 20)
-    add_folder_pics.assert_called_with(10, 20, False)
-    download_favorites.assert_called_with(10, 20, 0, False)
+    convert_name.assert_called_once_with('foo')
+    convert_favorites.assert_called_once_with(10, 'bar')
+    download_favorites.assert_called_once_with(10, 20, '/path/')
+    mock_is_dir.assert_not_called()
     load.assert_not_called()
     save.assert_not_called()
+    add_user_by_id.assert_not_called()
+    add_folder_by_id.assert_not_called()
+    add_folder_pics.assert_not_called()
     add_user_by_name.assert_not_called()
     add_folder_by_name.assert_not_called()
     read_favorites.assert_not_called()
@@ -61,6 +68,8 @@ class TestFavorites(unittest.TestCase):
     audit.assert_not_called()
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapdata.ConvertUserName')
+  @mock.patch('fapfavorites.favorites.fapdata.ConvertFavoritesName')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Save')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
@@ -68,8 +77,8 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderPics')
-  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadFavorites')
-  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.ReadFavoritesIntoBlobs')
+  @mock.patch('fapfavorites.favorites.fapdata.DownloadFavorites')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadAll')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
@@ -79,28 +88,34 @@ class TestFavorites(unittest.TestCase):
       add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
       add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
       add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
     add_user_by_name.return_value = (10, 'some-user')
     add_folder_by_name.return_value = (20, 'some-folder')
     add_all.return_value = {100, 200}
+    read_favorites.return_value = 45394857
     try:
       favorites.Main(  # pylint: disable=no-value-for-parameter
           ['read', '--user', '"foo-user"', '--output', '/path/', '--force'])
     except SystemExit as err:
       if err.code:  # pylint: disable=using-constant-test
         raise
-    mock_is_dir.assert_called_with('/path/')
-    load.assert_called_with()
-    add_user_by_name.assert_called_with('"foo-user"')
+    self.assertListEqual(
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
+    load.assert_called_once_with()
+    add_user_by_name.assert_called_once_with('"foo-user"')
     self.assertListEqual(
         add_folder_pics.call_args_list, [mock.call(10, 100, True), mock.call(10, 200, True)])
     self.assertListEqual(
         read_favorites.call_args_list, [mock.call(10, 100, 10, True), mock.call(10, 200, 10, True)])
-    add_all.assert_called_with(10, True)
-    find_duplicates.assert_called_with()
-    save.assert_called_with()
+    add_all.assert_called_once_with(10, True)
+    find_duplicates.assert_called_once_with()
+    save.assert_called_once_with()
+    convert_favorites.assert_not_called()
+    convert_name.assert_not_called()
     add_user_by_id.assert_not_called()
     add_folder_by_id.assert_not_called()
     add_folder_by_name.assert_not_called()
@@ -108,6 +123,8 @@ class TestFavorites(unittest.TestCase):
     audit.assert_not_called()
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapdata.ConvertUserName')
+  @mock.patch('fapfavorites.favorites.fapdata.ConvertFavoritesName')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Save')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
@@ -115,8 +132,8 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderPics')
-  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadFavorites')
-  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.ReadFavoritesIntoBlobs')
+  @mock.patch('fapfavorites.favorites.fapdata.DownloadFavorites')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadAll')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
@@ -126,6 +143,7 @@ class TestFavorites(unittest.TestCase):
       add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
       add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
       add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
+      convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -136,11 +154,15 @@ class TestFavorites(unittest.TestCase):
     except SystemExit as err:
       if err.code:  # pylint: disable=using-constant-test
         raise
-    mock_is_dir.assert_called_with('/path/')
-    load.assert_called_with()
-    add_user_by_name.assert_called_with('"foo-user"')
-    audit.assert_called_with(10, 100, False)
-    save.assert_called_with()
+    self.assertListEqual(
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
+    load.assert_called_once_with()
+    add_user_by_name.assert_called_once_with('"foo-user"')
+    audit.assert_called_once_with(10, 100, False)
+    save.assert_called_once_with()
+    convert_favorites.assert_not_called()
+    convert_name.assert_not_called()
     add_user_by_id.assert_not_called()
     add_folder_by_id.assert_not_called()
     add_folder_by_name.assert_not_called()

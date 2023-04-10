@@ -60,6 +60,10 @@ For every album you want, do something like this:
 
 That would read favorite album _"my pics"_ for user _"dirty999"_. If you
 don't specify an explicit output it will go into `~/Downloads/imagefap/`.
+This operation is straightforward: no database is generated, just read the
+images into the directory. `get` is *simple* but not very powerful and
+is *unsafe*, and should be used only as a quick tool for downloading a
+single album.
 
 ### _"I want to read favorite albums from any number of users and browse them offline."_
 
@@ -154,19 +158,12 @@ The basic download command is `get`. Use it if you know the user ID
 and want those saved to a given (or default) output directory. In the absence
 of an explicit directory, will default to `~/Downloads/imagefap/`.
 This command defaults to preserving file names and just straight
-saving them to disk instead of saving them as blobs. It will create
-a simple database file that, if kept in the directory, will avoid
-having to do repeated work for known images. (You can disable the
-database file creation with the `--no-db` option, but there really
-is no need to, as the file is typically tiny: _much less than 0.5%_
-of the size of the downloaded images and usually less than 1Mb.)
-If you use the database you will save a lot of time for repeated
-uses or if your connection is broken. The system will remember
-the images you have (and skip them) and will remember the pages that
-were already seen (a huge difference for very big albums).
-You do ___not___ have to worry about missing images because the
-duplicate detection here uses `sha256` and will thus _only_ skip files
-that are _exactly the same_. No possible mistake here.
+saving them to disk.
+
+`get` is *simple* but not very powerful and is *unsafe*, and should be
+used only as a quick tool for downloading a single album. Anything more
+complicated should be done using the other tooling in this package
+(`read` + `audit` + web interface).
 
 This example will find the user _"dirty999"_ and the favorite
 gallery _"my pics"_ and download all images to the default directory
@@ -184,18 +181,18 @@ the given directory `~/some-dir/`:
 ./favorites.py get --id 1234 --folder 5678 --output "~/some-dir/"
 ```
 
-If you use the `get` command with multiple favorite galleries and
-leave all of them to be saved to the same output directory (either
-default or some explicit other one), then exact duplicate images
-(again by `sha256`) will ___not___ be saved twice, and the file
-name will be the one give for the first time it was saved.
+Beware of using `get` with multiple favorite galleries placing them
+all in the same output directory (either default or some explicit other one):
+images with the same name will clash. If you want more images or if
+you want big favorites you will do much better by not using `get` and
+using this software as it was designed (`read` + `audit` + web interface).
 
 ### `favorites.py READ` command - _Feed the Database!_
 
 This `read` command is for when you want to do more than just download
 images from one (or a few) galleries. This will store the images as blobs
-and will feed the database with data. It is _not_ meant for immediate
-consumption. The idea is to capture data for processing.
+(binary objects) and will feed the database with data. It is _not_ meant
+for immediate consumption. The idea is to capture data for processing.
 
 You will be asked if you want to password protect your database.
 If you enter a valid password the data will be encrypted, but you have to
@@ -208,6 +205,15 @@ asked for the password (only once) when you run the (command-line) commands.
 Encrypting the database and files is safer, but will introduce a little
 lag into the database load/save and into image viewing, even though we
 do our best to ensure the lag is minimal.
+
+The database file is typically small: _less than 0.5%_ of the size
+of the downloaded images. The database will save you a lot of time for
+repeated uses or if your connection is broken. The system will remember
+the images you have (and skip them) and will remember the pages that
+were already seen (a huge difference for very big albums).
+You do ___not___ have to worry about missing images because the
+duplicate detection here uses `sha256` and will thus _only_ skip files
+that are _exactly the same_. No possible mistake here.
 
 With this command duplicates will be found. We search for duplicates
 using a hybrid intersection of perceptual, average, differential
@@ -386,7 +392,6 @@ from a structure like:
       folder_id: {
         'name': folder_name,
         'pages': max_pages_found,
-        'date_straight': int_time_last_success_download_for_direct_saving,
         'date_blobs':    int_time_last_success_download_for_blobs,
             # these dates are int(time.time()) of last time all images finished; the fields will
             # start as 0, meaning never finished yet, and we have one for straight image saves

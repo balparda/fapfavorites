@@ -37,9 +37,12 @@ class TestProcess(unittest.TestCase):
       if e.code:  # pylint: disable=using-constant-test
         raise
     self.assertListEqual(
-        mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
-    load.assert_called_with()
-    print_stats.assert_called_with()
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
+         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
+         mock.call('/path/blobs/')])
+    load.assert_called_once_with()
+    print_stats.assert_called_once_with()
     save.assert_not_called()
     print_blobs.assert_not_called()
     print_tags.assert_not_called()
@@ -65,12 +68,15 @@ class TestProcess(unittest.TestCase):
       if e.code:  # pylint: disable=using-constant-test
         raise
     self.assertListEqual(
-        mock_is_dir.call_args_list, [mock.call('/path/'), mock.call('/path/blobs/')])
-    load.assert_called_with()
-    print_users.assert_called_with()
-    print_tags.assert_called_with()
-    print_blobs.assert_called_with()
-    print_stats.assert_called_with()
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
+         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
+         mock.call('/path/blobs/')])
+    load.assert_called_once_with()
+    print_users.assert_called_once_with()
+    print_tags.assert_called_once_with()
+    print_blobs.assert_called_once_with()
+    print_stats.assert_called_once_with()
     save.assert_not_called()
 
   @mock.patch('fapfavorites.process.fapdata.os.path.isdir')
@@ -88,8 +94,10 @@ class TestProcess(unittest.TestCase):
       if e.code:  # pylint: disable=using-constant-test
         raise
     self.assertListEqual(
-        mock_is_dir.call_args_list, [mock.call('/path/')])
-    mock_django.assert_called_with(
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
+         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
+    mock_django.assert_called_once_with(
         ['./process.py', 'runserver', '--noreload'])  # cspell:disable-line
     load.assert_not_called()
     save.assert_not_called()

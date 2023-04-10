@@ -741,7 +741,6 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
         1: {  # Luke
             10: {
                 'date_blobs': 1675300000,
-                'date_straight': 0,
                 'images': [100, 101, 102, 103, 104],
                 'failed_images': {
                     (144, 1675360110, 'failed0.jpg', 'f-url-0'),
@@ -751,7 +750,6 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
             },
             11: {
                 'date_blobs': 1671000000,
-                'date_straight': 1675300000,
                 'images': [110, 111, 112],
                 'failed_images': set(),
                 'name': 'luke-folder-11',
@@ -761,7 +759,6 @@ _MOCK_DATABASE: views.fapdata._DatabaseType = {
         2: {  # Ben
             20: {
                 'date_blobs': 1673000000,
-                'date_straight': 0,
                 'images': [200, 201, 202, 203],
                 'failed_images': {
                     (244, 1675360770, 'failed1.jpg', 'f-url-1'),
@@ -1072,7 +1069,7 @@ _INDEX_CONTEXT: dict[str, Any] = {
          '129.59kb standard deviation), 68.0% of total images size'),
         '',
         '3 users',
-        '3 favorite galleries (oldest: 2023/Jan/06-10:13:20-UTC / newer: 2023/Feb/02-01:06:40-UTC)',
+        '3 favorite galleries (oldest: 2022/Dec/14-06:40:00-UTC / newer: 2023/Feb/02-01:06:40-UTC)',
         '7 unique images (12 total, 8 exact duplicates)',
         '3 unique failed images in all user albums',
         '3 unique images are now disappeared from imagefap site',
@@ -1090,6 +1087,7 @@ _USERS_CONTEXT: dict[str, Any] = {
             'n_img': 8,
             'n_failed': 1,
             'n_animated': '1 (12.5%)',
+            'n_albums': 2,
             'files_sz': '729.99kb',
             'thumbs_sz': '514.80kb',
             'min_sz': '101b',
@@ -1105,6 +1103,7 @@ _USERS_CONTEXT: dict[str, Any] = {
             'n_img': 4,
             'n_failed': 2,
             'n_animated': '1 (25.0%)',
+            'n_albums': 1,
             'files_sz': '534.15kb',
             'thumbs_sz': '394.57kb',
             'min_sz': '101b',
@@ -1120,6 +1119,7 @@ _USERS_CONTEXT: dict[str, Any] = {
             'n_img': 0,
             'n_failed': 0,
             'n_animated': '0 (0.0%)',
+            'n_albums': 0,
             'files_sz': '0b',
             'thumbs_sz': '0b',
             'min_sz': '-',
@@ -1132,6 +1132,7 @@ _USERS_CONTEXT: dict[str, Any] = {
     'total_img': 12,
     'total_failed': 3,
     'total_animated': '2 (16.7%)',
+    'total_albums': 3,
     'total_sz': '1.23Mb',
     'total_thumbs': '909.36kb',
     'total_file_storage': '2.12Mb',

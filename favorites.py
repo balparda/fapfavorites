@@ -16,6 +16,7 @@
 #
 """Imagefap.com image favorites (picture folder) downloader."""
 
+import logging
 # import pdb
 
 import click
@@ -28,24 +29,23 @@ __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (1, 0)
 
 
-def _GetOperation(database: fapdata.FapDatabase,
-                  user_id: int,
-                  folder_id: int,
-                  make_db: bool,
-                  force_download: bool) -> None:
+def _GetOperation(
+    user_id: int, user_name: str, folder_id: int, favorites_name: str, output_path: str) -> None:
   """Implement `get` user operation: Straight download into a destination directory.
 
   Args:
-    database: Active fapdata.FapDatabase
     user_id: User ID
+    user_name: User name
     folder_id: Folder ID
-    make_db: The user option to save DB or not
-    force_download: If True will download even if recently downloaded
+    favorites_name: Folder name
+    output_path: Output path to use
   """
   print('Executing GET command')
-  database.AddFolderPics(user_id, folder_id, force_download)
-  database.DownloadFavorites(
-      user_id, folder_id, fapdata.CHECKPOINT_LENGTH if make_db else 0, force_download)
+  user_id = user_id if user_id else fapdata.ConvertUserName(user_name)
+  fapdata.DownloadFavorites(
+      user_id,
+      folder_id if folder_id else fapdata.ConvertFavoritesName(user_id, favorites_name)[0],
+      output_path)
 
 
 def _ReadOperation(database: fapdata.FapDatabase,
@@ -64,15 +64,21 @@ def _ReadOperation(database: fapdata.FapDatabase,
   print('Executing READ command')
   found_folder_ids: set[int] = ({folder_id} if folder_id else
                                 database.AddAllUserFolders(user_id, force_download))
+  total_sz: int = 0
   for f_id in sorted(found_folder_ids):
     database.AddFolderPics(user_id, f_id, force_download)
-    database.ReadFavoritesIntoBlobs(user_id, f_id, fapdata.CHECKPOINT_LENGTH, force_download)
-  # find perceptual duplicates
-  database.FindDuplicates()
+    total_sz += database.DownloadAll(user_id, f_id, fapdata.CHECKPOINT_LENGTH, force_download)
   # if we finished getting all user albums, mark user as finished
   if not folder_id:
     # use lazy users.get() so tests don't have to mock the actual DB
     database.users.get(user_id, {})['date_finished'] = base.INT_TIME()
+  # find perceptual duplicates
+  if total_sz:
+    database.FindDuplicates()
+  # save DB, if we need to
+  if total_sz or not folder_id:
+    database.Save()
+  logging.info('Downloaded a total of: %s', base.HumanizedBytes(total_sz))
 
 
 def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bool) -> None:
@@ -86,6 +92,7 @@ def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bo
   # start
   print('Executing AUDIT command')
   database.Audit(user_id, fapdata.AUDIT_CHECKPOINT_LENGTH, force_audit)
+  database.Save()
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
@@ -111,11 +118,6 @@ def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bo
     help='The intended local machine output directory path, '
          f'ex: "~/some-dir/"; will default to {fapdata.DEFAULT_DB_DIRECTORY!r}')
 @click.option(
-    '--db/--no-db', 'make_db', default=True,
-    help='Save a imagefap.database file to output? Default is True ("yes"); '
-         'keeping this option on will avoid duplication of download effort; '
-         'you can\'t disable the DB for the `read` command')
-@click.option(
     '--force/--no-force', 'force_download', default=False,
     help='Ignore recency check for download/audit of favorite images? Default '
          'is False ("no"). This will force a download/audit even if the album/image '
@@ -127,22 +129,21 @@ def Main(operation: str,  # noqa: C901
          favorites_name: str,
          folder_id: int,
          output_path: str,
-         make_db: bool,
          force_download: bool) -> None:  # noqa: D301
   """Download imagefap.com image favorites (picture folder).
 
   ATTENTION: The script will deliberately pace its image fetching, taking
   much longer than required to download all images. This is done so to not
-  be a bad imagefap.com customer (overload their servers). Be patient! Also,
-  if you leave the database option on (recommended) you will only have to
-  get a folder once, as subsequent calls will ignore known images, and the
-  script will detect only new arrivals.
+  be a bad imagefap.com customer (overload their servers). Be patient! If
+  you are reading (`read` operation) into a database (recommended) you will
+  only have to get a folder once, as subsequent calls will ignore known images,
+  and the script will detect new arrivals. A big time saver.
 
   You have to indicate the user by either the --user or the --id options.
   You have to indicate the image favorites (picture folder) by
   either the --name or the --folder options if you are using `get`.
   If you are using `read` then you can specify only the user and
-  let it browse for all image favorite galleries.
+  let it browse for all image favorite galleries automatically.
 
   After you have a database in place you can use the `audit` operation to
   look at all pictures for a --user (or --id) and find out if any images
@@ -155,25 +156,23 @@ def Main(operation: str,  # noqa: C901
   \b
   ./favorites.py get --user "some-login" \\
       --name "Random Images" --output "~/some-dir/"
-  (in this case the login/name is used and a specific output is given)
-
-  \b
-  ./favorites.py get --id 1234 --folder 5678
-  (in this case specific numerical IDs are used and
-   output will be the current directory)
+  (in this case the login/name is used and a specific output is given;
+   all images are saved to "~/some-dir/" with their original names;
+   no database is created and no automation happens, just straight fetch)
 
   \b
   ./favorites.py read --user "some-login"
   (in this case, will find all image favorite galleries for this user
-   and place them in the database)
+   and place them in the database; if this is a known user no duplicate
+   work will be done)
 
   \b
   ./favorites.py audit --user "some-login" --force
   (will look at all the images this user has and check if they exist
    but will not download any new image; will ignore recent audits)
   """
-  print('***********************************************')
-  print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER   **')
+  print('**************************************************')
+  print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER(s)   **')
   print('**   balparda@gmail.com (Daniel Balparda)    **')
   print('***********************************************')
   success_message: str = 'premature end? user paused?'
@@ -183,18 +182,20 @@ def Main(operation: str,  # noqa: C901
       raise AttributeError('You have to provide either the --user or the --id options')
     if user_name and user_id:
       raise AttributeError('You should not provide both the --user and the --id options')
-    if (not favorites_name and not folder_id) and operation.lower() not in {'read', 'audit'}:
-      raise AttributeError('You have to provide either the --name or the --folder options')
     if favorites_name and folder_id:
       raise AttributeError('You should not provide both the --name and the --folder options')
+    if (not favorites_name and not folder_id) and operation.lower() not in {'read', 'audit'}:
+      raise AttributeError('You have to provide either the --name or the --folder options')
     if (favorites_name or folder_id) and operation.lower() == 'audit':
       raise AttributeError('You should not provide --name or --folder in the `audit` operation')
-    if not make_db and operation.lower() in {'read', 'audit'}:
-      raise AttributeError('The `read` & `audit` commands require a database (--db option)')
-    # load database, if any
+    # Tackle `get` operation first: na database to load or save
+    if operation.lower() == 'get':
+      _GetOperation(user_id, user_name, folder_id, favorites_name, output_path)
+      success_message = 'success'
+      return
+    # the other operations need a database and adding user/folder to it first
     database = fapdata.FapDatabase(output_path)
-    if make_db:
-      database.Load()
+    database.Load()
     # convert user to id and convert name to folder, if needed
     if user_id:
       database.AddUserByID(user_id)
@@ -205,18 +206,13 @@ def Main(operation: str,  # noqa: C901
     else:
       if favorites_name:
         folder_id = database.AddFolderByName(user_id, favorites_name)[0]
-    # we should now have both IDs that we need
-    if operation.lower() == 'get':
-      _GetOperation(database, user_id, folder_id, make_db, force_download)
-    elif operation.lower() == 'read':
+    # we should now have both IDs that we need for the database operations
+    if operation.lower() == 'read':
       _ReadOperation(database, user_id, folder_id, force_download)
     elif operation.lower() == 'audit':
       _AuditOperation(database, user_id, force_download)
     else:
       raise NotImplementedError(f'Unrecognized/Unimplemented operation {operation!r}')
-    # save DB and end
-    if make_db:
-      database.Save()
     success_message = 'success'
   except Exception as err:
     success_message = f'error: {err}'

@@ -142,6 +142,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
   total_animated: int = 0
   total_thumbs: int = 0
   total_failed: int = 0
+  total_albums: int = 0
   for uid, user in db.users.items():
     file_sizes: list[int] = [
         db.blobs[db.image_ids_index[i]]['sz']
@@ -159,6 +160,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
     for failed in (f['failed_images'] for f in db.favorites.get(uid, {}).values()):
       unique_failed.update(img for img, _, _, _ in failed)
     n_img = len(file_sizes)
+    n_albums = len(db.favorites.get(uid, {}))
     users[uid] = {
         'name': user['name'],
         'date_albums': base.STD_TIME_STRING(user['date_albums']),
@@ -167,6 +169,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
         'n_img': n_img,
         'n_failed': len(unique_failed),
         'n_animated': f'{n_animated} ({(100.0 * n_animated / n_img) if n_img else 0.0:0.1f}%)',
+        'n_albums': n_albums,
         'files_sz': base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
         'thumbs_sz': base.HumanizedBytes(sum(thumbs_sizes) if thumbs_sizes else 0),
         'min_sz': base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
@@ -178,6 +181,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
     total_img += n_img
     total_failed += len(unique_failed)
     total_animated += n_animated
+    total_albums += n_albums
     total_sz += sum(file_sizes) if file_sizes else 0
     total_thumbs += sum(thumbs_sizes) if file_sizes else 0
   # send to page
@@ -188,6 +192,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
       'total_failed': total_failed,
       'total_animated': (f'{total_animated} '
                          f'({(100.0 * total_animated / total_img) if total_img else 0.0:0.1f}%)'),
+      'total_albums': total_albums,
       'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
       'total_thumbs': base.HumanizedBytes(total_thumbs) if total_thumbs else '-',
       'total_file_storage': base.HumanizedBytes(
@@ -439,7 +444,8 @@ def _ServeImages(  # noqa: C901
                           percept_verdicts[(img, sha)] == 'skip')]
     # album operations (user_id & folder_id not zero): use the verdict to remove 'skip' identical
     image_list = ([(img, sha) for img, sha in image_list
-                   if not db.blobs[sha]['loc'][(user_id, folder_id, img)][1] == 'skip']
+                   if not db.blobs[sha]['loc'].get(  # use get here b/c of incomplete albums
+                       (user_id, folder_id, img), ('', ''))[1] == 'skip']
                   if user_id and folder_id else image_list)
   if not show_portraits:      # 0 == "Don't Show"/"Filter"
     image_list = [(img, sha) for img, sha in image_list
