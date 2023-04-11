@@ -21,6 +21,23 @@ class TestProcess(unittest.TestCase):
   @mock.patch('fapfavorites.process.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.process.fapdata.FapDatabase.Load')
   @mock.patch('fapfavorites.process.fapdata.FapDatabase.Save')
+  def test_ErrorRuns(
+      self, save: mock.MagicMock, load: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
+    """Test."""
+    mock_is_dir.return_value = True
+    load.return_value = False
+    with self.assertRaisesRegex(process.fapdata.Error, r'Database does not exist'):
+      process.Main(['stats', '--dir', '/path/'])  # pylint: disable=no-value-for-parameter
+    self.assertListEqual(
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
+         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
+    load.assert_called_once_with()
+    save.assert_not_called()
+
+  @mock.patch('fapfavorites.process.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.process.fapdata.FapDatabase.Save')
   @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintStats')
   @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintUsersAndFavorites')
   @mock.patch('fapfavorites.process.fapdata.FapDatabase.PrintTags')
@@ -31,6 +48,7 @@ class TestProcess(unittest.TestCase):
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
+    load.return_value = True
     try:
       process.Main(['stats', '--dir', '/path/'])  # pylint: disable=no-value-for-parameter
     except SystemExit as e:
@@ -39,8 +57,7 @@ class TestProcess(unittest.TestCase):
     self.assertListEqual(
         mock_is_dir.call_args_list,
         [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
-         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
-         mock.call('/path/blobs/')])
+         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
     load.assert_called_once_with()
     print_stats.assert_called_once_with()
     save.assert_not_called()
@@ -61,6 +78,7 @@ class TestProcess(unittest.TestCase):
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
+    load.return_value = True
     try:
       process.Main(  # pylint: disable=no-value-for-parameter
           ['print', '--dir', '/path/', '--blobs'])
@@ -70,8 +88,7 @@ class TestProcess(unittest.TestCase):
     self.assertListEqual(
         mock_is_dir.call_args_list,
         [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
-         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/'),
-         mock.call('/path/blobs/')])
+         mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
     load.assert_called_once_with()
     print_users.assert_called_once_with()
     print_tags.assert_called_once_with()

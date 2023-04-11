@@ -18,6 +18,24 @@ __version__ = (1, 0)
 class TestFavorites(unittest.TestCase):
   """Tests for favorites.py."""
 
+  def test_ParameterErrors(self) -> None:
+    """Test."""
+    with self.assertRaisesRegex(AttributeError, r'either the --user or the --id'):
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--output', '/path/'])
+    with self.assertRaisesRegex(AttributeError, r'both the --user and the --id'):
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--user', 'foo', '--id', '10', '--output', '/path/'])
+    with self.assertRaisesRegex(AttributeError, r'both the --name and the --folder'):
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--user', 'foo', '--name', 'bar', '--folder', '20', '--output', '/path/'])
+    with self.assertRaisesRegex(AttributeError, r'either the --name or the --folder'):
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['get', '--user', 'foo', '--output', '/path/'])
+    with self.assertRaisesRegex(AttributeError, r'should not provide --name or --folder'):
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['audit', '--user', 'foo', '--name', 'bar', '--output', '/path/'])
+
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapdata.ConvertUserName')
   @mock.patch('fapfavorites.favorites.fapdata.ConvertFavoritesName')
@@ -121,6 +139,75 @@ class TestFavorites(unittest.TestCase):
     add_folder_by_name.assert_not_called()
     download_favorites.assert_not_called()
     audit.assert_not_called()
+
+  @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
+  @mock.patch('fapfavorites.favorites._GetOperation')
+  @mock.patch('fapfavorites.favorites._ReadOperation')
+  @mock.patch('fapfavorites.favorites._AuditOperation')
+  def test_ReadOperation_ID_Call(
+      self, audit_operation: mock.MagicMock, read_operation: mock.MagicMock,
+      get_operation: mock.MagicMock, add_folder_by_name: mock.MagicMock,
+      add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
+      add_user_by_id: mock.MagicMock, load: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
+    """Test."""
+    mock_is_dir.return_value = True
+    try:
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--id', '10', '--folder', '20', '--output', '/path/'])
+    except SystemExit as err:
+      if err.code:  # pylint: disable=using-constant-test
+        raise
+    self.assertListEqual(
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
+    load.assert_called_once_with()
+    add_user_by_id.assert_called_once_with(10)
+    add_folder_by_id.assert_called_once_with(10, 20)
+    read_operation.assert_called_once_with(mock.ANY, 10, 20, False)
+    add_user_by_name.assert_not_called()
+    audit_operation.assert_not_called()
+    get_operation.assert_not_called()
+    add_folder_by_name.assert_not_called()
+
+  @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
+  @mock.patch('fapfavorites.favorites._GetOperation')
+  @mock.patch('fapfavorites.favorites._ReadOperation')
+  @mock.patch('fapfavorites.favorites._AuditOperation')
+  def test_ReadOperation_Folder_Name_Call(
+      self, audit_operation: mock.MagicMock, read_operation: mock.MagicMock,
+      get_operation: mock.MagicMock, add_folder_by_name: mock.MagicMock,
+      add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
+      add_user_by_id: mock.MagicMock, load: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
+    """Test."""
+    mock_is_dir.return_value = True
+    add_folder_by_name.return_value = (20, 'Bar')
+    try:
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--id', '10', '--name', 'bar', '--output', '/path/', '--force'])
+    except SystemExit as err:
+      if err.code:  # pylint: disable=using-constant-test
+        raise
+    self.assertListEqual(
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
+    load.assert_called_once_with()
+    add_user_by_id.assert_called_once_with(10)
+    add_folder_by_name.assert_called_once_with(10, 'bar')
+    read_operation.assert_called_once_with(mock.ANY, 10, 20, True)
+    add_folder_by_id.assert_not_called()
+    add_user_by_name.assert_not_called()
+    audit_operation.assert_not_called()
+    get_operation.assert_not_called()
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapdata.ConvertUserName')
