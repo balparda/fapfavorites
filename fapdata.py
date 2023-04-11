@@ -1443,6 +1443,7 @@ class FapDatabase:
     Raises:
       Error: invalid user_id or user not finished
     """
+    # TODO: should also find missing blobs and thumbs (in self.blobs but not on disk)... it happens!
     # check if we know the user and they have been finished
     if user_id not in self.users or not self.users[user_id]['date_finished']:
       raise Error(f'Unknown user {user_id} or user not yet finished: before `audit` you must '
@@ -1815,7 +1816,7 @@ def _CheckFolderIsForImages(user_id: int, folder_id: int) -> None:
 
 def _NormalizeExtension(extension: str) -> str:
   """Normalize image file extensions."""
-  extension = extension.lower()
+  extension = extension.strip().lower()
   if extension == 'jpeg':
     extension = 'jpg'
   return extension
@@ -1869,7 +1870,7 @@ def _ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   if not img_name:
     raise Error(f'No image name path in {url!r}')
   # sanitize image name before returning
-  new_name: str = sanitize_filename.sanitize(html.unescape(img_name[0]).replace('/', '-'))
+  new_name: str = sanitize_filename.sanitize(html.unescape(img_name[0].strip()).replace('/', '-'))
   if new_name != img_name[0]:
     logging.warning('Filename sanitization necessary %r ==> %r', img_name[0], new_name)
   # figure out the file name, sanitize extension
