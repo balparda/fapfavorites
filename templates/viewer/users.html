@@ -40,10 +40,10 @@
       <tr>
         <th>ID</th>
         <th>Name</th>
+        <th>Album<br/>Count</th>
         <th>Image<br/>Count</th>
         <th>Failed<br/>Count</th>
         <th>Animated<br/>Count</th>
-        <th>Album<br/>Count</th>
         <th>Files<br/>Size</th>
         <th>Min</th>
         <th>Max</th>
@@ -59,10 +59,10 @@
         <tr>
           <td align='center'><a href='{% url "favorites" id %}'>{{ id }}</a></td>
           <td>{{ obj.name|escape }}</td>
+          <td align='center'>{{ obj.n_albums }}</td>
           <td align='center'>{{ obj.n_img }}</td>
           <td align='center'>{{ obj.n_failed }}</td>
           <td align='center'>{{ obj.n_animated }}</td>
-          <td align='center'>{{ obj.n_albums }}</td>
           <td align='center'>{{ obj.files_sz }}</td>
           <td align='center'>{{ obj.min_sz }}</td>
           <td align='center'>{{ obj.max_sz }}</td>
@@ -84,10 +84,10 @@
       {% if users %}
         <tr>
           <td colspan='2' align='right'><b>TOTAL:</b></td>
+          <td align='center'><b>{{ total_albums }}</b></td>
           <td align='center'><b>{{ total_img }}</b></td>
           <td align='center'><b>{{ total_failed }}</b></td>
           <td align='center'><b>{{ total_animated }}</b></td>
-          <td align='center'><b>{{ total_albums }}</b></td>
           <td align='center'><b>{{ total_sz }}</b></td>
           <td>&nbsp;</td>
           <td>&nbsp;</td>

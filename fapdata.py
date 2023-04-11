@@ -1048,10 +1048,10 @@ class FapDatabase:
     img_list, page_num, new_count = _GetFolderPics(
         user_id, folder_id, img_list_hint=seen_img_list, seen_pages_hint=seen_pages)
     self.favorites[user_id][folder_id]['images'] = img_list
-    self.favorites[user_id][folder_id]['pages'] = page_num  # (pages start on zero)
+    self.favorites[user_id][folder_id]['pages'] = page_num
     logging.info(
         'Found a total of %d image IDs in %d pages (%d are new in set, %d need downloading)',
-        len(img_list), page_num, new_count,
+        len(img_list), page_num + 1, new_count,
         sum(1 for i in img_list if i not in self.image_ids_index))
     return img_list
 
