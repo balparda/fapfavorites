@@ -15,12 +15,13 @@ import os
 import os.path
 # import pdb
 import tempfile
-from typing import Union
 import unittest
 from unittest import mock
 
 import numpy as np
 
+from fapfavorites import fapbase
+from fapfavorites import fapbase_test
 from fapfavorites import fapdata
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
@@ -32,19 +33,6 @@ _TESTDATA_PATH = os.path.join(os.path.dirname(__file__), 'testdata/')
 
 class TestFapDatabase(unittest.TestCase):
   """Tests for fapdata.py."""
-
-  @mock.patch('fapfavorites.fapdata.base.INT_TIME')
-  def test_Error404(self, mock_time: mock.MagicMock):
-    """Test."""
-    mock_time.return_value = 1675368670  # 02/feb/2023 20:11:10
-    err = fapdata.Error404('foo-url')
-    self.assertTupleEqual(err.FailureTuple(), (0, 1675368670, None, 'foo-url'))
-    self.assertEqual(str(err), 'Error404(ID: 0, @2023/Feb/02-20:11:10-UTC, \'-\', \'foo-url\')')
-    err.image_id = 999
-    err.image_name = 'foo-name'
-    self.assertTupleEqual(err.FailureTuple(log=True), (999, 1675368670, 'foo-name', 'foo-url'))
-    self.assertEqual(
-        str(err), 'Error404(ID: 999, @2023/Feb/02-20:11:10-UTC, \'foo-name\', \'foo-url\')')
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.fapdata.os.mkdir')
@@ -267,59 +255,23 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(
         db.blobs, {'a': {'tags': {1, 2}, 'sz': 10}, 'b': {'tags': {246}, 'sz': 55}})
 
-  @mock.patch('fapfavorites.fapdata.urllib.request.urlopen')
-  @mock.patch('fapfavorites.fapdata.time.sleep')
-  def test_LimpingURLRead(self, unused_time: mock.MagicMock, mock_url: mock.MagicMock) -> None:
-    """Test."""
-    # test args error
-    with self.assertRaises(AttributeError):
-      fapdata._LimpingURLRead('no.url', min_wait=1.0, max_wait=0.5)
-    # test direct success
-
-    class _MockResponse1:
-
-      def read(self):
-        """Read."""
-        return b'foo.response'
-
-    mock_url.return_value = _MockResponse1()
-    self.assertEqual(fapdata._LimpingURLRead('foo.url'), b'foo.response')
-    mock_url.assert_called_once_with('foo.url', timeout=fapdata._URL_TIMEOUT)
-    mock_url.reset_mock(side_effect=True)  # reset calls and side_effect
-    # test exceptions and retry
-
-    class _MockResponse2:
-
-      def read(self):
-        """Read."""
-        raise fapdata.socket.timeout('timeout in page')
-
-    fapdata._MAX_RETRY = 2
-    mock_url.return_value = _MockResponse2()
-    with self.assertRaises(fapdata.Error):
-      fapdata._LimpingURLRead('bar.url')
-    self.assertListEqual(
-        mock_url.call_args_list,
-        [mock.call('bar.url', timeout=15.0),   # 1st try
-         mock.call('bar.url', timeout=15.0),   # retry 1
-         mock.call('bar.url', timeout=15.0)])  # retry 2
-
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
-  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapbase.FapHTMLRead')
   def test_AddUserByID(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
-    fapdata._FIND_NAME_IN_FAVORITES = _MockRegex({'user_html': ['foo &amp; user'], 'invalid': []})
+    fapbase._FIND_NAME_IN_FAVORITES = fapbase_test.MockRegex(
+        {'user_html': ['foo &amp; user'], 'invalid': []})
     db = fapdata.FapDatabase('/xxx/')
     mock_read.return_value = 'invalid'
-    with self.assertRaisesRegex(fapdata.Error, r'for 11'):
+    with self.assertRaisesRegex(fapbase.Error, r'for 11'):
       db.AddUserByID(11)
     mock_read.return_value = 'user_html'
     self.assertEqual(db.AddUserByID(10), 'foo & user')
     self.assertDictEqual(
         db.users,
         {10: {'date_albums': 0, 'date_finished': 0, 'date_audit': 0, 'name': 'foo & user'}})
-    fapdata._FIND_NAME_IN_FAVORITES = None  # make sure is not used again in next call
+    fapbase._FIND_NAME_IN_FAVORITES = None  # make sure is not used again in next call
     self.assertEqual(db.AddUserByID(10), 'foo & user')
     self.assertEqual(db.UserStr(10), 'foo & user (10)')
     with self.assertRaises(fapdata.Error):
@@ -328,30 +280,31 @@ class TestFapDatabase(unittest.TestCase):
         mock_read.call_args_list,
         [mock.call('https://www.imagefap.com/showfavorites.php?userid=11&page=0'),
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0')])
-    with self.assertRaisesRegex(fapdata.Error, r'Empty'):
-      fapdata._GetUserDisplayName(0)
+    with self.assertRaisesRegex(fapbase.Error, r'Empty'):
+      fapbase.GetUserDisplayName(0)
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
-  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapbase.FapHTMLRead')
   def test_AddUserByName(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
-    fapdata._FIND_USER_ID_RE = _MockRegex({'user_html': ['10'], 'invalid': []})
-    fapdata._FIND_NAME_IN_FAVORITES = _MockRegex({'user_html': ['foo &amp; user'], 'invalid': []})
+    fapbase._FIND_USER_ID_RE = fapbase_test.MockRegex({'user_html': ['10'], 'invalid': []})
+    fapbase._FIND_NAME_IN_FAVORITES = fapbase_test.MockRegex(
+        {'user_html': ['foo &amp; user'], 'invalid': []})
     db = fapdata.FapDatabase('/xxx/')
     mock_read.return_value = 'invalid'
-    with self.assertRaisesRegex(fapdata.Error, r'ID for user \'no-user\''):
+    with self.assertRaisesRegex(fapbase.Error, r'ID for user \'no-user\''):
       db.AddUserByName('no-user')
-    fapdata._FIND_USER_ID_RE = _MockRegex({'user_html': ['10'], 'invalid': ['12']})
-    with self.assertRaisesRegex(fapdata.Error, r'Could not find user name for 12'):
+    fapbase._FIND_USER_ID_RE = fapbase_test.MockRegex({'user_html': ['10'], 'invalid': ['12']})
+    with self.assertRaisesRegex(fapbase.Error, r'Could not find user name for 12'):
       db.AddUserByName('no-user')
     mock_read.return_value = 'user_html'
     self.assertTupleEqual(db.AddUserByName('foo-user'), (10, 'foo & user'))
     self.assertDictEqual(
         db.users,
         {10: {'date_albums': 0, 'date_finished': 0, 'date_audit': 0, 'name': 'foo & user'}})
-    fapdata._FIND_USER_ID_RE = None  # make sure is not used again in next call
-    fapdata._FIND_NAME_IN_FAVORITES = None
+    fapbase._FIND_USER_ID_RE = None  # make sure is not used again in next call
+    fapbase._FIND_NAME_IN_FAVORITES = None
     self.assertTupleEqual(db.AddUserByName('foo & user'), (10, 'foo & user'))
     self.assertEqual(db.UserStr(10), 'foo & user (10)')
     with self.assertRaises(fapdata.Error):
@@ -363,17 +316,18 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('https://www.imagefap.com/showfavorites.php?userid=12&page=0'),
          mock.call('https://www.imagefap.com/profile/foo-user'),
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0')])
-    with self.assertRaisesRegex(fapdata.Error, r'Empty'):
-      fapdata.ConvertUserName('  ')
+    with self.assertRaisesRegex(fapbase.Error, r'Empty'):
+      fapbase.ConvertUserName('  ')
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
-  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapbase.FapHTMLRead')
   def test_AddFolderByID(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
-    fapdata._FIND_NAME_IN_FOLDER = _MockRegex({'folder_html': ['foo &amp; folder'], 'invalid': []})
-    fapdata._FIND_ONLY_IN_PICTURE_FOLDER = _MockRegex({'folder_html': ['true']})
-    fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html': []})
+    fapbase.FIND_NAME_IN_FOLDER = fapbase_test.MockRegex(
+        {'folder_html': ['foo &amp; folder'], 'invalid': []})
+    fapbase._FIND_ONLY_IN_PICTURE_FOLDER = fapbase_test.MockRegex({'folder_html': ['true']})
+    fapbase._FIND_ONLY_IN_GALLERIES_FOLDER = fapbase_test.MockRegex({'folder_html': []})
     db = fapdata.FapDatabase('/xxx/')
     db.users[10] = {'name': 'username'}  # type: ignore
     mock_read.return_value = 'invalid'
@@ -385,9 +339,9 @@ class TestFapDatabase(unittest.TestCase):
         db.favorites,
         {10: {20: {'date_blobs': 0, 'images': [], 'failed_images': set(),
                    'name': 'foo & folder', 'pages': 0}}})
-    fapdata._FIND_NAME_IN_FOLDER = None  # make sure is not used again in next call
-    fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
-    fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = None
+    fapbase.FIND_NAME_IN_FOLDER = None  # make sure is not used again in next call
+    fapbase._FIND_ONLY_IN_PICTURE_FOLDER = None
+    fapbase._FIND_ONLY_IN_GALLERIES_FOLDER = None
     self.assertEqual(db.AddFolderByID(10, 20), 'foo & folder')
     self.assertEqual(db.AlbumStr(10, 20), 'username/foo & folder (10/20)')
     with self.assertRaises(fapdata.Error):
@@ -399,19 +353,19 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0&folderid=20')])
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
-  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapbase.FapHTMLRead')
   def test_AddFolderByName(self, mock_read: mock.MagicMock, mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
-    fapdata._FIND_FOLDERS = _MockRegex({
+    fapbase.FIND_FOLDERS = fapbase_test.MockRegex({
         'folder_html_1': [('100', 'no1')], 'folder_html_2': [('200', 'no2'), ('300', 'no3')],
         'folder_html_3': [('400', 'foo &amp; folder'), ('500', 'no5')], 'invalid': []})
-    fapdata._FIND_ONLY_IN_PICTURE_FOLDER = _MockRegex({'folder_html_test': ['true']})
-    fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'folder_html_test': []})
+    fapbase._FIND_ONLY_IN_PICTURE_FOLDER = fapbase_test.MockRegex({'folder_html_test': ['true']})
+    fapbase._FIND_ONLY_IN_GALLERIES_FOLDER = fapbase_test.MockRegex({'folder_html_test': []})
     db = fapdata.FapDatabase('/xxx/')
     db.users[10] = {'name': 'username'}  # type: ignore
     mock_read.return_value = 'invalid'
-    with self.assertRaisesRegex(fapdata.Error, r'folder \'no-folder\' for user 11'):
+    with self.assertRaisesRegex(fapbase.Error, r'folder \'no-folder\' for user 11'):
       db.AddFolderByName(11, 'no-folder')
     mock_read.side_effect = ['folder_html_1', 'folder_html_2', 'folder_html_3', 'folder_html_test']
     self.assertTupleEqual(db.AddFolderByName(10, 'foo & folder'), (400, 'foo & folder'))
@@ -419,9 +373,9 @@ class TestFapDatabase(unittest.TestCase):
         db.favorites,
         {10: {400: {'date_blobs': 0, 'images': [], 'failed_images': set(),
                     'name': 'foo & folder', 'pages': 0}}})
-    fapdata._FIND_NAME_IN_FOLDER = None  # make sure is not used again in next call
-    fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None
-    fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = None
+    fapbase.FIND_FOLDERS = None  # make sure is not used again in next call
+    fapbase._FIND_ONLY_IN_PICTURE_FOLDER = None
+    fapbase._FIND_ONLY_IN_GALLERIES_FOLDER = None
     self.assertTupleEqual(db.AddFolderByName(10, 'foo & folder'), (400, 'foo & folder'))
     self.assertEqual(db.AlbumStr(10, 400), 'username/foo & folder (10/400)')
     with self.assertRaises(fapdata.Error):
@@ -433,13 +387,13 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=1'),
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=2'),
          mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0&folderid=400')])
-    with self.assertRaisesRegex(fapdata.Error, r'Empty'):
-      fapdata.ConvertFavoritesName(10, '  ')
+    with self.assertRaisesRegex(fapbase.Error, r'Empty'):
+      fapbase.ConvertFavoritesName(10, '  ')
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
-  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
-  @mock.patch('fapfavorites.fapdata._CheckFolderIsForImages')
+  @mock.patch('fapfavorites.fapbase.FapHTMLRead')
+  @mock.patch('fapfavorites.fapbase.CheckFolderIsForImages')
   @mock.patch('fapfavorites.fapdata.FapDatabase._CheckWorkHysteresis')
   def test_AddAllUserFolders(
       self, hysteresis: mock.MagicMock, is_images: mock.MagicMock,
@@ -452,7 +406,7 @@ class TestFapDatabase(unittest.TestCase):
     html_read.side_effect = ['page-0', 'page-1', 'page-2']
     is_images.side_effect = [None, None, fapdata.Error()]
     # get_pics.return_value = ([100, 101, 102, 103, 104], 2, 3)
-    fapdata._FIND_FOLDERS = _MockRegex({
+    fapbase.FIND_FOLDERS = fapbase_test.MockRegex({
         'page-0': [('15', 'fav-15'), ('20', 'fav-15')],
         'page-1': [('25', 'fav-25'), ('30', 'fav-30')],
         'page-2': []})
@@ -477,10 +431,10 @@ class TestFapDatabase(unittest.TestCase):
     self.assertListEqual(
         is_images.call_args_list,
         [mock.call(10, 15), mock.call(10, 25), mock.call(10, 30)])
-    fapdata._FIND_FOLDERS = None  # set to None for safety
+    fapbase.FIND_FOLDERS = None  # set to None for safety
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
-  @mock.patch('fapfavorites.fapdata._GetFolderPics')
+  @mock.patch('fapfavorites.fapbase.GetFolderPics')
   @mock.patch('fapfavorites.fapdata.FapDatabase._CheckWorkHysteresis')
   def test_AddFolderPics(
       self, hysteresis: mock.MagicMock, get_pics: mock.MagicMock, is_dir: mock.MagicMock) -> None:
@@ -519,8 +473,8 @@ class TestFapDatabase(unittest.TestCase):
     self.assertTrue(db._CheckWorkHysteresis(True, 50, 'foo'))
 
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
-  @mock.patch('fapfavorites.fapdata._ExtractFullImageURL')
-  @mock.patch('fapfavorites.fapdata._GetBinary')
+  @mock.patch('fapfavorites.fapbase.ExtractFullImageURL')
+  @mock.patch('fapfavorites.fapbase.GetBinary')
   @mock.patch('fapfavorites.fapdata.FapDatabase._CheckWorkHysteresis')
   def test_DownloadAll_MakeThumbnailForBlob_SaveImage_Print_Delete(
       self, hysteresis: mock.MagicMock, get_bin: mock.MagicMock,
@@ -544,7 +498,7 @@ class TestFapDatabase(unittest.TestCase):
                            ('url-110', '110.jpg', 'jpg'),  # this last one will 404
                            ('url-104', '104.png', 'png'),  # this is for album 10/30
                            ('url-105', '105.jpg', 'jpg'),
-                           fapdata.Error404('url-106')]    # this last one will 404
+                           fapbase.Error404('url-106')]    # this last one will 404
     with tempfile.TemporaryDirectory() as db_path:
       db = fapdata.FapDatabase(db_path, create_if_needed=True)  # create a password-less DB
       # prepare data by reading files, getting some CNN, etc
@@ -554,7 +508,7 @@ class TestFapDatabase(unittest.TestCase):
         with open(f_name, 'rb') as f_obj:
           test_images[name] = f_obj.read()
       get_bin.side_effect = [(test_images[name], hashlib.sha256(test_images[name]).hexdigest())
-                             for name in test_names] + [fapdata.Error404('url-110')]
+                             for name in test_names] + [fapbase.Error404('url-110')]
       # test error case
       with self.assertRaisesRegex(fapdata.Error, r'user/folder was not added'):
         db.DownloadAll(10, 20, 5, False)
@@ -647,7 +601,7 @@ class TestFapDatabase(unittest.TestCase):
 
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   @mock.patch('fapfavorites.fapdata.requests.get')
-  @mock.patch('fapfavorites.fapdata._FapHTMLRead')
+  @mock.patch('fapfavorites.fapbase.FapHTMLRead')
   @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
   def test_Audit(
       self, mock_save: mock.MagicMock, mock_read: mock.MagicMock, mock_get: mock.MagicMock,
@@ -659,9 +613,9 @@ class TestFapDatabase(unittest.TestCase):
     with self.assertRaisesRegex(fapdata.Error, r'Unknown user'):
       db.Audit(99, 5, False)
     mock_read.side_effect = ['page-100', 'page-105', 'page-101', 'page-102',
-                             fapdata.Error404('page-103'), 'page-104', 'page-106', 'page-107',
-                             fapdata.Error404('page-108'), 'page-109']  # 103 & 108 fail here
-    fapdata._FULL_IMAGE = _MockRegex({
+                             fapbase.Error404('page-103'), 'page-104', 'page-106', 'page-107',
+                             fapbase.Error404('page-108'), 'page-109']  # 103 & 108 fail here
+    fapbase.FULL_IMAGE = fapbase_test.MockRegex({
         'page-100': ['url-100'], 'page-101': ['url-101'], 'page-102': [],
         'page-104': ['url-104'], 'page-105': ['url-105'], 'page-106': [],
         'page-107': ['url-107'], 'page-109': []})  # 102 & 106 & 109 fail here
@@ -693,167 +647,7 @@ class TestFapDatabase(unittest.TestCase):
     mock_save.assert_called_once_with()
     self.assertEqual(db.users[10]['date_audit'], 1676368670)
     self.assertDictEqual(db.blobs, _BLOBS_AUDITED)
-    fapdata._FULL_IMAGE = None  # set to None for safety
-
-  @mock.patch('fapfavorites.fapdata._LimpingURLRead')
-  def test_GetFolderPics(self, mock_read: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_read.side_effect = [
-        b'page-7', b'page-6', b'page-5',  # backtrack
-        b'page-5', b'page-6', b'page-7', b'page-8', b'page-9', b'page-10', b'page-11',
-        b'page-12', b'page-13', b'page-14', b'page-15', b'page-16', b'page-17', b'page-18']
-    fapdata._FAVORITE_IMAGE = _MockRegex({
-        'page-5': ['102', '103', '104'],  # <- last known image (103) is here
-        'page-6': ['105'],
-        'page-7': ['106'],                # <- backtrack starts here
-        'page-8': ['107', '108'],
-        'page-9': [],                     # <- one empty page obstacle
-        'page-10': ['109', '110'],
-        'page-11': ['111'],
-        'page-12': [],                    # <- two empty pages obstacle
-        'page-13': [],
-        'page-14': ['112', '113'],
-        'page-15': ['114'],
-        'page-16': [],                    # <- three empty pages means it should stop
-        'page-17': [],
-        'page-18': [],
-    })
-    self.assertTupleEqual(
-        fapdata._GetFolderPics(10, 20, img_list_hint=[100, 101, 102, 103], seen_pages_hint=8),
-        ([100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114], 16, 11))
-    self.assertListEqual(
-        mock_read.call_args_list,
-        [mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=7&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=6&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=5&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=5&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=6&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=7&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=8&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=9&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=10&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=11&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=12&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=13&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=14&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=15&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=16&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=17&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=18&folderid=20')])
-    fapdata._FAVORITE_IMAGE = None  # set to None for safety
-
-  @mock.patch('fapfavorites.fapdata._LimpingURLRead')
-  def test_GetBinary(self, mock_read: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_read.side_effect = [b'page-1', b'']
-    self.assertTupleEqual(
-        fapdata._GetBinary('url-1'),
-        (b'page-1', '0eb236e50de35c59c03b63629624351af778cc33fbc55a92254e3c29e58e6255'))
-    with self.assertRaisesRegex(fapdata.Error, r'Empty full-res'):
-      fapdata._GetBinary('url-2')
-    self.assertListEqual(
-        mock_read.call_args_list,
-        [mock.call('url-1'), mock.call('url-2')])
-
-  @mock.patch('fapfavorites.fapdata._GetFolderPics')
-  @mock.patch('fapfavorites.fapdata._ExtractFullImageURL')
-  @mock.patch('fapfavorites.fapdata._GetBinary')
-  def test_DownloadFavorites(
-      self, get_binary: mock.MagicMock, image_url: mock.MagicMock,
-      folder_pics: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    folder_pics.return_value = ([100, 101, 102], 5, 3)
-    image_url.side_effect = [('url-100', 'f100.jpg', 'jpg'),  # <- this file will already exist
-                             ('url-101', 'f101.gif', 'gif'),
-                             ('url-102', 'f102.jpg', 'jpg')]  # <- this file's URL will 404
-    get_binary.side_effect = [(b'img-101', ''), fapdata.Error404('url-102')]
-    with self.assertRaisesRegex(fapdata.Error, r'Empty inputs'):
-      fapdata.DownloadFavorites(10, 20, ' ')
-    with tempfile.TemporaryDirectory() as db_path:
-      with open(os.path.join(db_path, 'f100.jpg'), 'wb') as file_obj:  # 'f100.jpg' already exists
-        file_obj.write(b'do-not-clobber')
-      fapdata.DownloadFavorites(10, 20, f' {db_path} ')
-      self.assertTrue(os.path.exists(os.path.join(db_path, 'f101.gif')))   # this should be created
-      self.assertFalse(os.path.exists(os.path.join(db_path, 'f102.jpg')))  # this one 404-ed
-      with open(os.path.join(db_path, 'f100.jpg'), 'rb') as file_obj:
-        self.assertEqual(file_obj.read(), b'do-not-clobber')  # check that 'f100.jpg' wasn't touched
-      with open(os.path.join(db_path, 'f101.gif'), 'rb') as file_obj:
-        self.assertEqual(file_obj.read(), b'img-101')  # check 'f101.gif' content is as expected
-    folder_pics.assert_called_once_with(10, 20)
-    self.assertListEqual(
-        image_url.call_args_list,
-        [mock.call(100), mock.call(101), mock.call(102)])
-    self.assertListEqual(
-        get_binary.call_args_list,
-        [mock.call('url-101'), mock.call('url-102')])
-
-  @mock.patch('os.path.exists')
-  @mock.patch('os.mkdir')
-  @mock.patch('fapfavorites.fapdata._GetFolderPics')
-  @mock.patch('fapfavorites.fapdata._ExtractFullImageURL')
-  @mock.patch('fapfavorites.fapdata._GetBinary')
-  def test_DownloadFavorites_Output_Creation(
-      self, get_binary: mock.MagicMock, image_url: mock.MagicMock,
-      folder_pics: mock.MagicMock, mkdir: mock.MagicMock, exists: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    exists.return_value = False  # <- output directory check
-    mkdir.side_effect = [NotImplementedError()]
-    with self.assertRaises(NotImplementedError):
-      fapdata.DownloadFavorites(10, 20, ' /foo/bar ')
-    exists.assert_called_once_with('/foo/bar')
-    mkdir.assert_called_once_with('/foo/bar')
-    get_binary.assert_not_called()
-    image_url.assert_not_called()
-    folder_pics.assert_not_called()
-
-  @mock.patch('fapfavorites.fapdata._LimpingURLRead')
-  def test_CheckFolderIsForImages(self, mock_read: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_read.side_effect = [b'page-10-20', b'page-11-30']
-    fapdata._FIND_ONLY_IN_PICTURE_FOLDER = _MockRegex({'page-10-20': ['true'], 'page-11-30': []})
-    fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = _MockRegex({'page-10-20': [], 'page-11-30': ['true']})
-    fapdata._CheckFolderIsForImages(10, 20)
-    with self.assertRaisesRegex(fapdata.Error, r'not a valid images folder'):
-      fapdata._CheckFolderIsForImages(11, 30)
-    self.assertListEqual(
-        mock_read.call_args_list,
-        [mock.call('https://www.imagefap.com/showfavorites.php?userid=10&page=0&folderid=20'),
-         mock.call('https://www.imagefap.com/showfavorites.php?userid=11&page=0&folderid=30')])
-    fapdata._FIND_ONLY_IN_PICTURE_FOLDER = None    # set to None for safety
-    fapdata._FIND_ONLY_IN_GALLERIES_FOLDER = None  # set to None for safety
-
-  def test_NormalizeExtension(self) -> None:
-    """Test."""
-    self.assertEqual(fapdata._NormalizeExtension(' GIF '), 'gif')
-    self.assertEqual(fapdata._NormalizeExtension(' JPEG '), 'jpg')
-
-  @mock.patch('fapfavorites.fapdata._LimpingURLRead')
-  def test_ExtractFullImageURL(self, mock_read: mock.MagicMock) -> None:
-    """Test."""
-    self.maxDiff = None
-    mock_read.side_effect = [b'page-10', b'page-11', b'page-12', fapdata.Error404('url-13')]
-    fapdata._FULL_IMAGE = _MockRegex({'page-10': ['url-10'], 'page-11': [], 'page-12': ['url-12']})
-    fapdata._IMAGE_NAME = _MockRegex({'page-10': [' crazy/name.JPEG '], 'page-12': []})
-    self.assertTupleEqual(fapdata._ExtractFullImageURL(10), ('url-10', 'crazy-name.jpg', 'jpg'))
-    with self.assertRaisesRegex(fapdata.Error, r'No full resolution'):
-      fapdata._ExtractFullImageURL(11)
-    with self.assertRaisesRegex(fapdata.Error, r'No image name'):
-      fapdata._ExtractFullImageURL(12)
-    with self.assertRaisesRegex(fapdata.Error404, r'Error404\(ID: 13'):
-      fapdata._ExtractFullImageURL(13)
-    self.assertListEqual(
-        mock_read.call_args_list,
-        [mock.call('https://www.imagefap.com/photo/10/'),
-         mock.call('https://www.imagefap.com/photo/11/'),
-         mock.call('https://www.imagefap.com/photo/12/'),
-         mock.call('https://www.imagefap.com/photo/13/')])
-    fapdata._FULL_IMAGE = None  # set to None for safety
-    fapdata._IMAGE_NAME = None  # set to None for safety
+    fapbase.FULL_IMAGE = None  # set to None for safety
 
   @mock.patch('os.path.exists')
   @mock.patch('os.path.getmtime')
@@ -870,17 +664,6 @@ class TestFapDatabase(unittest.TestCase):
         [mock.call(os.path.expanduser('~/Downloads/imagefap/imagefap.database')),
          mock.call('/foo/bar/imagefap.database')])
     getmtime.assert_called_once_with(os.path.expanduser('~/Downloads/imagefap/imagefap.database'))
-
-
-class _MockRegex:
-
-  def __init__(self, return_values: dict[str, list[Union[str, tuple[str, ...]]]]):
-    """Init."""
-    self._return_values = return_values
-
-  def findall(self, query: str) -> list[Union[str, tuple[str, ...]]]:
-    """Find all."""
-    return self._return_values[query]
 
 
 class _MockRequestsGet:

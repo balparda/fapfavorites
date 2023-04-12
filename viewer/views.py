@@ -15,6 +15,7 @@ from django.template import defaulttags
 
 from baselib import base
 from fapfavorites import duplicates
+from fapfavorites import fapbase
 from fapfavorites import fapdata
 
 
@@ -497,7 +498,7 @@ def _ServeImages(  # noqa: C901
         'has_duplicate': (img, sha) in exact_duplicates,
         'album_duplicate': (img, sha) in album_duplicates,
         'has_percept': (img, sha) in percept_verdicts,
-        'imagefap': fapdata.IMG_URL(img) if img else fapdata.IMG_URL(loc[2]),
+        'imagefap': fapbase.IMG_URL(img) if img else fapbase.IMG_URL(loc[2]),
         'duplicate_hints': (
             '\n'.join(dup_hints[(img, sha)])
             if (img, sha) in dup_hints and dup_hints[(img, sha)] else ''),
@@ -558,7 +559,7 @@ def ServeFavorite(
       'failed_data': [
           {
               'id': img,
-              'img_page': fapdata.IMG_URL(img),
+              'img_page': fapbase.IMG_URL(img),
               'time': base.STD_TIME_STRING(tm),
               'name': '-' if nm is None else nm,
               'url': url,
@@ -946,7 +947,7 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                       'user_name': db.users[uid]['name'],
                       'folder_id': fid,
                       'folder_name': db.favorites[uid][fid]['name'],
-                      'imagefap': fapdata.IMG_URL(img),
+                      'imagefap': fapbase.IMG_URL(img),
                   }
                   for uid, fid, img in sorted(db.blobs[sha]['loc'].keys())
               ],

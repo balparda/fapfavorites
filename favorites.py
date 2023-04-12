@@ -22,6 +22,7 @@ import logging
 import click
 
 from baselib import base
+from fapfavorites import fapbase
 from fapfavorites import fapdata
 
 
@@ -41,10 +42,10 @@ def _GetOperation(
     output_path: Output path to use
   """
   print('Executing GET command')
-  user_id = user_id if user_id else fapdata.ConvertUserName(user_name)
-  fapdata.DownloadFavorites(
+  user_id = user_id if user_id else fapbase.ConvertUserName(user_name)
+  fapbase.DownloadFavorites(
       user_id,
-      folder_id if folder_id else fapdata.ConvertFavoritesName(user_id, favorites_name)[0],
+      folder_id if folder_id else fapbase.ConvertFavoritesName(user_id, favorites_name)[0],
       output_path)
 
 

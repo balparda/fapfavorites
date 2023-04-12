@@ -7,6 +7,7 @@
 import logging
 
 from baselib import base
+from fapfavorites import fapbase_test
 from fapfavorites import duplicates_test
 from fapfavorites import fapdata_test
 from fapfavorites import favorites_test
@@ -18,6 +19,7 @@ __version__ = (1, 0)
 
 
 _TEST_MODULES_TO_RUN = (
+    fapbase_test,
     duplicates_test,
     fapdata_test,
     favorites_test,

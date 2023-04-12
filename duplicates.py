@@ -26,7 +26,7 @@ from typing import Literal, Optional, Union, TypedDict
 from imagededup import methods as image_methods
 import numpy as np
 
-from baselib import base
+from fapfavorites import fapbase
 
 
 # internal types definitions
@@ -102,7 +102,7 @@ DuplicatesType = dict[DuplicatesKeyType, DuplicateObjType]
 DuplicatesKeyIndexType = dict[str, DuplicatesKeyType]
 
 
-class Error(base.Error):
+class Error(fapbase.Error):
   """Base duplicates exception."""
 
 
