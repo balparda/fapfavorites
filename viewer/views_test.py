@@ -1201,9 +1201,9 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
     'name': 'luke-folder-10',
     'show_duplicates': True,
     'dup_url': 'dup=1',
-    'show_portraits': True,
+    'show_portraits': 1,
     'portrait_url': 'portrait=1',
-    'show_landscapes': True,
+    'show_landscapes': 1,
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
@@ -1243,12 +1243,12 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
-            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
-                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
-                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
-                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/\'name-102.jpg\' (1/10/102) <= THIS\n'
+                                'Visual: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/\'name-110.png\' (1/11/110)'),
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [],
             'verdict': 'new',
@@ -1262,9 +1262,9 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/101/',
-            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
-                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101) <= THIS\n'
-                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101) <= THIS\n'
+                                'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
             'verdict': 'skip',
@@ -1278,15 +1278,15 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': True,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/104/',
-            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Exact: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Exact: Luke/luke-folder-10/name-104.jpg (1/10/104) <= THIS\n'
-                                'Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
-                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
-                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104) <= THIS\n'
-                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Exact: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Exact: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104) <= THIS\n'
+                                'Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/\'name-102.jpg\' (1/10/102)\n'
+                                'Visual: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104) <= THIS\n'
+                                'Visual: Luke/luke-folder-11/\'name-110.png\' (1/11/110)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [
                 (104, '2023/Feb/02-17:59:30-UTC', 'URL_EXTRACTION'),
@@ -1349,9 +1349,9 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
     'name': 'luke-folder-10',
     'show_duplicates': False,
     'dup_url': 'dup=0',
-    'show_portraits': False,
+    'show_portraits': 0,
     'portrait_url': 'portrait=0',
-    'show_landscapes': False,
+    'show_landscapes': 0,
     'landscape_url': 'landscape=0',
     'locked_for_tagging': True,
     'tagging_url': 'lock=1',
@@ -1378,12 +1378,12 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
-            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
-                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
-                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
-                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/\'name-102.jpg\' (1/10/102) <= THIS\n'
+                                'Visual: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/\'name-110.png\' (1/11/110)'),
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [],
             'verdict': 'new',
@@ -1411,9 +1411,9 @@ _FAVORITE_CONTEXT_FILTER_DUPLICATES: dict[str, Any] = {
     'name': 'luke-folder-10',
     'show_duplicates': False,
     'dup_url': 'dup=0',
-    'show_portraits': True,
+    'show_portraits': 1,
     'portrait_url': 'portrait=1',
-    'show_landscapes': True,
+    'show_landscapes': 1,
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
@@ -1447,12 +1447,12 @@ _FAVORITE_CONTEXT_FILTER_DUPLICATES: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
-            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
-                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102) <= THIS\n'
-                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
-                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/\'name-102.jpg\' (1/10/102) <= THIS\n'
+                                'Visual: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/\'name-110.png\' (1/11/110)'),
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [],
             'verdict': 'new',
@@ -1504,9 +1504,9 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
     ],
     'show_duplicates': False,
     'dup_url': 'dup=0',
-    'show_portraits': True,
+    'show_portraits': 1,
     'portrait_url': 'portrait=1',
-    'show_landscapes': True,
+    'show_landscapes': 1,
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
@@ -1533,9 +1533,9 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
     ],
     'show_duplicates': False,
     'dup_url': 'dup=0',
-    'show_portraits': True,
+    'show_portraits': 1,
     'portrait_url': 'portrait=1',
-    'show_landscapes': True,
+    'show_landscapes': 1,
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
@@ -1572,12 +1572,12 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
-            'duplicate_hints': ('Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
-                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
-                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
-                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/\'name-102.jpg\' (1/10/102)\n'
+                                'Visual: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/\'name-110.png\' (1/11/110)'),
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [],
             'verdict': 'new',
@@ -1605,9 +1605,9 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/111/',
-            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
-                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
-                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101)\n'
+                                'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
             'verdict': 'keep',
@@ -1660,9 +1660,9 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
     ],
     'show_duplicates': False,
     'dup_url': 'dup=0',
-    'show_portraits': True,
+    'show_portraits': 1,
     'portrait_url': 'portrait=1',
-    'show_landscapes': True,
+    'show_landscapes': 1,
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
@@ -1694,9 +1694,9 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/111/',
-            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
-                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
-                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101)\n'
+                                'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
             'verdict': 'keep',
@@ -1736,9 +1736,9 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
     ],
     'show_duplicates': True,
     'dup_url': 'dup=1',
-    'show_portraits': True,
+    'show_portraits': 1,
     'portrait_url': 'portrait=1',
-    'show_landscapes': True,
+    'show_landscapes': 1,
     'landscape_url': 'landscape=1',
     'locked_for_tagging': True,
     'tagging_url': 'lock=1',
@@ -1770,9 +1770,9 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/111/',
-            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-201.jpg (2/20/201)\n'
-                                'Exact: Luke/luke-folder-10/name-101.jpg (1/10/101)\n'
-                                'Exact: Luke/luke-folder-11/name-111.jpg (1/11/111)'),
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
+                                'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101)\n'
+                                'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
             'verdict': 'keep',
@@ -1800,15 +1800,15 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/104/',
-            'duplicate_hints': ('Exact: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Exact: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Exact: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
-                                'Visual: Ben/ben-folder-20/name-202.png (2/20/202)\n'
-                                'Visual: Ben/ben-folder-20/name-203.jpg (2/20/203)\n'
-                                'Visual: Luke/luke-folder-10/name-100.jpg (1/10/100)\n'
-                                'Visual: Luke/luke-folder-10/name-102.jpg (1/10/102)\n'
-                                'Visual: Luke/luke-folder-10/name-104.jpg (1/10/104)\n'
-                                'Visual: Luke/luke-folder-11/name-110.png (1/11/110)'),
+            'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Exact: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Exact: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104)\n'
+                                'Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
+                                'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
+                                'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
+                                'Visual: Luke/luke-folder-10/\'name-102.jpg\' (1/10/102)\n'
+                                'Visual: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104)\n'
+                                'Visual: Luke/luke-folder-11/\'name-110.png\' (1/11/110)'),
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [
                 (104, '2023/Feb/02-17:59:30-UTC', 'URL_EXTRACTION'),

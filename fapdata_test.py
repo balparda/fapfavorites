@@ -599,6 +599,8 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.blobs, {})
       self.assertDictEqual(db.image_ids_index, {})
 
+  # TODO: write tests for integrity checks
+
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   @mock.patch('fapfavorites.fapdata.requests.get')
   @mock.patch('fapfavorites.fapbase.FapHTMLRead')
@@ -644,7 +646,7 @@ class TestFapDatabase(unittest.TestCase):
          mock.call('url-101', stream=True, timeout=None),
          mock.call('url-104', stream=True, timeout=None),
          mock.call('url-107', stream=True, timeout=None)])
-    mock_save.assert_called_once_with()
+    self.assertListEqual(mock_save.call_args_list, [mock.call(), mock.call()])
     self.assertEqual(db.users[10]['date_audit'], 1676368670)
     self.assertDictEqual(db.blobs, _BLOBS_AUDITED)
     fapbase.FULL_IMAGE = None  # set to None for safety
@@ -714,8 +716,8 @@ _FAVORITES: fapdata._FavoriteType = {
         },
         30: {
             'date_blobs': 1675368690,
-            'failed_images': {(106, 1675368670, None, 'url-106')},
-            'images': [104, 105],
+            'failed_images': set(),
+            'images': [104, 105, 106],
             'name': 'fav-30',
             'pages': 1,
         },
@@ -815,7 +817,10 @@ _BLOBS: fapdata._BlobType = {  # type: ignore
         'ext': 'jpg',
         'gone': {},
         'height': 222,
-        'loc': {(10, 20, 106): ('106.jpg', 'new')},
+        'loc': {
+            (10, 20, 106): ('106.jpg', 'new'),
+            (10, 30, 106): ('unknown', 'new'),
+        },
         'percept': '89991f6f62a63479',
         'sz': 89216,
         'sz_thumb': 11890,
@@ -982,7 +987,10 @@ _BLOBS_AUDITED: fapdata._BlobType = {  # type: ignore
                   'https://www.imagefap.com/photo/106/'),
         },
         'height': 222,
-        'loc': {(10, 20, 106): ('106.jpg', 'new')},
+        'loc': {
+            (10, 20, 106): ('106.jpg', 'new'),
+            (10, 30, 106): ('unknown', 'new'),
+        },
         'percept': '89991f6f62a63479',
         'sz': 89216,
         'sz_thumb': 11890,
@@ -1251,8 +1259,8 @@ Pixel size (width, height): 22.49k pixels min (130, 173), 66.60k pixels max (300
 
 1 users
 2 favorite galleries (oldest: 2023/Feb/02-20:11:10-UTC / newer: 2023/Feb/02-20:11:30-UTC)
-9 unique images (12 total, 5 exact duplicates)
-2 unique failed images in all user albums
+9 unique images (13 total, 7 exact duplicates)
+1 unique failed images in all user albums
 0 unique images are now disappeared from imagefap site
 0 perceptual duplicates in 0 groups
 """  # noqa: E501
@@ -1264,27 +1272,27 @@ ID: USER_NAME
            FILE STATS FOR FAVORITES
 
 10: 'user-10'
-    1.01Mb files size (38.23kb min, 434.54kb max, 85.88kb mean with 110.61kb standard deviation)
+    1.09Mb files size (38.23kb min, 434.54kb max, 85.97kb mean with 105.90kb standard deviation)
     => 20: 'fav-20' (10 / 1 / 1 / 2023/Feb/02-20:11:10-UTC)
            928.16kb files size (38.23kb min, 434.54kb max, 92.82kb mean with 120.95kb standard deviation)
-    => 30: 'fav-30' (2 / 1 / 1 / 2023/Feb/02-20:11:30-UTC)
-           102.38kb files size (47.13kb min, 55.26kb max, 51.19kb mean with - standard deviation)
+    => 30: 'fav-30' (3 / 0 / 1 / 2023/Feb/02-20:11:30-UTC)
+           189.51kb files size (47.13kb min, 87.12kb max, 63.17kb mean with 21.14kb standard deviation)
 """.splitlines()[1:]  # noqa: E501
 
 _PRINTED_BLOBS_FULL = """
 SHA256_HASH: ID1/'NAME1' or ID2/'NAME2' or ..., PIXELS (WIDTH, HEIGHT) [ANIMATED]
     => {'TAG1', 'TAG2', ...}
 
-0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19: user-10/fav-20/102.jpg (10/20/102), 33.60k (168, 200)
-321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6: user-10/fav-20/108.png (10/20/108), 22.49k (130, 173)
-4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207: user-10/fav-20/107.png (10/20/107), 38.25k (170, 225)
-74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449: user-10/fav-20/104.png (10/20/104) or user-10/fav-30/104.png (10/30/104), 30.80k (154, 200)
-9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf: user-10/fav-20/101.jpg (10/20/101), 32.00k (160, 200)
-dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180: user-10/fav-20/106.jpg (10/20/106), 66.60k (300, 222)
+0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19: user-10/fav-20/'102.jpg' (10/20/102), 33.60k (168, 200)
+321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6: user-10/fav-20/'108.png' (10/20/108), 22.49k (130, 173)
+4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207: user-10/fav-20/'107.png' (10/20/107), 38.25k (170, 225)
+74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449: user-10/fav-20/'104.png' (10/20/104) + user-10/fav-30/'104.png' (10/30/104), 30.80k (154, 200)
+9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf: user-10/fav-20/'101.jpg' (10/20/101), 32.00k (160, 200)
+dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180: user-10/fav-20/'106.jpg' (10/20/106) + user-10/fav-30/'unknown' (10/30/106), 66.60k (300, 222)
     => {one (1)}
-e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e: user-10/fav-20/100.jpg (10/20/100) or user-10/fav-20/105.jpg (10/20/105) or user-10/fav-30/105.jpg (10/30/105), 49.20k (200, 246)
-ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e: user-10/fav-20/109.gif (10/20/109), 50.00k (500, 100) animated
-ed257bbbcb316f05f852f80b705d0c911e8ee51c7962fa207962b40a653fd5f9: user-10/fav-20/103.jpg (10/20/103), 31.44k (158, 199)
+e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e: user-10/fav-20/'100.jpg' (10/20/100) + user-10/fav-20/'105.jpg' (10/20/105) + user-10/fav-30/'105.jpg' (10/30/105), 49.20k (200, 246)
+ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e: user-10/fav-20/'109.gif' (10/20/109), 50.00k (500, 100) animated
+ed257bbbcb316f05f852f80b705d0c911e8ee51c7962fa207962b40a653fd5f9: user-10/fav-20/'103.jpg' (10/20/103), 31.44k (158, 199)
 """.splitlines()[1:]  # noqa: E501
 
 

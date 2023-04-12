@@ -51,8 +51,11 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.BlobIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AlbumIntegrityCheck')
   def test_GetOperation(
-      self, audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
+      self, album_integrity: mock.MagicMock, blob_integrity: mock.MagicMock,
+      audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
       read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
       add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
       add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
@@ -84,6 +87,8 @@ class TestFavorites(unittest.TestCase):
     find_duplicates.assert_not_called()
     add_all.assert_not_called()
     audit.assert_not_called()
+    album_integrity.assert_not_called()
+    blob_integrity.assert_not_called()
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapbase.ConvertUserName')
@@ -100,8 +105,11 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.BlobIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AlbumIntegrityCheck')
   def test_ReadOperation(
-      self, audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
+      self, album_integrity: mock.MagicMock, blob_integrity: mock.MagicMock,
+      audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
       read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
       add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
       add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
@@ -139,6 +147,8 @@ class TestFavorites(unittest.TestCase):
     add_folder_by_name.assert_not_called()
     download_favorites.assert_not_called()
     audit.assert_not_called()
+    album_integrity.assert_not_called()
+    blob_integrity.assert_not_called()
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
@@ -224,8 +234,11 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.BlobIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AlbumIntegrityCheck')
   def test_AuditOperation(
-      self, audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
+      self, album_integrity: mock.MagicMock, blob_integrity: mock.MagicMock,
+      audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
       read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
       add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
       add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
@@ -246,8 +259,10 @@ class TestFavorites(unittest.TestCase):
         [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
     load.assert_called_once_with()
     add_user_by_name.assert_called_once_with('"foo-user"')
+    album_integrity.assert_called_once_with()
+    blob_integrity.assert_called_once_with()
     audit.assert_called_once_with(10, 100, False)
-    save.assert_called_once_with()
+    save.assert_not_called()
     convert_favorites.assert_not_called()
     convert_name.assert_not_called()
     add_user_by_id.assert_not_called()

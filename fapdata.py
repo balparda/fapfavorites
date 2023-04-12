@@ -360,10 +360,14 @@ class FapDatabase:
   def LocationStr(self, key: LocationKeyType, value: LocationValueType) -> str:
     """Produce standard location repr, like 'UserName/FolderName/ImageName (uid/fid/img_id)'."""
     try:
-      return (f'{self.users[key[0]]["name"]}/{self.favorites[key[0]][key[1]]["name"]}/{value[0]} '
+      return (f'{self.users[key[0]]["name"]}/{self.favorites[key[0]][key[1]]["name"]}/{value[0]!r} '
               f'({key[0]}/{key[1]}/{key[2]})')
     except KeyError as err:
       raise Error(f'Invalid location {key!r}/{value!r}') from err
+
+  def LocationsStr(self, location: _LocationType) -> str:
+    """Produce standard locations repr, like 'loc1 + loc2 + ...' where each one is a LocationStr."""
+    return ' + '.join(self.LocationStr(loc_k, location[loc_k]) for loc_k in sorted(location.keys()))
 
   def TagStr(self, tag_id: int, add_id: bool = True) -> str:
     """Produce standard tag representation, like 'TagName (id)'."""
@@ -440,6 +444,26 @@ class FapDatabase:
     with open(self._ThumbnailPath(sha), 'rb') as file_obj:
       raw_data = file_obj.read()
     return raw_data if self._key is None else base.Decrypt(raw_data, self._key)
+
+  def _SHAFromFileName(self, file_name: str) -> str:
+    """Get database blob/thumb hash (SHA-256) from file name on disk.
+
+    Args:
+      file_name: the file name (without directory, just file name)
+
+    Returns:
+      SHA to use in DB from the file name
+
+    Raises:
+      Error: if file format is unexpected and can't be processed
+    """
+    try:
+      digest, _ = file_name.strip().lower().split('.', maxsplit=1)  # cspell:disable-line
+      if len(digest) != 64:
+        raise ValueError('Expected 64 chars in file name (256 bits of hexadecimal)')
+      return digest if self._sha_encoder is None else self._sha_encoder.DecryptHexdigest256(digest)
+    except ValueError as err:
+      raise Error('Unexpected or invalid blob/thumb file name {file_name!r}') from err
 
   def GetTag(self, tag_id: int) -> list[tuple[int, str, TagObjType]]:  # noqa: C901
     """Search recursively for specific tag object, returning parents too, if any.
@@ -780,9 +804,8 @@ class FapDatabase:
     _PrintLine()
     for sha in sorted(self.blobs.keys()):
       blob = self.blobs[sha]
-      locations = ' or '.join(
-          self.LocationStr(loc, blob['loc'][loc]) for loc in sorted(blob['loc']))
-      _PrintLine(f'{sha}: {locations}, {base.HumanizedDecimal(blob["width"] * blob["height"])} '
+      _PrintLine(f'{sha}: {self.LocationsStr(blob["loc"])}, '
+                 f'{base.HumanizedDecimal(blob["width"] * blob["height"])} '
                  f'({blob["width"]}, {blob["height"]}){" animated" if blob["animated"] else ""}')
       if blob['tags']:
         _PrintLine(f'    => {{{", ".join(self.TagStr(tid) for tid in sorted(blob["tags"]))}}}')
@@ -930,7 +953,7 @@ class FapDatabase:
         # check if we can accept it as a images gallery
         try:
           fapbase.CheckFolderIsForImages(user_id, i_f_id)  # raises Error if not valid
-        except Error:
+        except fapbase.Error:
           # this is a galleries favorite, so we can skip: we want images gallery!
           logging.info('Discarded galleries folder %r (%d/%d)', f_name, user_id, i_f_id)
           non_galleries += 1
@@ -1044,27 +1067,27 @@ class FapDatabase:
     for img_id in list(self.favorites[user_id][folder_id]['images']):  # copy b/c we might change it
       # figure out if we have it in the index, i.e., if we've seen img_id before
       sha = self.image_ids_index.get(img_id, None)
-      sanitized_image_name: Optional[str] = None
+      sanitized_image_name: str = 'unknown'
       if sha is not None and self.HasBlob(sha):
         # we have seen this img_id before, and can skip a lot of stuff
         # also: we only have to add it if it is not an exact match user_id+folder_id+img_id
         if (user_id, folder_id, img_id) in self.blobs[sha]['loc']:
           # and we are done for this image, since it is a complete duplicate
           known_count += 1
+          logging.info('Image %d already in %s', img_id, self.AlbumStr(user_id, folder_id))
           continue
         # in this last case we know the img_id but it seems to be duplicated in another album,
         # so we have to get the image name at least so we can add it to the database
         try:
           _, sanitized_image_name, _ = fapbase.ExtractFullImageURL(img_id)
-          self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
           self.blobs[sha]['date'] = base.INT_TIME()
-          known_count += 1
-        except fapbase.Error404 as err:
-          err.image_id = img_id  # (in this case we will never have an image name to add)
-          self.favorites[user_id][folder_id]['images'].remove(img_id)
-          self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple(log=True))
-          failed_count += 1
+          logging.info('New location added for known image %d (%r)', img_id, sanitized_image_name)
+        except fapbase.Error404:
+          # image failed, but we can trust to add it with 'unknown' name because the SHA is the same
+          logging.warning('Image %d failed to fetch but is being added with name "unknown"', img_id)
         # either way we are done with this image
+        self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
+        known_count += 1
         continue
       # we don't know about this specific img_id yet: we need more information
       try:
@@ -1078,6 +1101,7 @@ class FapDatabase:
         self.favorites[user_id][folder_id]['images'].remove(img_id)
         self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple(log=True))
         failed_count += 1
+        logging.error('Image %d failed in %s', img_id, self.AlbumStr(user_id, folder_id))
         continue
       # we now have binary data and a SHA for sure: check if SHA is in DB
       if sha in self.blobs and self.HasBlob(sha):
@@ -1086,6 +1110,7 @@ class FapDatabase:
         self.blobs[sha]['date'] = base.INT_TIME()
         self.image_ids_index[img_id] = sha
         exists_count += 1
+        logging.info('New location added for duplicate image %d (%r)', img_id, sanitized_image_name)
         continue
       # now we know we have a truly new image that needs perceptual hashes, thumbnail, etc
       # create a temporary file so we can do all the clear-text operations we need on the file
@@ -1112,6 +1137,7 @@ class FapDatabase:
             'animated': is_animated, 'date': base.INT_TIME(), 'gone': {}}
         self.image_ids_index[img_id] = sha
         saved_count += 1
+        logging.info('New image %d (%r) finished processing', img_id, sanitized_image_name)
       # temp file is closed; checkpoint database, if needed
       if checkpoint_size and not saved_count % checkpoint_size:
         self.Save()
@@ -1282,25 +1308,36 @@ class FapDatabase:
         self._DeleteIndexIfOrphan(folder_id, img_id)
         continue
       # this blob is orphaned and must be purged; start by deleting the files on disk, if they exist
-      try:
-        os.remove(self._BlobPath(sha))
-        logging.info('Deleted blob %r from disk', sha)
-      except FileNotFoundError as err:
-        logging.warning('Blob %r not found: %s', sha, err)
-      try:
-        os.remove(self._ThumbnailPath(sha))
-        logging.info('Deleted thumbnail %r from disk', sha)
-      except FileNotFoundError as err:
-        logging.warning('Thumbnail %r not found: %s', sha, err)
-      # now delete the blob entry
-      del self.blobs[sha]
+      duplicate_count += int(self._DeleteOrphanBlob(sha))
       img_count += 1
-      # purge the duplicates and the indexes associated with this blob
-      duplicate_count += int(self.duplicates.TrimDeletedBlob(sha))
-      self._DeleteIndexesToBlob(sha)
     # finally delete the actual album entry and return the counts
     del self.favorites[user_id][folder_id]
     return (img_count, duplicate_count)
+
+  def _DeleteOrphanBlob(self, sha: str) -> bool:
+    """Delete orphaned blob `sha` and take care of its dependencies.
+
+    Args:
+      sha: the blob to delete
+
+    Returns:
+      True if a duplicates group was deleted too; False otherwise
+    """
+    try:
+      os.remove(self._BlobPath(sha))
+      logging.info('Deleted blob %r from disk', sha)
+    except FileNotFoundError as err:
+      logging.warning('Blob %r not found: %s', sha, err)
+    try:
+      os.remove(self._ThumbnailPath(sha))
+      logging.info('Deleted thumbnail %r from disk', sha)
+    except FileNotFoundError as err:
+      logging.warning('Thumbnail %r not found: %s', sha, err)
+    # now delete the blob entry
+    del self.blobs[sha]
+    # purge the duplicates and the indexes associated with this blob
+    self._DeleteIndexesToBlob(sha)
+    return self.duplicates.TrimDeletedBlob(sha)
 
   def _DeleteIndexesToBlob(self, sha: str) -> None:
     """Delete all index entries pointing to (recently deleted) blob `sha`."""
@@ -1343,6 +1380,8 @@ class FapDatabase:
     Returns:
       int count of new individual duplicate images found
     """
+    # TODO: investigate if we can have a way to only match new images against old ones instead
+    #     of all against all... if possible will significantly speed duplicates up
     self._IdenticalVerdictsMaintenance()
     return self.duplicates.FindDuplicates(
         self._hashes_encodings_map,
@@ -1360,6 +1399,307 @@ class FapDatabase:
         if verdict != 'new':
           blob['loc'][loc_key] = (img_name, 'new')
 
+  def AlbumIntegrityCheck(self) -> None:
+    """Go over user albums in DB and check that all images are accounted for."""
+    self._UsersIntegrityCheck()
+    all_valid_ids = self._AlbumIdsIntegrityCheck()
+    self._CheckForIndexOrphans(all_valid_ids)
+    self._CheckLocationIntegrity()
+    self._CheckTagsIntegrity()
+    self.Save()
+
+  def _UsersIntegrityCheck(self) -> None:
+    """Make sure all users in favorites are listed in user database."""
+    for user_id in sorted(self.favorites.keys()):
+      if user_id not in self.users:
+        logging.error('User ID %d in favorites not supported in DB', user_id)
+        # we fix by adding the user
+        self.AddUserByID(user_id)
+        logging.info('Corrected: added user %s', self.UserStr(user_id))
+    logging.info('Finished users integrity audit')
+
+  def _AlbumIdsIntegrityCheck(self) -> set[int]:  # noqa: C901
+    """Check all images in albums are valid pointers.
+
+    Check that all image IDs in all albums are in index and index points to valid blob and
+    make sure no failed images are listed in the index.
+
+    Returns:
+      set of all valid IDs in the database
+    """
+    all_valid_ids: set[int] = set()
+    for user_id in sorted(self.favorites.keys()):
+      for album_id in sorted(self.favorites[user_id].keys()):
+        if not self.favorites[user_id][album_id]['date_blobs']:
+          logging.info('Skipping unfinished album %s', self.AlbumStr(user_id, album_id))
+          all_valid_ids.update(self.favorites[user_id][album_id]['images'])
+          continue
+        for img_id in self.favorites[user_id][album_id]['images']:
+          # first check for case where the ID is not even in the index
+          if img_id not in self.image_ids_index:
+            logging.error(
+                'Image ID %d in %s is not listed in index',
+                img_id, self.AlbumStr(user_id, album_id))
+            # fix by trying to download the image and adding it to the database
+            try:
+              sha, blob_data = self._CreateFilesOnDiskAndProposeBlob(user_id, album_id, img_id)
+              if sha in self.blobs:
+                self.blobs[sha]['loc'].update(blob_data['loc'])  # update 'loc' in existing blob
+              else:
+                self.blobs[sha] = blob_data  # create a new blob entry
+              self.image_ids_index[img_id] = sha
+              all_valid_ids.add(img_id)
+              logging.info('Corrected: Image %d added to blobs and index', img_id)
+            except fapbase.Error404:
+              logging.error(
+                  'Failed to download/fix image ID %d in %s',
+                  img_id, self.AlbumStr(user_id, album_id))
+            continue
+          # we found ID in index, so check to see in SHA is in blobs
+          sha = self.image_ids_index[img_id]
+          all_valid_ids.add(img_id)
+          if sha not in self.blobs:
+            logging.error(
+                'Image ID %d in %s translates to SHA %r not listed in blobs',
+                img_id, self.AlbumStr(user_id, album_id), sha)
+            try:
+              new_sha, blob_data = self._CreateFilesOnDiskAndProposeBlob(user_id, album_id, img_id)
+              if new_sha == sha:
+                self.blobs[sha] = blob_data  # create a new blob entry
+                logging.info('Corrected: Image %d added to blobs', img_id)
+              else:
+                del self.image_ids_index[img_id]
+                logging.error(
+                    'Failed to fix image %d because of SHA mismatch (got %r, expected %r)',
+                    img_id, new_sha, sha)
+            except fapbase.Error404:
+              logging.error(
+                  'Failed to download/fix image ID %d in %s',
+                  img_id, self.AlbumStr(user_id, album_id))
+        for failed_id in sorted(self.favorites[user_id][album_id]['failed_images']):
+          img_id = failed_id[0]
+          if img_id in self.image_ids_index:
+            sha = self.image_ids_index[img_id]
+            logging.error(
+                'Image ID %d in %s failed list is actually listed in the index as %r',
+                img_id, self.AlbumStr(user_id, album_id), sha)
+            if sha in self.blobs:
+              # in this case we can fix by promoting the image and adding it to the blob entry
+              self.favorites[user_id][album_id]['images'].append(img_id)
+              self.favorites[user_id][album_id]['failed_images'].remove(failed_id)
+              self.blobs[sha]['loc'][(user_id, album_id, img_id)] = (
+                  'unknown' if failed_id[2] is None else failed_id[2], 'new')
+              logging.info('Corrected: Image %d moved to album list and added to %r', img_id, sha)
+            else:
+              # in this case, since we have no blob, we can only fix by deleting from the index
+              del self.image_ids_index[img_id]
+              logging.info(
+                  'Corrected: Image %d removed from index (SHA %r did not exist)', img_id, sha)
+    logging.info('Finished album image ID integrity audit')
+    return all_valid_ids
+
+  def _CheckForIndexOrphans(self, all_valid_ids: set[int]) -> None:
+    """Make sure there is no leftover (orphaned ID) in index from compared to all IDs."""
+    all_index_keys = set(self.image_ids_index)
+    for img_id in sorted(all_index_keys.difference(all_valid_ids)):
+      logging.error('Image ID %d is in index but not listed in any album')
+      # we fix by removing from the index
+      del self.image_ids_index[img_id]
+      logging.info('Corrected: removed index entry for %d', img_id)
+    logging.info('Finished index entries integrity audit')
+
+  def _CheckLocationIntegrity(self) -> None:
+    """Make sure all 'loc' entries in blobs are for real user/album and known IDs."""
+    for sha in sorted(self.blobs.keys()):
+      for user_id, album_id, img_id in sorted(self.blobs[sha]['loc'].keys()):
+        if (user_id not in self.users or album_id not in self.favorites[user_id] or
+            img_id not in self.favorites[user_id][album_id]['images']):
+          logging.error('Blob %r has invalid location %d/%d/%d', sha, user_id, album_id, img_id)
+          # we fix by removing from 'loc'
+          del self.blobs[sha]['loc'][(user_id, album_id, img_id)]
+          logging.info('Corrected: deleted invalid location %d/%d/%d', user_id, album_id, img_id)
+          # we must make sure to leave a viable blob behind, so we check for that
+          if not self.blobs[sha]['loc']:
+            self._DeleteOrphanBlob(sha)
+            logging.info('Corrected: orphaned blob %r was deleted', sha)
+    logging.info('Finished blob location entries integrity audit')
+
+  def _CheckTagsIntegrity(self) -> None:
+    """Make sure all 'tags' entries in blobs are for existing tags."""
+    all_valid_tags = set(k for k, _, _, _ in self.TagsWalk())
+    for sha in sorted(self.blobs.keys()):
+      for tag_id in sorted(self.blobs[sha]['tags']):
+        if tag_id not in all_valid_tags:
+          logging.error('Blob %r has invalid tag %d', sha, tag_id)
+          # we fix by removing the offending tag
+          self.blobs[sha]['tags'].remove(tag_id)
+          logging.info('Corrected: removed tag %d from blob %r', tag_id, sha)
+    logging.info('Finished blob tags entries integrity audit')
+
+  def BlobIntegrityCheck(self) -> None:
+    """Go over blobs in DB and on disk checking for missing entries on either side.
+
+    This means both checking for blob files that are orphaned (don't have a DB entry) *and*
+    checking that all SHA entries in DB have a blob and a thumb files.
+    """
+    self._SHAOrphanedCheck()
+    self._FileOrphanedCheck()
+
+  def _SHAOrphanedCheck(self) -> None:
+    """Check that all SHA entries in DB have a blob and a thumb files and sizes are OK."""
+    # PHASE 1: Make sure all blobs in DB exist on disk, both as a blob and as a thumbnail
+    logging.info('Searching for missing files...')
+    missing_sha: set[str] = set()
+    missing_count: int = 0
+    decrypt_count: int = 0
+    size_count: int = 0
+    for sha in sorted(self.blobs.keys()):
+      # check for files existence
+      has_blob, has_thumb = self.HasBlob(sha), self.HasThumbnail(sha)
+      if not has_blob or not has_thumb:
+        missing_sha.add(sha)
+        missing_count += 1
+        logging.error(
+            'Missing file entry %r: %s\n    %s blob / %s thumbnail',
+            sha, self.LocationsStr(self.blobs[sha]['loc']),
+            'OK' if has_blob else 'MISSING', 'OK' if has_thumb else 'MISSING')
+        continue  # no need to check for sizes here
+      # check that files decrypt correctly (no point in having them if they are corrupted)
+      try:
+        got_blob = len(self.GetBlob(sha))
+        got_thumb = len(self.GetThumbnail(sha))
+      except base.bin_fernet.InvalidToken:
+        missing_sha.add(sha)
+        decrypt_count += 1
+        logging.error('Decryption error in %r: %s', sha, self.LocationsStr(self.blobs[sha]['loc']))
+        continue  # we know this was a problem already
+      # check that sizes are precisely as reported in the database
+      blob_sz, thumb_sz = self.blobs[sha]['sz'], self.blobs[sha]['sz_thumb']
+      if got_blob != blob_sz or got_thumb != thumb_sz:
+        missing_sha.add(sha)
+        size_count += 1
+        logging.error(
+            'Inconsistent sizes in %r: %s\n    wanted %s / %s, got %s / %s',
+            sha, self.LocationsStr(self.blobs[sha]['loc']),
+            base.HumanizedBytes(blob_sz), base.HumanizedBytes(thumb_sz),
+            base.HumanizedBytes(got_blob), base.HumanizedBytes(got_thumb))
+    logging.warning(
+        'Found %d missing or inconsistent blob entries '
+        '(%d missing, %d decryption errors, %d size inconsistencies)',
+        len(missing_sha), missing_count, decrypt_count, size_count)
+    # PHASE 2: fix the entries that are missing
+    if missing_sha:
+      logging.warning('Starting DOWNLOAD of missing files...')
+      corrected_count, failed_count = self._CorrectMissingSHA(missing_sha)
+      self.Save()
+      logging.warning(
+          '%d files were successfully corrected and %d files failed correction',
+          corrected_count, failed_count)
+    logging.info('Finished missing files audit and correction attempt')
+
+  def _CorrectMissingSHA(self, missing_sha: set[str]) -> tuple[int, int]:
+    corrected_count: int = 0
+    failed_count: int = 0
+    for sha in sorted(missing_sha):
+      blob = self.blobs[sha]
+      for user_id, album_id, img_id in sorted(blob['loc'].keys()):  # try for all known IDs in 'loc'
+        # get the image data afresh
+        try:
+          computed_sha, blob_data = self._CreateFilesOnDiskAndProposeBlob(user_id, album_id, img_id)
+          if sha != computed_sha:
+            logging.error('Image %d had SHA mismatch %r versus %r', img_id, sha, computed_sha)
+            continue
+        except fapbase.Error404:
+          logging.error('Image %d for SHA %r failed download', img_id, sha)
+          continue
+        # update blob, leave 'loc', 'tags' and 'gone' alone
+        del blob_data['loc']   # type: ignore
+        del blob_data['tags']  # type: ignore
+        del blob_data['gone']  # type: ignore
+        blob.update(blob_data)
+        # this image was downloaded and saved
+        corrected_count += 1
+        logging.info('Image SHA %r successfully corrected', sha)
+        break  # stop as soon as an img_id has worked! (any img_id in 'loc')
+      else:
+        failed_count += 1
+        logging.error('Image SHA %r FAILED to be corrected', sha)
+    return (corrected_count, failed_count)
+
+  def _CreateFilesOnDiskAndProposeBlob(
+      self, user_id: int, folder_id: int, img_id: int) -> tuple[str, _BlobObjType]:
+    """Get an image and create the blob/thumb files on disk. Returns the proposed blob entry.
+
+    Args:
+      user_id: User ID
+      folder_id: Folder ID
+      img_id: Image ID
+
+    Returns:
+      (proposed SHA, proposed filled in blob entry dict)
+
+    Raises:
+      Error404: on 404 errors
+    """
+    # get the image data afresh
+    url_path, sanitized_image_name, extension = fapbase.ExtractFullImageURL(img_id)  # might 404
+    image_bytes, sha = fapbase.GetBinary(url_path)                                   # might 404
+    # create a temporary file so we can do all the clear-text operations we need on the file
+    with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+      # write the data we already have to the temp file
+      temp_file.write(image_bytes)
+      temp_file.flush()
+      # generate thumbnail and get dimensions and other image info, save image
+      thumb_sz, width, height, is_animated, extension = self._MakeThumbnailForBlob(
+          sha, extension, temp_file)
+      self._SaveImage(self._BlobPath(sha, extension_hint=extension), image_bytes)
+      percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash = self.duplicates.Encode(
+          temp_file.name)
+    # update blob, leave 'loc', 'tags' and 'gone' alone
+    return (sha, {
+        'loc': {(user_id, folder_id, img_id): (sanitized_image_name, 'new')},
+        'tags': set(), 'sz': len(image_bytes), 'sz_thumb': thumb_sz, 'ext': extension,
+        'percept': percept_hash, 'average': average_hash, 'diff': diff_hash,
+        'wavelet': wavelet_hash, 'cnn': cnn_hash, 'width': width, 'height': height,
+        'animated': is_animated, 'date': base.INT_TIME(), 'gone': {}})
+
+  def _FileOrphanedCheck(self) -> None:
+    """Check for blob files that are orphaned (don't have a DB entry)."""
+    # PHASE 1: Make sure all blobs on disk exist as entries in the DB
+    logging.info('Searching for orphaned files...')
+    orphaned_unencrypted_leftovers: list[tuple[str, str]] = []
+    orphaned_blobs: dict[str, tuple[str, str]] = {}
+    orphaned_thumbs: dict[str, tuple[str, str]] = {}
+    for dir_path, orphaned_obj, search_str in ((self._blobs_dir, orphaned_blobs, 'BLOB'),
+                                               (self._thumbs_dir, orphaned_thumbs, 'THUMBNAIL')):
+      for _, _, file_names in os.walk(dir_path):
+        for file_name in sorted(file_names):
+          if 'unencrypted' in file_name:
+            orphaned_unencrypted_leftovers.append((os.path.join(dir_path, file_name), file_name))
+            logging.error('Leftover %s file found: %s', search_str, file_name)
+            continue  # we already know this file is in the wrong place
+          sha = self._SHAFromFileName(file_name)
+          if sha not in self.blobs:
+            orphaned_obj[sha] = (os.path.join(dir_path, file_name), file_name)
+            logging.error('Orphaned %s file found: %s (%s)', search_str, file_name, sha)
+        # stop after first directory (we don't want to "os.walk" into any other directory)
+        break
+    logging.warning('Found %d unencrypted file left-overs', len(orphaned_unencrypted_leftovers))
+    logging.warning('Found %d orphaned BLOBs and %d orphaned THUMBNAILs',
+                    len(orphaned_blobs), len(orphaned_thumbs))
+    # PHASE 2: delete the extra files
+    if orphaned_unencrypted_leftovers or orphaned_blobs or orphaned_thumbs:
+      logging.warning('Starting DELETION of orphaned files...')
+    for file_path, file_name in orphaned_unencrypted_leftovers:
+      logging.info('Deleting leftover file %r', file_name)
+      os.remove(file_path)
+    for orphaned_obj, search_str in ((orphaned_blobs, 'BLOB'), (orphaned_thumbs, 'THUMBNAIL')):
+      for sha in sorted(orphaned_obj.keys()):
+        file_path, file_name = orphaned_obj[sha]
+        logging.info('Deleting %s orphan file %r (%s)', search_str, file_name, sha)
+        os.remove(file_path)
+    logging.info('Finished orphaned files audit')
+
   def Audit(self, user_id: int, checkpoint_size: int, force_audit: bool) -> None:  # noqa: C901
     """Audit an user to find any missing images.
 
@@ -1372,7 +1712,6 @@ class FapDatabase:
     Raises:
       Error: invalid user_id or user not finished
     """
-    # TODO: should also find missing blobs and thumbs (in self.blobs but not on disk)... it happens!
     # check if we know the user and they have been finished
     if user_id not in self.users or not self.users[user_id]['date_finished']:
       raise Error(f'Unknown user {user_id} or user not yet finished: before `audit` you must '
@@ -1444,6 +1783,7 @@ class FapDatabase:
           self.Save()
     # finished audit, mark user as audited
     self.users[user_id]['date_audit'] = base.INT_TIME()
+    self.Save()
     logging.info(
         'Audit for user %s finished, %d images checked, with %d image errors',
         self.UserStr(user_id), checked_count, problem_count)

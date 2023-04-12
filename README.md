@@ -247,13 +247,20 @@ After you have a database in place you can use the `audit` operation to
 look at all pictures for a `--user` (or `--id`) and find out if any images
 in the DB are missing from the site. This will *not* download any new images
 but will re-check the existence of images in the database for that user.
+
+Audit will also go over the database looking for any inconsistencies that may
+have been introduced, and will try to correct for them (in this case it might
+try to correct a missing file, for example, by downloading it). In general
+the database audit will be very benign and helpful.
+
 Use `audit` sparingly, as it is rather wasteful.
 
 ```
 ./favorites.py audit --user dirty999
 ```
 
-The results of this operation can be seen in the web interface.
+The results of the missing images search operation can be seen in the web
+interface.
 
 ## Usage of `process.py`
 

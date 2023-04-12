@@ -83,17 +83,18 @@ def _ReadOperation(database: fapdata.FapDatabase,
 
 
 def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bool) -> None:
-  """Implement `audit` user operation: Check all user images for continued existence.
+  """Implement `audit` user operation: Check consistency and user images for continued existence.
 
   Args:
     database: Active fapdata.FapDatabase
     user_id: User ID
     force_audit: If True will audit even if recently audited
   """
-  # start
+  print('Checking DATABASE INTEGRITY')
+  database.BlobIntegrityCheck()
+  database.AlbumIntegrityCheck()
   print('Executing AUDIT command')
   database.Audit(user_id, fapdata.AUDIT_CHECKPOINT_LENGTH, force_audit)
-  database.Save()
 
 
 @click.command()  # see `click` module usage in http://click.pocoo.org/
