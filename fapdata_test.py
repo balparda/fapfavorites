@@ -14,7 +14,7 @@ import copy
 import hashlib
 import os
 import os.path
-import pdb
+# import pdb
 import tempfile
 import unittest
 from unittest import mock
@@ -622,8 +622,6 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.blobs, {})
       self.assertDictEqual(db.image_ids_index, {})
 
-  # TODO: write tests for integrity checks
-
   @mock.patch('fapfavorites.fapdata.FapDatabase._UsersIntegrityCheck')
   @mock.patch('fapfavorites.fapdata.FapDatabase._AlbumIdsIntegrityCheck')
   @mock.patch('fapfavorites.fapdata.FapDatabase._CheckForIndexOrphans')
@@ -634,6 +632,7 @@ class TestFapDatabase(unittest.TestCase):
       self, save: mock.MagicMock, tags: mock.MagicMock, location: mock.MagicMock,
       index: mock.MagicMock, albums: mock.MagicMock, users: mock.MagicMock) -> None:
     """Test."""
+    self.maxDiff = None
     db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     albums.return_value = {1, 2, 3}
     db.AlbumIntegrityCheck()
@@ -649,10 +648,197 @@ class TestFapDatabase(unittest.TestCase):
   def test_BlobIntegrityCheck(
       self, sha_orphaned: mock.MagicMock, file_orphaned: mock.MagicMock) -> None:
     """Test."""
+    self.maxDiff = None
     db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     db.BlobIntegrityCheck()
     sha_orphaned.assert_called_once_with()
     file_orphaned.assert_called_once_with()
+
+  @mock.patch('fapfavorites.fapdata.FapDatabase.AddUserByID')
+  def test_UsersIntegrityCheck(self, add_user: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    db.favorites[99] = {}  # add extra user
+
+    def _NewUser(uid: int) -> None:
+      db.users[uid] = {'name': f'user{uid}'}  # type: ignore
+
+    add_user.side_effect = _NewUser
+    db._UsersIntegrityCheck()
+    add_user.assert_called_once_with(99)
+
+  @mock.patch('fapfavorites.fapdata.FapDatabase._CreateFilesOnDiskAndProposeBlob')
+  @mock.patch('fapfavorites.fapdata.base.INT_TIME')
+  def test_AlbumIdsIntegrityCheck(
+      self, int_time: mock.MagicMock, create_blob: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    int_time.return_value = 9999
+    db = _TestDBFactory()     # pylint: disable=no-value-for-parameter
+    db.favorites[10][99] = {  # add album to be skipped (b/c is unfinished)
+        'name': 'unfinished', 'date_blobs': 0, 'pages': 1,
+        'failed_images': set(), 'images': [1, 2]}
+    db.favorites[10][30]['images'].extend(
+        [1000, 1001, 1002, 1003, 1004, 1005])   # add 6 spurious IDs to the list
+    db.image_ids_index[1003] = 'unknown-sha-3'  # add the last 3 to the index, pointing
+    db.image_ids_index[1004] = 'unknown-sha-4'  # to unknown SHA entries
+    db.image_ids_index[1005] = 'unknown-sha-5'
+    db.favorites[10][30]['failed_images'] = {        # add 3 failed images that we will add to index
+        (1010, 1675368670, '1010.jpg', 'url-1010'),  # this one with invalid SHA
+        (1011, 1675368670, '1011.jpg', 'url-1011'),  # this with valid SHA and name
+        (1012, 1675368670, None, None)}              # this with valid SHA but empty name field
+    db.image_ids_index[1010] = 'unknown-sha-10'
+    db.image_ids_index[1011] = 'ed257bbbcb316f05f852f80b705d0c911e8ee51c7962fa207962b40a653fd5f9'
+    db.image_ids_index[1012] = 'ed257bbbcb316f05f852f80b705d0c911e8ee51c7962fa207962b40a653fd5f9'
+    create_blob.side_effect = [
+        ('74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449',  # 1000: known SHA
+         {'loc': {(10, 30, 1000): ('1000.png', 'new')}}),
+        ('new-sha', {'loc': {(10, 30, 1001): ('1001.jpg', 'new')}}),          # 1001: new SHA
+        fapbase.Error404('url-1002'),                                         # 1002: 404 error
+        ('unknown-sha-3', {'loc': {(10, 30, 1003): ('1003.jpg', 'new')}}),    # 1003: success in add
+        ('different-sha-4', {'loc': {(10, 30, 1004): ('1004.jpg', 'new')}}),  # 1004: invalid SHA
+        fapbase.Error404('url-1005')]                                         # 1005: 404 error
+    self.assertSetEqual(
+        db._AlbumIdsIntegrityCheck(),
+        {100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 1, 2, 1000, 1001, 1003, 1011, 1012})
+    self.assertListEqual(
+        create_blob.call_args_list,
+        [mock.call(10, 30, 1000), mock.call(10, 30, 1001), mock.call(10, 30, 1002),
+         mock.call(10, 30, 1003), mock.call(10, 30, 1004), mock.call(10, 30, 1005)])
+    self.assertListEqual(
+        db.favorites[10][30]['images'], [104, 105, 106, 1000, 1001, 1003, 1011, 1012])
+    self.assertSetEqual(
+        db.favorites[10][30]['failed_images'],
+        {(1002, 9999, None, 'url-1002'),
+         (1004, 9999, '1004.jpg', None),
+         (1005, 9999, None, 'url-1005'),
+         (1010, 1675368670, '1010.jpg', 'url-1010')})
+    self.assertSetEqual(
+        set(db.image_ids_index),
+        {100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 1000, 1001, 1003, 1011, 1012})
+    self.assertEqual(
+        db.image_ids_index[1000],
+        '74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449')
+    self.assertEqual(db.image_ids_index[1001], 'new-sha')
+    self.assertEqual(db.image_ids_index[1003], 'unknown-sha-3')
+    self.assertDictEqual(
+        db.blobs['74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449']['loc'],
+        {(10, 20, 104): ('104.png', 'new'),
+         (10, 30, 104): ('104.png', 'new'),
+         (10, 30, 1000): ('1000.png', 'new')})
+    self.assertDictEqual(
+        db.blobs['ed257bbbcb316f05f852f80b705d0c911e8ee51c7962fa207962b40a653fd5f9']['loc'],
+        {(10, 20, 103): ('103.jpg', 'new'),
+         (10, 30, 1011): ('1011.jpg', 'new'),
+         (10, 30, 1012): ('unknown', 'new')})
+    self.assertDictEqual(db.blobs['new-sha'], {'loc': {(10, 30, 1001): ('1001.jpg', 'new')}})
+    self.assertDictEqual(db.blobs['unknown-sha-3'], {'loc': {(10, 30, 1003): ('1003.jpg', 'new')}})
+
+  def test_CheckForIndexOrphans(self) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    valid_ids = {100, 101, 102, 103, 104, 106, 107, 108, 109}  # 105 is missing
+    db._CheckForIndexOrphans(valid_ids)
+    self.assertSetEqual(set(db.image_ids_index), valid_ids)
+
+  def test_CheckLocationIntegrity(self) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    db.favorites[10][20]['images'].remove(108)  # only loc in the blob
+    db.favorites[10][30]['images'].remove(104)  # one of 2 loc in the blob
+    db._CheckLocationIntegrity()
+    self.assertDictEqual(
+        db.blobs['74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449']['loc'],
+        {(10, 20, 104): ('104.png', 'new')})
+    self.assertIn(104, db.image_ids_index)
+    self.assertNotIn('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6', db.blobs)
+    self.assertNotIn(108, db.image_ids_index)
+
+  def test_CheckTagsIntegrity(self) -> None:
+    """Test."""
+    self.maxDiff = None    # note: the valid tags are {1, 33, 3, 2, 10, 11, 246, 22, 24}
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'][
+        'tags'] = {3, 2, 10, 11}     # all valid
+    db.blobs['74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449'][
+        'tags'] = {1, 33, 333, 666}  # 333 & 666 are invalid
+    db.blobs['e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'][
+        'tags'] = {9, 99}            # all invalid
+    db._CheckTagsIntegrity()
+    self.assertSetEqual(
+        db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19']['tags'],
+        {3, 2, 10, 11})
+    self.assertSetEqual(
+        db.blobs['74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449']['tags'],
+        {1, 33})
+    self.assertSetEqual(
+        db.blobs['e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e']['tags'], set())
+
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasBlob')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.HasThumbnail')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.GetBlob')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.GetThumbnail')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.fapdata.FapDatabase._CreateFilesOnDiskAndProposeBlob')
+  def test_SHAOrphanedCheck(
+      self, propose_blob: mock.MagicMock, save: mock.MagicMock, get_thumb: mock.MagicMock,
+      get_blob: mock.MagicMock, has_thumb: mock.MagicMock, has_blob: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    # correct keys and sizes are as follows:
+    # 0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19: (54643, 54643)
+    # 321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6: (45309, 45309)
+    # 4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207: (72577, 72577) no blob
+    # 74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449: (48259, 48259) no thumb
+    # 9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf: (39147, 39147)
+    # dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180: (89216, 11890) blob sz
+    # e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e: (56583, 56583) decrypt err
+    # ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e: (444973, 302143) thumb sz
+    # ed257bbbcb316f05f852f80b705d0c911e8ee51c7962fa207962b40a653fd5f9: (43144, 43144)
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    has_blob.side_effect = [True, True, False, True, True, True, True, True, True]
+    has_thumb.side_effect = [True, True, True, False, True, True, True, True, True]
+    get_blob.side_effect = ['0' * 54643, '3' * 45309, '9' * 39147, 'd' * 99,
+                            'e' * 56583, 'e' * 444973, 'e' * 43144]
+    get_thumb.side_effect = ['0' * 54643, '3' * 45309, '9' * 39147, 'd' * 11890,
+                             fapdata.base.bin_fernet.InvalidToken, 'e' * 99, 'e' * 43144]
+    propose_blob.side_effect = [
+        ('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+         {'loc': {}, 'tags': {}, 'gone': {}, 'flag': True}),
+        ('74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449',
+         {'loc': {}, 'tags': {}, 'gone': {}, 'flag': True}),
+        ('wrong-sha', {'loc': {}, 'tags': {}, 'gone': {}, 'flag': True}),  # 1st try, will do again
+        ('dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180',
+         {'loc': {}, 'tags': {}, 'gone': {}, 'flag': True}),  # 2nd try will succeed
+        ('e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e',
+         {'loc': {}, 'tags': {}, 'gone': {}, 'flag': True}),
+        fapbase.Error404('url')]
+    db._SHAOrphanedCheck()
+    for sha in ['4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207',
+                '74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449',
+                'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180',
+                'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e']:
+      # make sure these guys got corrected by checking the 'flag' we introduced
+      self.assertTrue(db.blobs[sha]['flag'])  # type: ignore
+    self.assertListEqual(has_blob.call_args_list, [mock.call(k) for k in sorted(db.blobs.keys())])
+    self.assertListEqual(has_thumb.call_args_list, [mock.call(k) for k in sorted(db.blobs.keys())])
+    get_calls = [mock.call('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+                 mock.call('321e59af9d70af771fb9bb55e4a4f76bca5af024fca1c78709ee1b0259cd58e6'),
+                 mock.call('9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf'),
+                 mock.call('dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180'),
+                 mock.call('e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'),
+                 mock.call('ed1441656a734052e310f30837cc706d738813602fcc468132aebaf0f316870e'),
+                 mock.call('ed257bbbcb316f05f852f80b705d0c911e8ee51c7962fa207962b40a653fd5f9')]
+    self.assertListEqual(get_blob.call_args_list, get_calls)
+    self.assertListEqual(get_thumb.call_args_list, get_calls)
+    self.assertListEqual(
+        propose_blob.call_args_list,
+        [mock.call(10, 20, 107), mock.call(10, 20, 104), mock.call(10, 20, 106),
+         mock.call(10, 30, 106), mock.call(10, 20, 100), mock.call(10, 20, 109)])
+    save.assert_called_once_with()
 
   @mock.patch('fapfavorites.fapbase.ExtractFullImageURL')
   @mock.patch('fapfavorites.fapbase.GetBinary')
@@ -688,6 +874,7 @@ class TestFapDatabase(unittest.TestCase):
   @mock.patch('os.remove')
   def test_FileOrphanedCheck(self, remove: mock.MagicMock, walk: mock.MagicMock) -> None:
     """Test."""
+    self.maxDiff = None
     db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
     walk.side_effect = [   # the '43FEF...' files are the ones that do not exist in the loaded DB
         [(None, None, ['unencrypted.anything.jpg',
@@ -798,6 +985,7 @@ def _TestDBFactory(mock_isdir: mock.MagicMock) -> fapdata.FapDatabase:
   db._db['favorites'] = copy.deepcopy(_FAVORITES)
   db._db['blobs'] = copy.deepcopy(_BLOBS)
   db._db['image_ids_index'] = copy.deepcopy(_INDEX)
+  db._db['tags'] = copy.deepcopy(_TEST_TAGS_2)
   db.duplicates = fapdata.duplicates.Duplicates(
       copy.deepcopy(_DUPLICATES), copy.deepcopy(_DUPLICATES_INDEX))
   return db

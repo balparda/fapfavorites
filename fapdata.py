@@ -1432,7 +1432,7 @@ class FapDatabase:
           logging.info('Skipping unfinished album %s', self.AlbumStr(user_id, album_id))
           all_valid_ids.update(self.favorites[user_id][album_id]['images'])
           continue
-        for img_id in self.favorites[user_id][album_id]['images']:
+        for img_id in self.favorites[user_id][album_id]['images'].copy():  # copy to allow change
           # first check for case where the ID is not even in the index
           if img_id not in self.image_ids_index:
             logging.error(
@@ -1448,14 +1448,16 @@ class FapDatabase:
               self.image_ids_index[img_id] = sha
               all_valid_ids.add(img_id)
               logging.info('Corrected: Image %d added to blobs and index', img_id)
-            except fapbase.Error404:
+            except fapbase.Error404 as err:
               logging.error(
                   'Failed to download/fix image ID %d in %s',
                   img_id, self.AlbumStr(user_id, album_id))
+              self.favorites[user_id][album_id]['images'].remove(img_id)
+              self.favorites[user_id][album_id]['failed_images'].add(
+                  (img_id, err.timestamp, None, err.url))
             continue
-          # we found ID in index, so check to see in SHA is in blobs
+          # we found ID in index, so check to see if SHA is in blobs
           sha = self.image_ids_index[img_id]
-          all_valid_ids.add(img_id)
           if sha not in self.blobs:
             logging.error(
                 'Image ID %d in %s translates to SHA %r not listed in blobs',
@@ -1466,14 +1468,24 @@ class FapDatabase:
                 self.blobs[sha] = blob_data  # create a new blob entry
                 logging.info('Corrected: Image %d added to blobs', img_id)
               else:
+                self.favorites[user_id][album_id]['images'].remove(img_id)
+                self.favorites[user_id][album_id]['failed_images'].add(
+                    (img_id, base.INT_TIME(), blob_data['loc'].popitem()[1][0], None))
                 del self.image_ids_index[img_id]
                 logging.error(
                     'Failed to fix image %d because of SHA mismatch (got %r, expected %r)',
                     img_id, new_sha, sha)
-            except fapbase.Error404:
+                continue
+            except fapbase.Error404 as err:
+              self.favorites[user_id][album_id]['images'].remove(img_id)
+              self.favorites[user_id][album_id]['failed_images'].add(
+                  (img_id, err.timestamp, None, err.url))
+              del self.image_ids_index[img_id]
               logging.error(
                   'Failed to download/fix image ID %d in %s',
                   img_id, self.AlbumStr(user_id, album_id))
+              continue
+          all_valid_ids.add(img_id)
         for failed_id in sorted(self.favorites[user_id][album_id]['failed_images']):
           img_id = failed_id[0]
           if img_id in self.image_ids_index:
@@ -1487,6 +1499,7 @@ class FapDatabase:
               self.favorites[user_id][album_id]['failed_images'].remove(failed_id)
               self.blobs[sha]['loc'][(user_id, album_id, img_id)] = (
                   'unknown' if failed_id[2] is None else failed_id[2], 'new')
+              all_valid_ids.add(img_id)
               logging.info('Corrected: Image %d moved to album list and added to %r', img_id, sha)
             else:
               # in this case, since we have no blob, we can only fix by deleting from the index
