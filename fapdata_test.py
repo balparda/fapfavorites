@@ -14,7 +14,7 @@ import copy
 import hashlib
 import os
 import os.path
-# import pdb
+import pdb
 import tempfile
 import unittest
 from unittest import mock
@@ -654,31 +654,6 @@ class TestFapDatabase(unittest.TestCase):
     sha_orphaned.assert_called_once_with()
     file_orphaned.assert_called_once_with()
 
-  @mock.patch('os.walk')
-  @mock.patch('os.remove')
-  def test_FileOrphanedCheck(self, remove: mock.MagicMock, walk: mock.MagicMock) -> None:
-    """Test."""
-    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
-    walk.side_effect = [   # the '43FEF...' files are the ones that do not exist in the loaded DB
-        [(None, None, ['unencrypted.anything.jpg',
-                       'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180.jpg  ',
-                       '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.jpg  ']),
-         (None, None, ['invalid'])],
-        [(None, None, ['unencrypted.anything.jpg',
-                       '  74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449.jpg',
-                       '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0279.jpg  ']),
-         (None, None, ['invalid'])]]
-    db._FileOrphanedCheck()
-    self.assertListEqual(walk.call_args_list, [mock.call('/foo/blobs/'), mock.call('/foo/thumbs/')])
-    self.assertListEqual(
-        remove.call_args_list,
-        [mock.call('/foo/blobs/unencrypted.anything.jpg'),
-         mock.call('/foo/thumbs/unencrypted.anything.jpg'),
-         mock.call(
-             '/foo/blobs/434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.jpg'),
-         mock.call(
-             '/foo/thumbs/434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0279.jpg')])
-
   @mock.patch('fapfavorites.fapbase.ExtractFullImageURL')
   @mock.patch('fapfavorites.fapbase.GetBinary')
   @mock.patch('fapfavorites.fapdata.FapDatabase._SaveImage')
@@ -708,6 +683,31 @@ class TestFapDatabase(unittest.TestCase):
       get_bin.assert_called_once_with('url-109')
       save.assert_called_once_with(f'{db_path}/blobs/sha-109.gif', test_image)
       self.assertTrue(os.path.exists(f'{db_path}/thumbs/sha-109.gif'))
+
+  @mock.patch('os.walk')
+  @mock.patch('os.remove')
+  def test_FileOrphanedCheck(self, remove: mock.MagicMock, walk: mock.MagicMock) -> None:
+    """Test."""
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    walk.side_effect = [   # the '43FEF...' files are the ones that do not exist in the loaded DB
+        [(None, None, ['unencrypted.anything.jpg',
+                       'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180.jpg  ',
+                       '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.jpg  ']),
+         (None, None, ['invalid'])],
+        [(None, None, ['unencrypted.anything.jpg',
+                       '  74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449.jpg',
+                       '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0279.jpg  ']),
+         (None, None, ['invalid'])]]
+    db._FileOrphanedCheck()
+    self.assertListEqual(walk.call_args_list, [mock.call('/foo/blobs/'), mock.call('/foo/thumbs/')])
+    self.assertListEqual(
+        remove.call_args_list,
+        [mock.call('/foo/blobs/unencrypted.anything.jpg'),
+         mock.call('/foo/thumbs/unencrypted.anything.jpg'),
+         mock.call(
+             '/foo/blobs/434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.jpg'),
+         mock.call(
+             '/foo/thumbs/434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0279.jpg')])
 
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   @mock.patch('fapfavorites.fapdata.requests.get')
