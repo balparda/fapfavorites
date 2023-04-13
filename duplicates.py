@@ -264,6 +264,8 @@ class Duplicates:
       del self.index[sha]
     return (n_dup, n_img)
 
+  # TODO: investigate if we can have a way to only match new images against old ones instead
+  #     of all against all... if possible will significantly speed duplicates up
   def FindDuplicates(  # noqa: C901
       self,
       hash_encodings_map: HashEncodingMapType,

@@ -1380,8 +1380,6 @@ class FapDatabase:
     Returns:
       int count of new individual duplicate images found
     """
-    # TODO: investigate if we can have a way to only match new images against old ones instead
-    #     of all against all... if possible will significantly speed duplicates up
     self._IdenticalVerdictsMaintenance()
     return self.duplicates.FindDuplicates(
         self._hashes_encodings_map,
@@ -1674,6 +1672,7 @@ class FapDatabase:
                                                (self._thumbs_dir, orphaned_thumbs, 'THUMBNAIL')):
       for _, _, file_names in os.walk(dir_path):
         for file_name in sorted(file_names):
+          file_name = file_name.strip()
           if 'unencrypted' in file_name:
             orphaned_unencrypted_leftovers.append((os.path.join(dir_path, file_name), file_name))
             logging.error('Leftover %s file found: %s', search_str, file_name)

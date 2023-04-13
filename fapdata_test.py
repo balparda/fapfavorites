@@ -9,6 +9,7 @@
 # pylint: disable=invalid-name,protected-access
 """fapdata.py unittest."""
 
+import base64
 import copy
 import hashlib
 import os
@@ -20,6 +21,7 @@ from unittest import mock
 
 import numpy as np
 
+from baselib import base
 from fapfavorites import fapbase
 from fapfavorites import fapbase_test
 from fapfavorites import fapdata
@@ -152,6 +154,26 @@ class TestFapDatabase(unittest.TestCase):
     # cleanup environ so they don't interfere in other tests
     del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
     del os.environ['IMAGEFAP_FAVORITES_DB_KEY']
+
+  def test_SHAFromFileName(self) -> None:
+    """Test."""
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    self.assertEqual(  # no encryption
+        db._SHAFromFileName(
+            '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.jpg  '),
+        '434fef877249acfd67cf5c37a082898bf151b2b30126d5f618656e1b073c0278')
+    db._key = b'FLx2WdoT7BvRBDeX6hRjzC7KaFn3SOQ8WPFNmXT57_M='
+    db._sha_encoder = base.BlockEncoder256(base64.urlsafe_b64decode(db._key))
+    self.assertEqual(  # with encryption
+        db._SHAFromFileName(
+            '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.gif  '),
+        'd97b2972cbd1db528abe1c51ab12a7c7aa2fa6e35d721b66c958be92911bdc00')
+    with self.assertRaisesRegex(fapdata.Error, r'Unexpected or invalid blob/thumb file name'):
+      db._SHAFromFileName(
+          '434fef877249acfd67cf5c37a082898bf151.gif')
+    with self.assertRaisesRegex(fapdata.Error, r'Unexpected or invalid blob/thumb file name'):
+      db._SHAFromFileName(
+          '434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278')
 
   @mock.patch('fapfavorites.fapdata.os.path.isdir')
   def test_GetTag(self, mock_is_dir: mock.MagicMock) -> None:
@@ -483,8 +505,17 @@ class TestFapDatabase(unittest.TestCase):
     self.maxDiff = None
     mock_time.return_value = 1675368670  # 02/feb/2023 20:11:10
     hysteresis.side_effect = [False, True, True, True]
+    # prepare data by reading files
+    test_images: dict[str, bytes] = {}
     test_names = ('100.jpg', '101.jpg', '102.jpg', '103.jpg', '104.png',  # 104 is actually a JPG!
                   '105.jpg', '106.jpg', '107.png', '108.png', '109.gif')
+    for name in test_names:
+      f_name = os.path.join(_TESTDATA_PATH, name)
+      with open(f_name, 'rb') as f_obj:
+        test_images[name] = f_obj.read()
+    # prepare side effects
+    get_bin.side_effect = [(test_images[name], hashlib.sha256(test_images[name]).hexdigest())
+                           for name in test_names] + [fapbase.Error404('url-110')]
     img_url.side_effect = [('url-100', '100.jpg', 'jpg'),  # this is for album 10/20
                            ('url-101', '101.jpg', 'jpg'),
                            ('url-102', '102.jpg', 'jpg'),
@@ -501,14 +532,6 @@ class TestFapDatabase(unittest.TestCase):
                            fapbase.Error404('url-106')]    # this last one will 404
     with tempfile.TemporaryDirectory() as db_path:
       db = fapdata.FapDatabase(db_path, create_if_needed=True)  # create a password-less DB
-      # prepare data by reading files, getting some CNN, etc
-      test_images: dict[str, bytes] = {}
-      for name in test_names:
-        f_name = os.path.join(_TESTDATA_PATH, name)
-        with open(f_name, 'rb') as f_obj:
-          test_images[name] = f_obj.read()
-      get_bin.side_effect = [(test_images[name], hashlib.sha256(test_images[name]).hexdigest())
-                             for name in test_names] + [fapbase.Error404('url-110')]
       # test error case
       with self.assertRaisesRegex(fapdata.Error, r'user/folder was not added'):
         db.DownloadAll(10, 20, 5, False)
@@ -600,6 +623,90 @@ class TestFapDatabase(unittest.TestCase):
       self.assertDictEqual(db.image_ids_index, {})
 
   # TODO: write tests for integrity checks
+
+  @mock.patch('fapfavorites.fapdata.FapDatabase._UsersIntegrityCheck')
+  @mock.patch('fapfavorites.fapdata.FapDatabase._AlbumIdsIntegrityCheck')
+  @mock.patch('fapfavorites.fapdata.FapDatabase._CheckForIndexOrphans')
+  @mock.patch('fapfavorites.fapdata.FapDatabase._CheckLocationIntegrity')
+  @mock.patch('fapfavorites.fapdata.FapDatabase._CheckTagsIntegrity')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_AlbumIntegrityCheck(
+      self, save: mock.MagicMock, tags: mock.MagicMock, location: mock.MagicMock,
+      index: mock.MagicMock, albums: mock.MagicMock, users: mock.MagicMock) -> None:
+    """Test."""
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    albums.return_value = {1, 2, 3}
+    db.AlbumIntegrityCheck()
+    users.assert_called_once_with()
+    albums.assert_called_once_with()
+    index.assert_called_once_with({1, 2, 3})
+    location.assert_called_once_with()
+    tags.assert_called_once_with()
+    save.assert_called_once_with()
+
+  @mock.patch('fapfavorites.fapdata.FapDatabase._FileOrphanedCheck')
+  @mock.patch('fapfavorites.fapdata.FapDatabase._SHAOrphanedCheck')
+  def test_BlobIntegrityCheck(
+      self, sha_orphaned: mock.MagicMock, file_orphaned: mock.MagicMock) -> None:
+    """Test."""
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    db.BlobIntegrityCheck()
+    sha_orphaned.assert_called_once_with()
+    file_orphaned.assert_called_once_with()
+
+  @mock.patch('os.walk')
+  @mock.patch('os.remove')
+  def test_FileOrphanedCheck(self, remove: mock.MagicMock, walk: mock.MagicMock) -> None:
+    """Test."""
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    walk.side_effect = [   # the '43FEF...' files are the ones that do not exist in the loaded DB
+        [(None, None, ['unencrypted.anything.jpg',
+                       'dfc28d8c6ba0553ac749780af2d0cdf5305798befc04a1569f63657892a2e180.jpg  ',
+                       '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.jpg  ']),
+         (None, None, ['invalid'])],
+        [(None, None, ['unencrypted.anything.jpg',
+                       '  74bab8c9b692a582f7b90c27a0d80fe0a073f70991c1c8aa1815745127e5c449.jpg',
+                       '  434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0279.jpg  ']),
+         (None, None, ['invalid'])]]
+    db._FileOrphanedCheck()
+    self.assertListEqual(walk.call_args_list, [mock.call('/foo/blobs/'), mock.call('/foo/thumbs/')])
+    self.assertListEqual(
+        remove.call_args_list,
+        [mock.call('/foo/blobs/unencrypted.anything.jpg'),
+         mock.call('/foo/thumbs/unencrypted.anything.jpg'),
+         mock.call(
+             '/foo/blobs/434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0278.jpg'),
+         mock.call(
+             '/foo/thumbs/434FEF877249ACFD67CF5c37a082898bf151b2b30126d5f618656e1b073c0279.jpg')])
+
+  @mock.patch('fapfavorites.fapbase.ExtractFullImageURL')
+  @mock.patch('fapfavorites.fapbase.GetBinary')
+  @mock.patch('fapfavorites.fapdata.FapDatabase._SaveImage')
+  @mock.patch('fapfavorites.fapdata.base.INT_TIME')
+  def test_CreateFilesOnDiskAndProposeBlob(
+      self, int_time: mock.MagicMock, save: mock.MagicMock,
+      get_bin: mock.MagicMock, img_url: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    with open(os.path.join(_TESTDATA_PATH, '109.gif'), 'rb') as f_obj:
+      test_image = f_obj.read()
+    int_time.return_value = 9000
+    img_url.return_value = ('url-109', '109.jpg', 'jpg')  # (is actually a gif)
+    get_bin.return_value = (test_image, 'sha-109')
+    with tempfile.TemporaryDirectory() as db_path:
+      db = fapdata.FapDatabase(db_path, create_if_needed=True)  # create a password-less DB
+      sha, blob = db._CreateFilesOnDiskAndProposeBlob(10, 20, 30)
+      self.assertEqual(sha, 'sha-109')
+      del blob['cnn']  # type: ignore
+      self.assertDictEqual(blob, {
+          'animated': True, 'average': 'ffffffffffffe7e7', 'date': 9000,
+          'diff': '000000000000080c', 'ext': 'gif', 'gone': {}, 'height': 100,
+          'loc': {(10, 20, 30): ('109.jpg', 'new')}, 'percept': 'e699669966739866', 'sz': 444973,
+          'sz_thumb': 302143, 'tags': set(), 'wavelet': 'ffffffffffffe7e7', 'width': 500})
+      int_time.assert_called_once_with()
+      img_url.assert_called_once_with(30)
+      get_bin.assert_called_once_with('url-109')
+      save.assert_called_once_with(f'{db_path}/blobs/sha-109.gif', test_image)
 
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   @mock.patch('fapfavorites.fapdata.requests.get')
