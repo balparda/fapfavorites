@@ -707,6 +707,7 @@ class TestFapDatabase(unittest.TestCase):
       img_url.assert_called_once_with(30)
       get_bin.assert_called_once_with('url-109')
       save.assert_called_once_with(f'{db_path}/blobs/sha-109.gif', test_image)
+      self.assertTrue(os.path.exists(f'{db_path}/thumbs/sha-109.gif'))
 
   @mock.patch('fapfavorites.fapdata.base.INT_TIME')
   @mock.patch('fapfavorites.fapdata.requests.get')

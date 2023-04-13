@@ -369,7 +369,8 @@ def LimpingURLRead(url: str, min_wait: float = 1.0, max_wait: float = 2.0) -> by
     except (
         urllib.error.URLError,
         urllib.error.HTTPError,
-        http.client.RemoteDisconnected,
+        urllib.error.ContentTooShortError,
+        http.client.HTTPException,  # this is the parent for all HTTP exceptions
         socket.timeout) as err:
       # these errors sometimes happen and can be a case for retry
       n_retry += 1
