@@ -26,8 +26,9 @@ from fapfavorites import fapbase
 from fapfavorites import fapbase_test
 from fapfavorites import fapdata
 
+
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
-__version__ = (1, 0)
+__version__ = (2, 0)
 
 
 _TESTDATA_PATH = os.path.join(os.path.dirname(__file__), 'testdata/')

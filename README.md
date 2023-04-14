@@ -48,6 +48,8 @@ $ sudo pip3 list --outdated
 $ nice sudo python3 -m pip list --outdated --format=json | jq -r '.[] | "\(.name)==\(.latest_version)"' | xargs --no-run-if-empty -n1 sudo pip3 install -U
 ```
 
+Project is ready for use and in version 2.0.
+
 ## User Journeys, A Simple Guide
 
 ### _"I just want to download a specific favorite album."_

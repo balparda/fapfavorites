@@ -19,6 +19,10 @@ from fapfavorites import fapbase
 from fapfavorites import fapdata
 
 
+__author__ = 'balparda@gmail.com (Daniel Balparda)'
+__version__ = (2, 0)
+
+
 _IMAGE_TYPES = {
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',

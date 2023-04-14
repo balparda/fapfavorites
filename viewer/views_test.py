@@ -23,6 +23,10 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'fapper.settings'  # cspell:disable-line
 from django.views.decorators import cache  # noqa: E402
 
 
+__author__ = 'balparda@gmail.com (Daniel Balparda)'
+__version__ = (2, 0)
+
+
 def _mock_decorator(*unused_args, **unused_kwargs):
   def _decorator(f):
     @functools.wraps(f)

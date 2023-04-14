@@ -19,8 +19,9 @@ from unittest import mock
 
 from fapfavorites import fapbase
 
+
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
-__version__ = (1, 0)
+__version__ = (2, 0)
 
 
 _TESTDATA_PATH = os.path.join(os.path.dirname(__file__), 'testdata/')

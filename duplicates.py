@@ -29,6 +29,10 @@ import numpy as np
 from fapfavorites import fapbase
 
 
+__author__ = 'balparda@gmail.com (Daniel Balparda)'
+__version__ = (2, 0)
+
+
 # internal types definitions
 
 DuplicatesKeyType = tuple[str, ...]

@@ -42,7 +42,7 @@ from fapfavorites import duplicates
 
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
-__version__ = (1, 0)
+__version__ = (2, 0)
 
 
 # useful globals

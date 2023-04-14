@@ -28,7 +28,7 @@ from fapfavorites import fapdata
 
 
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
-__version__ = (1, 0)
+__version__ = (2, 0)
 
 
 def _StatsOperation(database: fapdata.FapDatabase) -> None:

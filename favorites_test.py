@@ -11,8 +11,9 @@ from unittest import mock
 
 from fapfavorites import favorites
 
+
 __author__ = 'balparda@gmail.com (Daniel Balparda)'
-__version__ = (1, 0)
+__version__ = (2, 0)
 
 
 class TestFavorites(unittest.TestCase):
