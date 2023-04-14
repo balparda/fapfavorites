@@ -1,12 +1,13 @@
-<table>
+<table border='1'>
+  <tr><th colspan='2' align='center'><i>FILTERS</i></th></tr>
   <tr>
     <td>
       {% if show_duplicates %}
-        <a href='{{ page_url }}?dup=0&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' class='filter_show'>
+        <a href='{{ page_url }}?dup=0&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}' class='filter_show'>
           Duplicates: <i><b>ON</i></b>
         </a><br/>
       {% else %}
-        <a href='{{ page_url }}?dup=1&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' class='filter_hide'>
+        <a href='{{ page_url }}?dup=1&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}' class='filter_hide'>
           Duplicates: <i><b>OFF</i></b>
         </a>
       {% endif %}
@@ -23,13 +24,13 @@
     <td>
       Portrait-Aspect&nbsp;Images:&nbsp;
       {% if not show_portraits %}
-        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=2&{{ landscape_url }}&{{ tagging_url }}'>Only&nbsp;Show</a>
+        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=2&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
       {% endif %}
       {% if show_portraits == 1 %}
-        <a href='{{ page_url }}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<i><b>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=2&{{ landscape_url }}&{{ tagging_url }}'>Only&nbsp;Show</a>
+        <a href='{{ page_url }}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<i><b>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=2&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
       {% endif %}
       {% if show_portraits == 2 %}
-        <a href='{{ page_url }}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<i><b>Only&nbsp;Show</b></i>
+        <a href='{{ page_url }}?{{ dup_url }}&portrait=0&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&portrait=1&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<i><b>Only&nbsp;Show</b></i>
       {% endif %}
     </td>
     <td>(images with <b>height</b> more than 10% larger than <b>width</b>)</td>
@@ -38,28 +39,70 @@
     <td>
       Landscape-Aspect&nbsp;Images:&nbsp;
       {% if not show_landscapes %}
-        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=2&{{ tagging_url }}'>Only&nbsp;Show</a>
+        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=2&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
       {% endif %}
       {% if show_landscapes == 1 %}
-        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=2&{{ tagging_url }}'>Only&nbsp;Show</a>
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=2&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
       {% endif %}
       {% if show_landscapes == 2 %}
-        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Only&nbsp;Show</b></i>
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=0&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&landscape=1&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Only&nbsp;Show</b></i>
       {% endif %}
     </td>
     <td>(images with <b>width</b> more than 10% larger than <b>height</b>)</td>
   </tr>
   <tr>
+    <td>
+      <label for='tag_filter_1'>Tag:</label>
+      <select name='tag_filter_1' id='tag_filter_1' onChange='tag_filter_reload(1, this.value);'>
+        <option value='0'{% if not tag_value_1 %} selected{% endif %}>-- Please choose a tag --</option>
+        {% for id, _, parents in form_tags %}
+          <option value='{{ id }}'{% if tag_value_1 == id %} selected{% endif %}>{{ parents|escape }}</option>
+        {% endfor %}
+      </select>&nbsp;&nbsp;
+      {% if not tag_filter_1 %}
+        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&tf1=1&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&tf1=2&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if tag_filter_1 == 1 %}
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&tf1=0&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&tf1=2&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if tag_filter_1 == 2 %}
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&tf1=0&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&tf1=1&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Only&nbsp;Show</b></i>
+      {% endif %}
+    </td>
+    <td>(filter by this tag and its children)</td>
+  </tr>
+  <tr>
+    <td>
+      <label for='tag_filter_2'>Tag:</label>
+      <select name='tag_filter_2' id='tag_filter_2' onChange='tag_filter_reload(2, this.value);'>
+        <option value='0'{% if not tag_value_2 %} selected{% endif %}>-- Please choose a tag --</option>
+        {% for id, _, parents in form_tags %}
+          <option value='{{ id }}'{% if tag_value_2 == id %} selected{% endif %}>{{ parents|escape }}</option>
+        {% endfor %}
+      </select>&nbsp;&nbsp;
+      {% if not tag_filter_2 %}
+        <i><b>Don't&nbsp;Show</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&tf2=1&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&tf2=2&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if tag_filter_2 == 1 %}
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&tf2=0&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Allow</b></i>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&tf2=2&{{ value_url_1 }}&{{ value_url_2 }}'>Only&nbsp;Show</a>
+      {% endif %}
+      {% if tag_filter_2 == 2 %}
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&tf2=0&{{ value_url_1 }}&{{ value_url_2 }}'>Don't&nbsp;Show</a>&nbsp;&nbsp;/&nbsp;&nbsp;<a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&tf2=1&{{ value_url_1 }}&{{ value_url_2 }}'>Allow</a>&nbsp;&nbsp;/&nbsp;&nbsp;<b><i>Only&nbsp;Show</b></i>
+      {% endif %}
+    </td>
+    <td>(filter by this tag and its children)</td>
+  </tr>
+  <tr>
     {% if locked_for_tagging %}
       <td>
-        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&lock=0' class='filter_show'>
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&lock=0&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}' class='filter_show'>
           Locked for Tagging: <i><b>ON</i></b>
         </a>&nbsp;&nbsp;&#128274;
       </td>
       <td>(clicking on images will <i><b>select</i></b> them, tagging options available at bottom)</td>
     {% else %}
       <td>
-        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&lock=1' class='filter_hide'>
+        <a href='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&lock=1&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}' class='filter_hide'>
           Locked for Tagging: <i><b>OFF</i></b>
         </a>&nbsp;&nbsp;&#128275;
       </td>
@@ -73,7 +116,7 @@
         Click on the images to select or deselect them. Selected images will show in <span style='color: peru;'>PERU</span> color.<br/>
         If you reload the page you will lose your selection! Go to the bottom of this page (<i>Ctrl+End</i>) to tag them.<br/>
         {% if not tags %}
-          <b><i><span style='color: red;'>ATTENTION: You have NO tags, so selecting images will serve NO purpose!</span> <a href='{% url "tag" 0 %}'>Create tags first?</a></i></b><br/>
+          <b><i><span style='color: red;'>ATTENTION: You have NO tags, so selecting images will serve NO purpose!</span> <a href='{% url "tag" 0 %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Create tags first?</a></i></b><br/>
         {% endif %}
       {% endif %}
       The link icon (<small><small>&#128279;</small></small>) will take you to Imagefap original image: <b><i>beware</i></b>, as clicking will open Imagefap site!<br/>

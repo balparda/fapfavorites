@@ -228,7 +228,7 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {}
     request.GET = {
         'dup': '1',
-        'portrait': '2',   # by default, no duplicates
+        'portrait': '2',
         'landscape': '2',  # when both are set to '2' landscapes will "win"
     }
     views.ServeFavorite(request, 1, 10)
@@ -254,7 +254,7 @@ class TestDjangoViews(unittest.TestCase):
     request.POST = {}
     request.GET = {
         'dup': '1',
-        'portrait': '2',   # by default, no duplicates
+        'portrait': '2',
         'landscape': '0',
     }
     views.ServeFavorite(request, 1, 10)
@@ -266,6 +266,67 @@ class TestDjangoViews(unittest.TestCase):
          'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'})
     self.assertEqual(mock_render.call_args[0][2]['portrait_url'], 'portrait=2')
     self.assertEqual(mock_render.call_args[0][2]['landscape_url'], 'landscape=0')
+    mock_save.assert_not_called()
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeFavorite_Tag_Filtering_1(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {
+        'dup': '1',
+        'tf1': '2',
+        'tv1': '3',
+        'tf2': '0',
+        'tv2': '1',
+    }
+    views.ServeFavorite(request, 1, 10)
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
+    # the context should be similar to _FAVORITE_CONTEXT_ALL_ON: check only some fields
+    self.assertSetEqual(
+        set(mock_render.call_args[0][2]['blobs_data'].keys()),
+        {'0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'})
+    self.assertEqual(mock_render.call_args[0][2]['tag_url_1'], 'tf1=2')
+    self.assertEqual(mock_render.call_args[0][2]['value_url_1'], 'tv1=3')
+    self.assertEqual(mock_render.call_args[0][2]['tag_url_2'], 'tf2=0')
+    self.assertEqual(mock_render.call_args[0][2]['value_url_2'], 'tv2=1')
+    mock_save.assert_not_called()
+
+  @mock.patch('fapfavorites.viewer.views._DBFactory')
+  @mock.patch('django.shortcuts.render')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.Save')
+  def test_ServeFavorite_Tag_Filtering_2(
+      self, mock_save: mock.MagicMock, mock_render: mock.MagicMock,
+      mock_db: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    mock_db.return_value = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    request = mock.Mock(views.http.HttpRequest)
+    request.POST = {}
+    request.GET = {
+        'dup': '1',
+        'tf1': '0',
+        'tv1': '24',
+        'tf2': '2',
+        'tv2': '1',
+    }
+    views.ServeFavorite(request, 1, 10)
+    mock_render.assert_called_once_with(request, 'viewer/favorite.html', mock.ANY)
+    # the context should be similar to _FAVORITE_CONTEXT_ALL_ON: check only some fields
+    self.assertSetEqual(
+        set(mock_render.call_args[0][2]['blobs_data'].keys()),
+        {'9b162a339a3a6f9a4c2980b508b6ee552fd90a0bcd2658f85c3b15ba8f0c44bf',
+         'e221b76f559461769777a772a58e44960d85ffec73627d9911260ae13825e60e'})
+    self.assertEqual(mock_render.call_args[0][2]['tag_url_1'], 'tf1=0')
+    self.assertEqual(mock_render.call_args[0][2]['value_url_1'], 'tv1=24')
+    self.assertEqual(mock_render.call_args[0][2]['tag_url_2'], 'tf2=2')
+    self.assertEqual(mock_render.call_args[0][2]['value_url_2'], 'tv2=1')
     mock_save.assert_not_called()
 
   @mock.patch('fapfavorites.viewer.views._DBFactory')
@@ -1207,6 +1268,15 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
+    'tag_filter_1': 1,
+    'tag_url_1': 'tf1=1',
+    'tag_value_1': 0,
+    'value_url_1': 'tv1=0',
+    'tag_filter_2': 1,
+    'tag_url_2': 'tf2=1',
+    'tag_value_2': 0,
+    'value_url_2': 'tv2=0',
+    'selected_tag': 24,
     'pages': 9,
     'date': '2023/Feb/02-01:06:40-UTC',
     'count': 5,
@@ -1355,6 +1425,15 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
     'landscape_url': 'landscape=0',
     'locked_for_tagging': True,
     'tagging_url': 'lock=1',
+    'tag_filter_1': 1,
+    'tag_url_1': 'tf1=1',
+    'tag_value_1': 0,
+    'value_url_1': 'tv1=0',
+    'tag_filter_2': 1,
+    'tag_url_2': 'tf2=1',
+    'tag_value_2': 0,
+    'value_url_2': 'tv2=0',
+    'selected_tag': 0,
     'pages': 9,
     'date': '2023/Feb/02-01:06:40-UTC',
     'count': 1,
@@ -1417,6 +1496,15 @@ _FAVORITE_CONTEXT_FILTER_DUPLICATES: dict[str, Any] = {
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
+    'tag_filter_1': 1,
+    'tag_url_1': 'tf1=1',
+    'tag_value_1': 0,
+    'value_url_1': 'tv1=0',
+    'tag_filter_2': 1,
+    'tag_url_2': 'tf2=1',
+    'tag_value_2': 0,
+    'value_url_2': 'tv2=0',
+    'selected_tag': 0,
     'pages': 9,
     'date': '2023/Feb/02-01:06:40-UTC',
     'count': 2,
@@ -1510,6 +1598,15 @@ _TAG_ROOT_CONTEXT: dict[str, Any] = {
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
+    'tag_filter_1': 1,
+    'tag_url_1': 'tf1=1',
+    'tag_value_1': 0,
+    'value_url_1': 'tv1=0',
+    'tag_filter_2': 1,
+    'tag_url_2': 'tf2=1',
+    'tag_value_2': 0,
+    'value_url_2': 'tv2=0',
+    'selected_tag': 0,
     'count': 0,
     'count_disappeared': 0,
     'stacked_blobs': [],
@@ -1539,6 +1636,15 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
+    'tag_filter_1': 1,
+    'tag_url_1': 'tf1=1',
+    'tag_value_1': 0,
+    'value_url_1': 'tv1=0',
+    'tag_filter_2': 1,
+    'tag_url_2': 'tf2=1',
+    'tag_value_2': 0,
+    'value_url_2': 'tv2=0',
+    'selected_tag': 0,
     'count': 5,
     'stacked_blobs': [
         [
@@ -1666,6 +1772,15 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
     'landscape_url': 'landscape=1',
     'locked_for_tagging': False,
     'tagging_url': 'lock=0',
+    'tag_filter_1': 1,
+    'tag_url_1': 'tf1=1',
+    'tag_value_1': 0,
+    'value_url_1': 'tv1=0',
+    'tag_filter_2': 1,
+    'tag_url_2': 'tf2=1',
+    'tag_value_2': 0,
+    'value_url_2': 'tv2=0',
+    'selected_tag': 0,
     'count': 2,
     'stacked_blobs': [
         [
@@ -1742,6 +1857,15 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
     'landscape_url': 'landscape=1',
     'locked_for_tagging': True,
     'tagging_url': 'lock=1',
+    'tag_filter_1': 1,
+    'tag_url_1': 'tf1=1',
+    'tag_value_1': 0,
+    'value_url_1': 'tv1=0',
+    'tag_filter_2': 1,
+    'tag_url_2': 'tf2=1',
+    'tag_value_2': 0,
+    'value_url_2': 'tv2=0',
+    'selected_tag': 0,
     'count': 4,
     'stacked_blobs': [
         [

@@ -1,5 +1,5 @@
 <form id='selected_form' name='selected_form'
-    action='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'
+    action='{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'
     method='post'>
   {% csrf_token %}
 
@@ -11,9 +11,9 @@
     <p>
       <label for='tag_select'>Tag selected images with:</label>
       <select name='tag_select' id='tag_select'>
-        <option value=''>-- Please choose a tag --</option>
+        <option value=''{% if not selected_tag %} selected{% endif %}>-- Please choose a tag --</option>
         {% for id, _, parents in form_tags %}
-          <option value='{{ id }}'>{{ parents|escape }}</option>
+          <option value='{{ id }}'{% if selected_tag == id %} selected{% endif %}>{{ parents|escape }}</option>
         {% endfor %}
       </select>&nbsp;&nbsp;&nbsp;
       <input type='submit' value='Save Tag' onClick='return set_tag_form_submit();'/>

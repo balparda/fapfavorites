@@ -40,7 +40,7 @@
       </tr>
       {% for id, name, parents, depth in tags %}
         <tr>
-          <td align='center'><a href='{% url "tag" id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'>{{ id }}</a></td>
+          <td align='center'><a href='{% url "tag" id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>{{ id }}</a></td>
           {% if depth == page_depth %}
             <td>{{ name|escape }}</td>
             <td>&nbsp;</td>
@@ -60,7 +60,7 @@
           <td colspan='4'>
             {% if tag_id %}
               No sub-tags at this level:
-              create new below or <a href='{% url "tag" 0 %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'>go back to root</a>?
+              create new below or <a href='{% url "tag" 0 %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>go back to root</a>?
             {% else %}
               No tags in database: create new tags below?
             {% endif %}
@@ -69,7 +69,7 @@
       {% endfor %}
     </table>
 
-    <form id='create_form' action='{% url "tag" tag_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' method='post'>
+    <form id='create_form' action='{% url "tag" tag_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}' method='post'>
       {% csrf_token %}
       <p>
         {% if tag_id %}
@@ -82,7 +82,7 @@
     </form>
 
     {% if tag_id and tag_simple_name %}
-      <form id='rename_form' action='{% url "tag" tag_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' method='post'>
+      <form id='rename_form' action='{% url "tag" tag_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}' method='post'>
         {% csrf_token %}
         <p>
           Rename this tag to:&nbsp;&nbsp;<input type='text' name='rename_tag' value='{{ tag_simple_name|escape }}'/>&nbsp;&nbsp;<input type='submit' value='Rename'/>
@@ -94,7 +94,7 @@
     {% include "./images.html" with page_url=tag_url %}
     {% include "./images_selected_form.html" with page_url=tag_url clear_tag_name=tag_name clear_tag_id=tag_id %}
 
-    <form id='delete_form' name='delete_form' action='{% url "tag" tag_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}' method='post'>
+    <form id='delete_form' name='delete_form' action='{% url "tag" tag_id %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}' method='post'>
       {% csrf_token %}
       <input id='delete_input' name='delete_input' type='hidden' value=''/>
     </form>
@@ -103,11 +103,11 @@
 
       {% if page_depth %}
 
-        <p><a href='{% url "tag" page_depth_up %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'>(Go To: Up &#11014; One Level)</a></p>
+        <p><a href='{% url "tag" page_depth_up %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>(Go To: Up &#11014; One Level)</a></p>
 
       {% endif %}
 
-      <p><a href='{% url "tag" 0 %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}'>(Go To: Root Tags)</a></p>
+      <p><a href='{% url "tag" 0 %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>(Go To: Root Tags)</a></p>
 
     {% endif %}
 

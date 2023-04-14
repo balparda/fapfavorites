@@ -1537,7 +1537,7 @@ class FapDatabase:
 
   def _CheckTagsIntegrity(self) -> None:
     """Make sure all 'tags' entries in blobs are for existing tags."""
-    all_valid_tags = set(k for k, _, _, _ in self.TagsWalk())
+    all_valid_tags = {k for k, _, _, _ in self.TagsWalk()}
     for sha in sorted(self.blobs.keys()):
       for tag_id in sorted(self.blobs[sha]['tags']):
         if tag_id not in all_valid_tags:

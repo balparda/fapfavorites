@@ -336,6 +336,8 @@ def _ServeImages(  # noqa: C901
   selected_images = {
       sha.strip().lower()
       for sha in request.POST.get('selected_blobs', '').split(',') if sha.strip()}
+  all_valid_tags = {k: n for k, n, _, _ in db.TagsWalk()}
+  selected_tag = selected_tag if selected_tag in all_valid_tags else 0
   if selected_tag and selected_images:
     # we have tags to apply; check tag validity
     try:
@@ -389,6 +391,10 @@ def _ServeImages(  # noqa: C901
   show_duplicates = bool(int(request.GET.get('dup', '0')))      # default: False
   show_portraits = int(request.GET.get('portrait', '1'))        # default: 1 == "yes"
   show_landscapes = int(request.GET.get('landscape', '1'))      # default: 1 == "yes"
+  tag_filter_1 = int(request.GET.get('tf1', '1'))               # default: 1 == "yes"
+  tag_value_1 = int(request.GET.get('tv1', '0'))                # default: 0 == "none selected"
+  tag_filter_2 = int(request.GET.get('tf2', '1'))               # default: 1 == "yes"
+  tag_value_2 = int(request.GET.get('tv2', '0'))                # default: 0 == "none selected"
   locked_for_tagging = bool(int(request.GET.get('lock', '0')))  # default: False
   show_portraits = 0 if show_portraits < 0 else show_portraits
   show_portraits = 2 if show_portraits > 2 else show_portraits
@@ -396,6 +402,22 @@ def _ServeImages(  # noqa: C901
   show_landscapes = 2 if show_landscapes > 2 else show_landscapes
   show_portraits = 0 if show_landscapes == 2 else show_portraits   # when both are set to '2'...
   show_landscapes = 0 if show_portraits == 2 else show_landscapes  # ...landscapes will "win"
+  tag_filter_1 = 0 if tag_filter_1 < 0 else tag_filter_1
+  tag_filter_1 = 2 if tag_filter_1 > 2 else tag_filter_1
+  tag_filter_2 = 0 if tag_filter_2 < 0 else tag_filter_2
+  tag_filter_2 = 2 if tag_filter_2 > 2 else tag_filter_2
+  tag_value_1 = tag_value_1 if tag_value_1 in all_valid_tags else 0
+  tag_child_ids_1: set[int] = (
+      {i for i, _, _, _ in db.TagsWalk(
+          start_tag=db.GetTag(tag_value_1)[-1][-1]['tags'])}  # type: ignore
+      if tag_value_1 else set())
+  tag_child_ids_1.add(tag_value_1)
+  tag_value_2 = tag_value_2 if tag_value_2 in all_valid_tags else 0
+  tag_child_ids_2: set[int] = (
+      {i for i, _, _, _ in db.TagsWalk(
+          start_tag=db.GetTag(tag_value_2)[-1][-1]['tags'])}  # type: ignore
+      if tag_value_2 else set())
+  tag_child_ids_2.add(tag_value_2)
   # find images that have duplicates
   exact_duplicates: dict[tuple[int, str], set[fapdata.LocationKeyType]] = {}
   album_duplicates: dict[tuple[int, str], set[fapdata.LocationKeyType]] = {}
@@ -460,6 +482,18 @@ def _ServeImages(  # noqa: C901
   elif show_landscapes == 2:  # 2 == "Show Only This"
     image_list = [(img, sha) for img, sha in image_list
                   if db.blobs[sha]['width'] / db.blobs[sha]['height'] > 1.1]
+  if tag_value_1 and not tag_filter_1:
+    image_list = [(img, sha) for img, sha in image_list
+                  if not tag_child_ids_1.intersection(db.blobs[sha]['tags'])]
+  elif tag_value_1 and tag_filter_1 == 2:
+    image_list = [(img, sha) for img, sha in image_list
+                  if tag_child_ids_1.intersection(db.blobs[sha]['tags'])]
+  if tag_value_2 and not tag_filter_2:
+    image_list = [(img, sha) for img, sha in image_list
+                  if not tag_child_ids_2.intersection(db.blobs[sha]['tags'])]
+  elif tag_value_2 and tag_filter_2 == 2:
+    image_list = [(img, sha) for img, sha in image_list
+                  if tag_child_ids_2.intersection(db.blobs[sha]['tags'])]
   # stack the hashes in rows of _IMG_COLUMNS columns
   stacked_blobs = [image_list[i:(i + _IMG_COLUMNS)]
                    for i in range(0, len(image_list), _IMG_COLUMNS)]
@@ -513,8 +547,17 @@ def _ServeImages(  # noqa: C901
       'portrait_url': f'portrait={show_portraits}',
       'show_landscapes': show_landscapes,
       'landscape_url': f'landscape={show_landscapes}',
+      'tag_filter_1': tag_filter_1,
+      'tag_url_1': f'tf1={tag_filter_1}',
+      'tag_value_1': tag_value_1,
+      'value_url_1': f'tv1={tag_value_1}',
+      'tag_filter_2': tag_filter_2,
+      'tag_url_2': f'tf2={tag_filter_2}',
+      'tag_value_2': tag_value_2,
+      'value_url_2': f'tv2={tag_value_2}',
       'locked_for_tagging': locked_for_tagging,
       'tagging_url': f'lock={int(locked_for_tagging)}',
+      'selected_tag': selected_tag,
       'count': len(image_list),
       'stacked_blobs': stacked_blobs,
       'count_disappeared': len(disappeared_list),
@@ -530,7 +573,6 @@ def _ServeImages(  # noqa: C901
 def ServeFavorite(
     request: http.HttpRequest, user_id: int, folder_id: int) -> http.HttpResponse:
   """Serve the `favorite` (album) page for an `user_id` and a `folder_id`."""
-  # TODO: filter by tags
   # check for errors in parameters
   db = _DBFactory()  # pylint: disable=invalid-name
   if user_id not in db.users or user_id not in db.favorites:

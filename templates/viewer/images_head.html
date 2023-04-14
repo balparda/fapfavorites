@@ -135,6 +135,15 @@
     }
   };
 
+  function tag_filter_reload(id, value) {
+    if (id == 1) {
+      document.location = '{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&tv1=' + value + '&{{ value_url_2 }}';
+    }
+    if (id == 2) {
+      document.location = '{{ page_url }}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&tv2=' + value;
+    }
+  };
+
   var ALL_SHA = [
       {% for sha_group in stacked_blobs %}
         {% for _, sha in sha_group %}
