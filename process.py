@@ -101,12 +101,39 @@ def _RunDjangoServerAndBlock(development_mode: bool) -> None:
   management.execute_from_command_line(argv)
 
 
+def _RunExport(database: fapdata.FapDatabase, tag_name: str, renumber_files: bool) -> None:
+  """Implement `export` user operation: save tagged images to disk.
+
+  Args:
+    database: Active fapdata.FapDatabase
+    tag_name: Tag name to export; may be empty, meaning all tags will be exported
+    renumber_files: Should be re-number the files?
+  """
+  print('Executing EXPORT command')
+  tag_name = tag_name.strip()
+  if not tag_name:
+    database.ExportAll(re_number_files=renumber_files)
+    return
+  for tid, name, _, _ in database.TagsWalk():
+    if tag_name.lower() == name.lower():
+      database.ExportTag(tid, re_number_files=renumber_files)
+      break
+  else:
+    raise fapdata.Error('Tag f{tag_name!r} not found in database')
+
+
 @click.command()  # see `click` module usage in http://click.pocoo.org/
-@click.argument('operation', type=click.Choice(['stats', 'print', 'run']))
+@click.argument('operation', type=click.Choice(['stats', 'print', 'run', 'export']))
 @click.option(
     '--dir', '-d', 'db_dir', type=click.STRING, default=fapdata.DEFAULT_DB_DIRECTORY,
     help='The local machine database directory path to use, '
          f'ex: "~/some-dir/"; will default to {fapdata.DEFAULT_DB_DIRECTORY!r}')
+@click.option(
+    '--tag', '-t', 'tag_name', type=click.STRING, default='',
+    help='The tag name to export for `export` command, ex: "Favorites"')
+@click.option(
+    '--renumber/--no-renumber', 'renumber_files', default=False,
+    help='Preserve file order by renumbering the file names? Default is False ("no")')
 @click.option(
     '--blobs/--no-blobs', 'print_blobs', default=False,
     help='Print all blobs in `print` command? Default is False ("no")')
@@ -120,6 +147,8 @@ def _RunDjangoServerAndBlock(development_mode: bool) -> None:
 @base.Timed('Total Imagefap process.py execution time')
 def Main(operation: str,
          db_dir: str,
+         tag_name: str,
+         renumber_files: bool,
          print_blobs: bool,
          development_mode: bool) -> None:  # noqa: D301
   """imagefap.com database operations utility.
@@ -137,6 +166,14 @@ def Main(operation: str,
   data that will allow you to navigate and view the data and do some tasks.
   Web app will be in http://127.0.0.1:8000/viewer/
 
+  The `export` command will export tagged images to disk. The files will be
+  located in the `/tag_export/` subdirectory of the database location, in
+  sub-directories that reflect the tag names and structure. The files will
+  use the original name, if available, and will be *unencrypted*! You also
+  have a `--renumber` flag that will add a numerical prefix in the files
+  and so guarantee the file ordering.Note that, if an image has more than
+  one tag, it will be exported to multiple locations.
+
   Typical examples:
 
   \b
@@ -150,6 +187,11 @@ def Main(operation: str,
   \b
   ./process.py run
   (run local web app in http://127.0.0.1:8000/viewer/)
+
+  \b
+  ./process.py export --tag "Favorites"
+  (export all images that were tagged "Favorites"
+   to "~/Downloads/imagefap/tag_export/[...]/Favorites/")
   """
   print('***********************************************')
   print('**    IMAGEFAP DATABASE PROCESSING UTILS     **')
@@ -169,6 +211,8 @@ def Main(operation: str,
       _PrintOperation(database, print_blobs)
     elif operation.lower() == 'run':
       _RunDjangoServerAndBlock(development_mode)
+    elif operation.lower() == 'export':
+      _RunExport(database, tag_name, renumber_files)
     else:
       raise NotImplementedError(f'Unrecognized/Unimplemented operation {operation!r}')
     # for now, no operation needs to save DB

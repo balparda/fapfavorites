@@ -611,9 +611,8 @@ def ServeFavorite(
   return shortcuts.render(request, 'viewer/favorite.html', context)
 
 
-def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # noqa: C901
+def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:
   """Serve the `tag` page for one `tag_id`."""
-  # TODO: tag exporter
   # check for errors in parameters
   db = _DBFactory()  # pylint: disable=invalid-name
   all_tags = [(tid, name, db.TagLineageStr(tid)) for tid, name, _, _ in db.TagsWalk()]
@@ -630,22 +629,7 @@ def ServeTag(request: http.HttpRequest, tag_id: int) -> http.HttpResponse:  # no
     # get the images for this tag and all below it
     tag_child_ids = {i for i, _, _, _ in db.TagsWalk(start_tag=tag_obj['tags'])}  # type: ignore
     tag_child_ids.add(tag_id)
-    indexed_dict: dict[tuple[int, int, int], str] = {}
-    for tag_sha in {  # create intermediary set to de-dup
-        sha for sha, blob in db.blobs.items() if tag_child_ids.intersection(blob['tags'])}:
-      # search for user/album/id to use
-      all_loc = sorted(db.blobs[tag_sha]['loc'].keys())
-      for user_id, album_id, img in all_loc:
-        if db.blobs[tag_sha]['loc'][(user_id, album_id, img)][1] == 'keep':
-          # we found a 'keep' verdict in the locations, so we use the first one
-          break
-      else:
-        # there is no 'keep' in the locations (probably all 'new'...) so we take the first one
-        user_id, album_id, img = all_loc[0]
-      # the key to indexed_dict will help sort by: user / album / image position
-      indexed_dict[
-          (user_id, album_id, db.favorites[user_id][album_id]['images'].index(img))] = tag_sha
-    sorted_blobs = [(0, indexed_dict[k]) for k in sorted(indexed_dict.keys())]
+    sorted_blobs = [(0, sha) for sha, _ in db.SmartFilterByTags(tag_child_ids)]
   else:
     # root page, just build a mock object
     tag_obj: fapdata.TagObjType = {

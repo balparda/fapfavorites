@@ -946,6 +946,123 @@ class TestFapDatabase(unittest.TestCase):
     self.assertDictEqual(db.blobs, _BLOBS_AUDITED)
     fapbase.FULL_IMAGE = None  # set to None for safety
 
+  @mock.patch('fapfavorites.fapdata.FapDatabase.TagsWalk')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.ExportTag')
+  def test_ExportAll(self, export: mock.MagicMock, walk: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    walk.return_value = [(10, None, None, None), (20, None, None, None)]
+    export.side_effect = [5, 6]
+    self.assertEqual(db.ExportAll(re_number_files=True), 11)
+    walk.assert_called_once_with()
+    self.assertListEqual(
+        export.call_args_list,
+        [mock.call(10, re_number_files=True), mock.call(20, re_number_files=True)])
+
+  @mock.patch('os.path.isdir')
+  @mock.patch('os.path.exists')
+  @mock.patch('os.mkdir')
+  @mock.patch('os.remove')
+  @mock.patch('os.listdir')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.GetBlob')
+  @mock.patch('fapfavorites.fapdata.hashlib.sha256')
+  def test_ExportTag_No_Renumber(
+      self, digest: mock.MagicMock, get_blob: mock.MagicMock, listdir: mock.MagicMock,
+      remove: mock.MagicMock, mkdir: mock.MagicMock, exists: mock.MagicMock,
+      isdir: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19']['tags'] = {22, 33}
+    db.blobs['4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207']['tags'] = {1, 22}
+    self.assertEqual(db.ExportTag(246), 0)
+    isdir.return_value = False
+    exists.return_value = True
+    get_blob.return_value = b'file'
+
+    class _Sha256:
+
+      def __init__(self, digest):
+        self._digest = digest
+
+      def hexdigest(self):  # pylint: disable=missing-function-docstring
+        return self._digest
+
+    digest.side_effect = [
+        _Sha256('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'), _Sha256('no')]
+    op = mock.mock_open(read_data=b'some data')
+    with mock.patch('builtins.open', op):
+      self.assertEqual(db.ExportTag(22), 2)
+    self.assertListEqual(
+        isdir.call_args_list,
+        [mock.call('/foo/tag_export/'),
+         mock.call('/foo/tag_export/two'), mock.call('/foo/tag_export/two/two-two')])
+    self.assertListEqual(
+        mkdir.call_args_list,
+        [mock.call('/foo/tag_export/'),
+         mock.call('/foo/tag_export/two'), mock.call('/foo/tag_export/two/two-two')])
+    self.assertListEqual(
+        exists.call_args_list,
+        [mock.call('/foo/tag_export/two/two-two/102.jpg'),
+         mock.call('/foo/tag_export/two/two-two/107.png')])
+    self.assertListEqual(digest.call_args_list, [mock.call(b'some data'), mock.call(b'some data')])
+    get_blob.assert_called_once_with(
+        '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207')
+    self.assertListEqual(
+        op.call_args_list,
+        [mock.call('/foo/tag_export/two/two-two/102.jpg', 'rb'),
+         mock.call('/foo/tag_export/two/two-two/107.png', 'rb'),
+         mock.call('/foo/tag_export/two/two-two/4c49275f4b-107.png', 'wb')])
+    handle = op()
+    self.assertListEqual(handle.write.call_args_list, [mock.call(b'file')])
+    listdir.assert_not_called()
+    remove.assert_not_called()
+
+  @mock.patch('os.path.isdir')
+  @mock.patch('os.path.exists')
+  @mock.patch('os.mkdir')
+  @mock.patch('os.remove')
+  @mock.patch('os.listdir')
+  @mock.patch('fapfavorites.fapdata.FapDatabase.GetBlob')
+  @mock.patch('fapfavorites.fapdata.hashlib.sha256')
+  def test_ExportTag_With_Renumber(
+      self, digest: mock.MagicMock, get_blob: mock.MagicMock, listdir: mock.MagicMock,
+      remove: mock.MagicMock, mkdir: mock.MagicMock, exists: mock.MagicMock,
+      isdir: mock.MagicMock) -> None:
+    """Test."""
+    self.maxDiff = None
+    db = _TestDBFactory()  # pylint: disable=no-value-for-parameter
+    db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19']['tags'] = {22, 33}
+    db.blobs['4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207']['tags'] = {1, 22}
+    isdir.return_value = False
+    get_blob.side_effect = [b'file1', b'file2']
+    listdir.return_value = ['list1', 'list2']
+    op = mock.mock_open(read_data=b'some data')
+    with mock.patch('builtins.open', op):
+      self.assertEqual(db.ExportTag(22, re_number_files=True), 2)
+    self.assertListEqual(
+        isdir.call_args_list,
+        [mock.call('/foo/tag_export/'),
+         mock.call('/foo/tag_export/two'), mock.call('/foo/tag_export/two/two-two')])
+    self.assertListEqual(
+        mkdir.call_args_list,
+        [mock.call('/foo/tag_export/'),
+         mock.call('/foo/tag_export/two'), mock.call('/foo/tag_export/two/two-two')])
+    self.assertListEqual(
+        op.call_args_list,
+        [mock.call('/foo/tag_export/two/two-two/00001-102.jpg', 'wb'),
+         mock.call('/foo/tag_export/two/two-two/00002-107.png', 'wb')])
+    handle = op()
+    self.assertListEqual(handle.write.call_args_list, [mock.call(b'file1'), mock.call(b'file2')])
+    listdir.assert_called_once_with('/foo/tag_export/two/two-two')
+    self.assertListEqual(
+        remove.call_args_list,
+        [mock.call('/foo/tag_export/two/two-two/list1'),
+         mock.call('/foo/tag_export/two/two-two/list2')])
+    digest.assert_not_called()
+    exists.assert_not_called()
+
   @mock.patch('os.path.exists')
   @mock.patch('os.path.getmtime')
   def test_GetDatabaseTimestamp(self, getmtime: mock.MagicMock, exists: mock.MagicMock) -> None:

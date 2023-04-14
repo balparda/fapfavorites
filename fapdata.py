@@ -19,6 +19,7 @@
 import base64
 import enum
 import getpass
+import hashlib
 import html
 import logging
 import math
@@ -49,6 +50,7 @@ DEFAULT_DB_DIRECTORY = '~/Downloads/imagefap/'
 _DEFAULT_DB_NAME = 'imagefap.database'
 _DEFAULT_BLOB_DIR_NAME = 'blobs/'
 DEFAULT_THUMBS_DIR_NAME = 'thumbs/'
+_DEFAULT_TAG_EXPORT_DIR_NAME = 'tag_export/'
 _THUMBNAIL_MAX_DIMENSION = 280
 CHECKPOINT_LENGTH = 10         # int number of downloads between database checkpoints
 AUDIT_CHECKPOINT_LENGTH = 100  # int number of audits between database checkpoints
@@ -1799,6 +1801,112 @@ class FapDatabase:
     logging.info(
         'Audit for user %s finished, %d images checked, with %d image errors',
         self.UserStr(user_id), checked_count, problem_count)
+
+  def ExportAll(self, re_number_files: bool = False) -> int:
+    """Export all tags to disk.
+
+    Args:
+      re_number_files: (default False) If True will wipe the directory clean and add a numerical
+          prefix to the files, preserving the order; otherwise will try to save with original name
+
+    Returns:
+      number of exported files
+    """
+    total_files: int = 0
+    for tid, _, _, _ in self.TagsWalk():
+      total_files += self.ExportTag(tid, re_number_files=re_number_files)
+    logging.info('Exported ALL tags: %d files saved to disk', total_files)
+    return total_files
+
+  def ExportTag(self, tag_id: int, re_number_files: bool = False) -> int:
+    """Export individual tag to disk.
+
+    Args:
+      tag_id: Tag ID to export
+      re_number_files: (default False) If True will wipe the directory clean and add a numerical
+          prefix to the files, preserving the order; otherwise will try to save with original name
+
+    Returns:
+      number of exported files
+
+    Raises:
+      Error: invalid tag_id
+    """
+    # get the tag... will raise if not found
+    tag_hierarchy = self.GetTag(tag_id)
+    tag_name, tag_full_name = tag_hierarchy[-1][1], self.TagLineageStr(tag_id)
+    # select the images; if none were found, cut this adventure short
+    sorted_blobs = self.SmartFilterByTags({tag_id})
+    if not sorted_blobs:
+      logging.info('No images were tagged with %s', tag_full_name)
+      return 0
+    logging.info(
+        'Exporting images for %s (%s)',
+        tag_full_name, 'and renumber files' if re_number_files else 'and keep original names')
+    # take the hierarchy from top to bottom and create all needed directories
+    dir_path = os.path.join(self._db_dir, _DEFAULT_TAG_EXPORT_DIR_NAME)
+    if not os.path.isdir(dir_path):
+      logging.info('Creating tag export directory %r', dir_path)
+      os.mkdir(dir_path)
+    for _, name, _ in tag_hierarchy:
+      dir_path = os.path.join(dir_path, name)
+      if not os.path.isdir(dir_path):
+        logging.info('Creating tag export sub-directory %r', dir_path)
+        os.mkdir(dir_path)
+    # if we are re-numbering the files, clean the directory
+    if re_number_files:
+      for file_name in os.listdir(dir_path):
+        os.remove(os.path.join(dir_path, file_name))
+    # we now know the files and have a semblance of an ordering, so save to disk
+    for n_file, (sha, original_file_name) in enumerate(sorted_blobs):
+      file_name = f'{(n_file+1):05}-{original_file_name}' if re_number_files else original_file_name
+      file_path = os.path.join(dir_path, file_name)
+      # check if the file exists (only needed if we aren't re-numbering, b/c we wipe the directory)
+      if not re_number_files and os.path.exists(file_path):
+        # it exists... but is it the same, or a name clash?
+        with open(file_path, 'rb') as file_obj:
+          existing_sha = hashlib.sha256(file_obj.read()).hexdigest()
+        if sha == existing_sha:
+          # it is exactly the same, so we can safely skip
+          logging.info('Already exists: %s/%s', tag_name, original_file_name)
+          continue
+        # name clash, so do an almost-fool-proof rename (1 in a million birthday collision)
+        file_name = f'{sha[:10]}-{file_name}'  # 2**40 namespace -> 2**20 birthday collision
+        file_path = os.path.join(dir_path, file_name)
+      # we have a trustworthy file path, so save the file
+      with open(file_path, 'wb') as file_obj:
+        file_obj.write(self.GetBlob(sha))  # this will always write the unencrypted bytes
+      logging.info('Saved: %s/%s', tag_name, original_file_name)
+    total_files = len(sorted_blobs)
+    logging.info('Exported tags %s: %d files saved to disk', tag_full_name, total_files)
+    return total_files
+
+  def SmartFilterByTags(self, tag_ids: set[int]) -> list[tuple[str, str]]:
+    """Get blobs sha/names that have any of tag_ids set of tags, sort w/ verdict and album order.
+
+    Args:
+      tag_ids: Set of tags to use (this method will not check that these are valid tags!)
+
+    Returns:
+      list of (SHA256, sanitized-image_name) for every blob that intersects with tag_ids
+    """
+    indexed_dict: dict[tuple[int, int, int], tuple[str, str]] = {}
+    for tag_sha in {  # create intermediary set to de-dup
+        sha for sha, blob in self.blobs.items() if tag_ids.intersection(blob['tags'])}:
+      # search for user/album/id to use
+      all_loc = sorted(self.blobs[tag_sha]['loc'].keys())
+      for user_id, album_id, img in all_loc:
+        if self.blobs[tag_sha]['loc'][(user_id, album_id, img)][1] == 'keep':
+          # we found a 'keep' verdict in the locations, so we use the first one
+          break
+      else:
+        # there is no 'keep' in the locations (probably all 'new'...) so we take the first one
+        user_id, album_id, img = all_loc[0]
+      # the key to indexed_dict will help sort by: user / album / image position
+      indexed_dict[
+          (user_id, album_id, self.favorites[user_id][album_id]['images'].index(img))] = (
+              tag_sha, self.blobs[tag_sha]['loc'][(user_id, album_id, img)][0])
+    return [indexed_dict[k] for k in sorted(indexed_dict.keys())]
 
 
 def GetDatabaseTimestamp(db_path: str = DEFAULT_DB_DIRECTORY) -> int:

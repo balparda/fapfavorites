@@ -128,7 +128,7 @@ be prompted for a database password (only once) in the shell.
 The web app is not beautiful, for sure, but it is simple, fast, gets
 the job done, does not waste your time, and 100% offline.
 You can see all users, all favorite albums, images, duplicates,
-and in the image list you can apply some filters.
+and in the image list you can apply some filters. You can tag images.
 To stop the web app go to `./process.py` and use `CTRL-C` to stop it.
 
 The web app is ___not___ meant to be safe or to serve outside your
@@ -146,6 +146,33 @@ any images are now missing from the user:
 This will neither download new images nor delete images that you
 already have. you can also use the `--force` flag here.
 You can see the results in the web interface.
+
+Supposing you have tagged some images with your own created tags,
+the `./process.py export` command will export tagged images to disk.
+The files will be located in the `/tag_export/` subdirectory of
+the database location (so the default directory will be
+`~/Downloads/imagefap/tag_export/`).
+The files will use the original name, if available, and will be *unencrypted*!
+
+The exporter will create, inside the `/tag_export/` subdirectory the
+necessary directories to support the requested tags hierarchy.
+You also have a `--renumber` flag that will add a numerical prefix
+in the files and so guarantee the file ordering. Example:
+
+```
+./process.py export --renumber
+```
+
+will save *all* tagged images in the database like:
+
+```
+~/Downloads/imagefap/tag_export/MyTag1/00001-file-fav-1.jpg
+~/Downloads/imagefap/tag_export/MyTag1/00002-file-fav-2.jpg
+[... etc ...]
+~/Downloads/imagefap/tag_export/MyTag1/MySubTag1/00001-file-new-1.jpg
+~/Downloads/imagefap/tag_export/MyTag1/MySubTag1/00002-file-new-2.jpg
+[... etc ... etc ...]
+```
 
 ## Usage of `favorites.py`
 
@@ -312,6 +339,62 @@ If you are developing this software, run it with the `--development` flag
 so that the server (Django) will automatically reload the app when you
 save your files, but be aware the startup will run twice. Definitively
 ignore this if you are just using the app.
+
+### `process.py EXPORT` command - _Export Tagged Images: Save My Work!_
+
+The `export` command will export tagged images to disk. The files will be
+located in the `/tag_export/` subdirectory of the database location
+(so the default directory will be `~/Downloads/imagefap/tag_export/`).
+The files will use the original name, if available, and will be *unencrypted*!
+
+The exporter will create, inside the `/tag_export/` subdirectory the
+necessary directories to support the requested tags hierarchy.
+An example will possibly clarify this. Suppose you have a database
+in the default directory, a tag called `Favorites` inside the "root"
+tag hierarchy, and that inside this tag you have both an `Old` and
+a `New` tags. Then, if you run the command:
+
+```
+./process.py export --tag "New"
+```
+
+then `process.py` will save all images that have the exact tag
+`Favorites/New` to the directory (which it will create for you):
+
+```
+~/Downloads/imagefap/tag_export/Favorites/New/file1.jpg
+~/Downloads/imagefap/tag_export/Favorites/New/file2.jpg
+[... etc ...]
+```
+
+You can also easily export all the tags at one by omitting the
+`--tag` flag. You also have a `--renumber` flag that will add
+a numerical prefix in the files and so guarantee the file ordering.
+In the example above, executing:
+
+```
+./process.py export --renumber
+```
+
+will save *all* tagged images in the database like:
+
+```
+~/Downloads/imagefap/tag_export/Favorites/00001-file-fav-1.jpg
+~/Downloads/imagefap/tag_export/Favorites/00002-file-fav-2.jpg
+[... etc ...]
+~/Downloads/imagefap/tag_export/Favorites/New/00001-file-new-1.jpg
+~/Downloads/imagefap/tag_export/Favorites/New/00002-file-new-2.jpg
+[... etc ...]
+~/Downloads/imagefap/tag_export/Favorites/Old/00001-file-old-1.jpg
+~/Downloads/imagefap/tag_export/Favorites/Old/00002-file-old-2.jpg
+[... etc ...]
+```
+
+Note that, if an image has more than one tag, it will be exported
+to multiple locations.
+
+Remember also that you can visually inspect, assign and remove
+tags in the local web app.
 
 ## Storage
 
