@@ -66,13 +66,13 @@ def _ReadOperation(database: fapdata.FapDatabase,
   found_folder_ids: set[int] = ({folder_id} if folder_id else
                                 database.AddAllUserFolders(user_id, force_download))
   total_sz: int = 0
-  for f_id in sorted(found_folder_ids):
+  for f_id, _ in sorted(((fid, database.favorites[user_id][fid]['name'])
+                         for fid in found_folder_ids), key=lambda x: x[1]):
     database.AddFolderPics(user_id, f_id, force_download)
     total_sz += database.DownloadAll(user_id, f_id, fapdata.CHECKPOINT_LENGTH, force_download)
   # if we finished getting all user albums, mark user as finished
   if not folder_id:
-    # use lazy users.get() so tests don't have to mock the actual DB
-    database.users.get(user_id, {})['date_finished'] = base.INT_TIME()
+    database.users[user_id]['date_finished'] = base.INT_TIME()
   # find perceptual duplicates
   if total_sz:
     database.FindDuplicates()
@@ -175,8 +175,8 @@ def Main(operation: str,  # noqa: C901
   """
   print('**************************************************')
   print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER(s)   **')
-  print('**   balparda@gmail.com (Daniel Balparda)    **')
-  print('***********************************************')
+  print('**     balparda@gmail.com (Daniel Balparda)     **')
+  print('**************************************************')
   success_message: str = 'premature end? user paused?'
   try:
     # check inputs

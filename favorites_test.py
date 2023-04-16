@@ -94,7 +94,8 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapbase.ConvertUserName')
   @mock.patch('fapfavorites.favorites.fapbase.ConvertFavoritesName')
-  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load', autospec=True)
+  # autospec makes Load() be called with "self" as an explicit parameter
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Save')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByName')
@@ -123,6 +124,12 @@ class TestFavorites(unittest.TestCase):
     add_folder_by_name.return_value = (20, 'some-folder')
     add_all.return_value = {100, 200}
     read_favorites.return_value = 45394857
+
+    def _OnLoad(database: favorites.fapdata.FapDatabase) -> None:
+      database.users[10] = {}                                            # type: ignore
+      database.favorites[10] = {100: {'name': 'B'}, 200: {'name': 'A'}}  # type: ignore
+
+    load.side_effect = _OnLoad
     try:
       favorites.Main(  # pylint: disable=no-value-for-parameter
           ['read', '--user', '"foo-user"', '--output', '/path/', '--force'])
@@ -132,12 +139,12 @@ class TestFavorites(unittest.TestCase):
     self.assertListEqual(
         mock_is_dir.call_args_list,
         [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
-    load.assert_called_once_with()
+    load.assert_called_once_with(mock.ANY)
     add_user_by_name.assert_called_once_with('"foo-user"')
     self.assertListEqual(
-        add_folder_pics.call_args_list, [mock.call(10, 100, True), mock.call(10, 200, True)])
+        add_folder_pics.call_args_list, [mock.call(10, 200, True), mock.call(10, 100, True)])
     self.assertListEqual(
-        read_favorites.call_args_list, [mock.call(10, 100, 10, True), mock.call(10, 200, 10, True)])
+        read_favorites.call_args_list, [mock.call(10, 200, 10, True), mock.call(10, 100, 10, True)])
     add_all.assert_called_once_with(10, True)
     find_duplicates.assert_called_once_with()
     save.assert_called_once_with()

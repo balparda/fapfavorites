@@ -134,7 +134,7 @@ class TestFapDatabase(unittest.TestCase):
       del os.environ['IMAGEFAP_FAVORITES_DB_PATH']
       del os.environ['IMAGEFAP_FAVORITES_DB_KEY']
       db = fapdata.FapDatabase(db_path)
-      with self.assertRaises(fapdata.base.bin_fernet.InvalidToken):
+      with self.assertRaisesRegex(fapdata.Error, r'Invalid password'):
         db.Load()
       del db
       db = fapdata.FapDatabase(db_path)

@@ -293,10 +293,13 @@ class FapDatabase:
           if self._key is not None:
             raise
           logging.info('Vanilla DB could not be loaded, will try a crypto DB')
-          self._key = base.DeriveKeyFromStaticPassword(
-              getpass.getpass(prompt='Database Password: '))
-          self._db: _DatabaseType = base.BinDeSerialize(
-              file_path=self._db_path, compress=False, key=self._key)
+          try:
+            self._key = base.DeriveKeyFromStaticPassword(
+                getpass.getpass(prompt='Database Password: '))
+            self._db: _DatabaseType = base.BinDeSerialize(
+                file_path=self._db_path, compress=False, key=self._key)
+          except base.bin_fernet.InvalidToken as err:
+            raise Error('Invalid password given!') from err
           # the key seems to have worked, so we save it to environment: "changes will be effective
           # only for the current process where it was assigned and it will not change the value
           # permanently", so the variable won't leak to the larger operating system; Also:
@@ -1153,7 +1156,7 @@ class FapDatabase:
           f'and we had {failed_count} image failures')
     return total_sz
 
-  def _MakeThumbnailForBlob(
+  def _MakeThumbnailForBlob(  # noqa: C901
       self, sha: str,
       extension: str,
       temp_file: tempfile._TemporaryFileWrapper) -> tuple[int, int, int, bool, str]:
@@ -1203,16 +1206,35 @@ class FapDatabase:
             # special process for animated images, specifically an animated `gif`
 
             def _thumbnails(img_frames: Iterator[Image.Image]) -> Iterator[Image.Image]:
-              for frame in img_frames:
-                thumbnail = frame.copy()
-                thumbnail.thumbnail((new_width, new_height), Image.LANCZOS)
-                yield thumbnail
+              first_frame_done: bool = False
+              thumb_count: int = 0
+              try:
+                for thumb_count, frame in enumerate(img_frames):
+                  try:
+                    thumbnail = frame.copy()
+                    thumbnail.thumbnail((new_width, new_height), Image.LANCZOS)
+                    yield thumbnail
+                    first_frame_done = True
+                  except OSError as err:
+                    err_msg = f'Thumbnail error in frame {thumb_count + 1}, image {sha!r}: {err}'
+                    logging.error(err_msg)
+                    if not first_frame_done:
+                      raise Error(err_msg) from err  # this is the first image and it shouldn't fail
+              except OSError:
+                if first_frame_done:  # sometimes after a frame failure the whole iteration fails
+                  logging.error('Animated thumbnail generator failed at frame %d', thumb_count + 1)
+                  return
+                raise
 
-            frames: Iterator[Image.Image] = _thumbnails(ImageSequence.Iterator(img))
-            first_frame = next(frames)   # handle first frame separately: will be used to save
-            first_frame.info = img.info  # copy sequence info into first frame
-            first_frame.save(unencrypted_path, save_all=True, append_images=list(frames))
-            logging.info('Saved animated thumbnail for %r', sha)
+            try:
+              frames: Iterator[Image.Image] = _thumbnails(ImageSequence.Iterator(img))
+              first_frame = next(frames)   # handle first frame separately: will be used to save
+              first_frame.info = img.info  # copy sequence info into first frame
+              first_frame.save(unencrypted_path, save_all=True, append_images=list(frames))
+              logging.info('Saved animated thumbnail for %r', sha)
+            except Error:
+              logging.error('Thumbnail generation failed for animated image %r: will copy', sha)
+              shutil.copyfile(temp_file.name, unencrypted_path)  # just copy, a simple solution
           else:
             # simpler process for regular (non-animated) images
             img.thumbnail((new_width, new_height), resample=Image.LANCZOS)
