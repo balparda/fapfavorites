@@ -1112,7 +1112,7 @@ class FapDatabase:
         self.favorites[user_id][folder_id]['images'].remove(img_id)
         self.favorites[user_id][folder_id]['failed_images'].add(err.FailureTuple(log=True))
         failed_count += 1
-        logging.error('Image %d failed in %s', img_id, self.AlbumStr(user_id, folder_id))
+        logging.error('Image %d failed retrieval in %s', img_id, self.AlbumStr(user_id, folder_id))
         continue
       # we now have binary data and a SHA for sure: check if SHA is in DB
       if sha in self.blobs and self.HasBlob(sha):
@@ -1129,26 +1129,34 @@ class FapDatabase:
         # write the data we already have to the temp file
         temp_file.write(image_bytes)
         temp_file.flush()
-        # generate thumbnail and get dimensions and other image info;
-        # do this *first* because the extension can change here on PIL's advice
-        thumb_sz, width, height, is_animated, extension = self._MakeThumbnailForBlob(
-            sha, extension, temp_file)
-        total_thumb_sz += thumb_sz
-        # write binary data to the final disk destination
-        total_sz += self._SaveImage(self._BlobPath(sha, extension_hint=extension), image_bytes)
-        # calculate image hashes
-        percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash = self.duplicates.Encode(
-            temp_file.name)
-        # create blob and index entries
-        self.blobs[sha] = {
-            'loc': {(user_id, folder_id, img_id): (sanitized_image_name, 'new')},
-            'tags': set(), 'sz': len(image_bytes), 'sz_thumb': thumb_sz, 'ext': extension,
-            'percept': percept_hash, 'average': average_hash, 'diff': diff_hash,
-            'wavelet': wavelet_hash, 'cnn': cnn_hash, 'width': width, 'height': height,
-            'animated': is_animated, 'date': base.INT_TIME(), 'gone': {}}
-        self.image_ids_index[img_id] = sha
-        saved_count += 1
-        logging.info('New image %d (%r) finished processing', img_id, sanitized_image_name)
+        try:
+          # generate thumbnail and get dimensions and other image info;
+          # do this *first* because the extension can change here on PIL's advice
+          thumb_sz, width, height, is_animated, extension = self._MakeThumbnailForBlob(
+              sha, extension, temp_file)
+          total_thumb_sz += thumb_sz
+          # write binary data to the final disk destination
+          total_sz += self._SaveImage(self._BlobPath(sha, extension_hint=extension), image_bytes)
+          # calculate image hashes
+          percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash = self.duplicates.Encode(
+              temp_file.name)
+          # create blob and index entries
+          self.blobs[sha] = {
+              'loc': {(user_id, folder_id, img_id): (sanitized_image_name, 'new')},
+              'tags': set(), 'sz': len(image_bytes), 'sz_thumb': thumb_sz, 'ext': extension,
+              'percept': percept_hash, 'average': average_hash, 'diff': diff_hash,
+              'wavelet': wavelet_hash, 'cnn': cnn_hash, 'width': width, 'height': height,
+              'animated': is_animated, 'date': base.INT_TIME(), 'gone': {}}
+          self.image_ids_index[img_id] = sha
+          saved_count += 1
+          logging.info('New image %d (%r) finished processing', img_id, sanitized_image_name)
+        except Error:
+          self.favorites[user_id][folder_id]['images'].remove(img_id)
+          self.favorites[user_id][folder_id]['failed_images'].add(
+              (img_id, base.INT_TIME(), sanitized_image_name, url_path))
+          failed_count += 1
+          logging.error(
+              'Image %d failed processing in %s', img_id, self.AlbumStr(user_id, folder_id))
     # all images were downloaded: mark as done, log, and save if anything actually changed
     self.favorites[user_id][folder_id]['date_blobs'] = base.INT_TIME()  # marks album as done
     print(f'Album {self.AlbumStr(user_id, folder_id)}: '
@@ -1176,7 +1184,7 @@ class FapDatabase:
       (int size of saved file, original width, original height, is animated image, actual extension)
 
     Raises:
-      Error: if image has inconsistencies
+      Error: if image has inconsistencies or could not be processed
     """
     # open image and generate a thumbnail
     with Image.open(temp_file.name) as img:
@@ -1200,50 +1208,36 @@ class FapDatabase:
           shutil.copyfile(temp_file.name, unencrypted_path)
           logging.info('Copied image as thumbnail for %r', sha)
         else:
+          # figure out width & height to use
           if width > height:
             new_width, factor = _THUMBNAIL_MAX_DIMENSION, width / _THUMBNAIL_MAX_DIMENSION
             new_height = math.floor(height / factor)
           else:
             new_height, factor = _THUMBNAIL_MAX_DIMENSION, height / _THUMBNAIL_MAX_DIMENSION
             new_width = math.floor(width / factor)
-          if is_animated and extension == 'gif':
-            # special process for animated images, specifically an animated `gif`
-
-            def _thumbnails(img_frames: Iterator[Image.Image]) -> Iterator[Image.Image]:
-              first_frame_done: bool = False
-              thumb_count: int = 0
-              try:
-                for thumb_count, frame in enumerate(img_frames):
-                  try:
-                    thumbnail = frame.copy()
-                    thumbnail.thumbnail((new_width, new_height), Image.LANCZOS)
-                    yield thumbnail
-                    first_frame_done = True
-                  except OSError as err:
-                    err_msg = f'Thumbnail error in frame {thumb_count + 1}, image {sha!r}: {err}'
-                    logging.error(err_msg)
-                    if not first_frame_done:
-                      raise Error(err_msg) from err  # this is the first image and it shouldn't fail
-              except OSError:
-                if first_frame_done:  # sometimes after a frame failure the whole iteration fails
-                  logging.error('Animated thumbnail generator failed at frame %d', thumb_count + 1)
-                  return
-                raise
-
-            try:
-              frames: Iterator[Image.Image] = _thumbnails(ImageSequence.Iterator(img))
+          # do the thumbnail generation per se, protected by some exception handling
+          try:
+            if is_animated and extension == 'gif':
+              # special process for animated images, specifically an animated 'gif'
+              frames: Iterator[Image.Image] = _ThumbnailFrames(
+                  ImageSequence.Iterator(img), sha, new_width, new_height)
               first_frame = next(frames)   # handle first frame separately: will be used to save
               first_frame.info = img.info  # copy sequence info into first frame
               first_frame.save(unencrypted_path, save_all=True, append_images=list(frames))
               logging.info('Saved animated thumbnail for %r', sha)
-            except Error:
-              logging.error('Thumbnail generation failed for animated image %r: will copy', sha)
-              shutil.copyfile(temp_file.name, unencrypted_path)  # just copy, a simple solution
-          else:
-            # simpler process for regular (non-animated) images
-            img.thumbnail((new_width, new_height), resample=Image.LANCZOS)
-            img.save(unencrypted_path)
-            logging.info('Saved thumbnail for %r', sha)
+            else:
+              # simpler process for regular (non-animated) images
+              img.thumbnail((new_width, new_height), resample=Image.LANCZOS)
+              img.save(unencrypted_path)
+              logging.info('Saved thumbnail for %r', sha)
+          except (Error, OSError) as err:
+            err_msg = ('Thumbnail generation failed '
+                       f'for{" animated" if is_animated and extension == "gif" else " regular"} '
+                       f'image {sha!r} ({err})')
+            if 'file is truncated' in str(err).lower() and 'not processed' in str(err).lower():
+              raise Error(err_msg) from err
+            logging.error('%s: using regular copy as workaround', err_msg)
+            shutil.copyfile(temp_file.name, unencrypted_path)  # just copy, a simple solution
         # we get the size of the created file so we can return it
         sz_thumb = os.path.getsize(unencrypted_path)
         # we now encrypt the temporary file into its final destination (or copy if no encryption)
@@ -1933,6 +1927,40 @@ class FapDatabase:
           (user_id, album_id, self.favorites[user_id][album_id]['images'].index(img))] = (
               tag_sha, self.blobs[tag_sha]['loc'][(user_id, album_id, img)][0])
     return [indexed_dict[k] for k in sorted(indexed_dict.keys())]
+
+
+def _ThumbnailFrames(
+    img_frames: Iterator[Image.Image], sha: str, width: int, height: int) -> Iterator[Image.Image]:
+  """Convert a iterator of image frames to an iterator of thumbnail frames for desired dimensions.
+
+  Args:
+    img_frames: Iterator with image frames to process
+    sha: Image SHA
+    width: desired width
+    height: desired height
+
+  Yields:
+    thumbnail frames
+  """
+  first_frame_done: bool = False
+  thumb_count: int = 0
+  try:
+    for thumb_count, frame in enumerate(img_frames):
+      try:
+        thumbnail = frame.copy()
+        thumbnail.thumbnail((width, height), Image.LANCZOS)
+        yield thumbnail
+        first_frame_done = True
+      except OSError as err:
+        err_msg = f'Thumbnail error in frame {thumb_count + 1}, image {sha!r}: {err}'
+        if not first_frame_done:
+          raise Error(err_msg) from err  # this is the first image and shouldn't fail
+        logging.error(err_msg)           # the other frames can be logged and ignored
+  except OSError as err:
+    err_msg = f'Animated thumbnail generator failed at frame {thumb_count + 1}'
+    if not first_frame_done:
+      raise Error(err_msg) from err  # don't tolerate first-frame errors
+    logging.error(err_msg)           # but only log subsequent errors (in secondary frames)
 
 
 def GetDatabaseTimestamp(db_path: str = DEFAULT_DB_DIRECTORY) -> int:
