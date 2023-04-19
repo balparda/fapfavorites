@@ -150,7 +150,7 @@
           {% with blob=blobs_data|lookup:sha %}
             {% if locked_for_tagging %}
               <td align='center' valign='center' id='{{ sha }}' class='unselected'>
-                <img src='{% url "thumb" sha %}'
+                <img src='{% url "thumb" sha %}' {% if blob.fap_id %}id='{{ blob.fap_id }}'{% endif %}
                     onclick='javascript:switch_selection("{{ sha }}");'
                     title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}{% if blob.tags %}&#10;{{ blob.tags|escape }}{% endif %}&#10;{{ blob.date }}{% if blob.has_duplicate %}&#10;has exact duplicate{% endif %}{% if blob.has_percept %}&#10;has perceptual duplicate{% endif %}'/><br/>
                 <small><small>
@@ -169,7 +169,8 @@
                   {% if blob.has_percept %}class='has_perceptual'{% else %}
                   {% if blob.gone %}class='has_disappeared'{% endif %}{% endif %}{% endif %}{% endif %}>
                 <a href='{% url "blob" sha %}' target='_blank' rel='noopener noreferrer'>
-                  <img src='{% url "thumb" sha %}' title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}{% if blob.tags %}&#10;{{ blob.tags|escape }}{% endif %}&#10;{{ blob.date }}{% if blob.has_duplicate %}&#10;has exact duplicate{% endif %}{% if blob.has_percept %}&#10;has perceptual duplicate{% endif %}'/></a>
+                  <img src='{% url "thumb" sha %}' {% if blob.fap_id %}id='{{ blob.fap_id }}'{% endif %}
+                      title='{{ blob.name|escape }}&#10;{{ blob.sz }} - {{ blob.dimensions }}{% if blob.tags %}&#10;{{ blob.tags|escape }}{% endif %}&#10;{{ blob.date }}{% if blob.has_duplicate %}&#10;has exact duplicate{% endif %}{% if blob.has_percept %}&#10;has perceptual duplicate{% endif %}'/></a>
                 &nbsp;<small><small>
                   <a href='{{ blob.imagefap }}' class='external' title='{% for gone in blob.gone %}{{ gone.0 }} - {{ gone.1 }} - {{ gone.2 }} missing&#10;{% empty %}Image in Imagefap{% endfor %}' target='_blank' rel='noopener noreferrer'>{% if blob.gone %}&#9986;{% else %}&#128279;{% endif %}</a>
                 </small>

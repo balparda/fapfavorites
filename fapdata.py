@@ -1058,7 +1058,7 @@ class FapDatabase:
           f'Downloading album {self.AlbumStr(user_id, folder_id)} images'):
         return 0
       logging.info('*NO* checkpoints used (work may be lost!)' if checkpoint_size == 0 else
-                   f'Checkpoint DB every {checkpoint_size} downloads')
+                   f'Checkpoint DB every {checkpoint_size} database actions')
     except KeyError as err:
       raise Error(f'This user/folder was not added to DB yet: {user_id}/{folder_id}') from err
     # download all full resolution images we don't yet have
@@ -1070,6 +1070,12 @@ class FapDatabase:
     exists_count: int = 0
     failed_count: int = 0
     for img_id in list(self.favorites[user_id][folder_id]['images']):  # copy b/c we might change it
+      # checkpoint database, if asked to and all actions accumulate to threshold (checkpoint_size)
+      action_count = saved_count + exists_count + failed_count
+      if checkpoint_size and (action_count and not action_count % checkpoint_size):
+        logging.info('Album %s checkpoint @ saved=%d / existing=%d / failed=%d',
+                     self.AlbumStr(user_id, folder_id), saved_count, exists_count, failed_count)
+        self.Save()
       # figure out if we have it in the index, i.e., if we've seen img_id before
       sha = self.image_ids_index.get(img_id, None)
       sanitized_image_name: str = 'unknown'
@@ -1092,7 +1098,7 @@ class FapDatabase:
           logging.warning('Image %d failed to fetch but is being added with name "unknown"', img_id)
         # either way we are done with this image
         self.blobs[sha]['loc'][(user_id, folder_id, img_id)] = (sanitized_image_name, 'new')
-        known_count += 1
+        exists_count += 1
         continue
       # we don't know about this specific img_id yet: we need more information
       try:
@@ -1143,17 +1149,15 @@ class FapDatabase:
         self.image_ids_index[img_id] = sha
         saved_count += 1
         logging.info('New image %d (%r) finished processing', img_id, sanitized_image_name)
-      # temp file is closed; checkpoint database, if needed
-      if checkpoint_size and not saved_count % checkpoint_size:
-        self.Save()
-    # all images were downloaded, the end, log and save
+    # all images were downloaded: mark as done, log, and save if anything actually changed
     self.favorites[user_id][folder_id]['date_blobs'] = base.INT_TIME()  # marks album as done
-    self.Save()
     print(f'Album {self.AlbumStr(user_id, folder_id)}: '
           f'Saved {saved_count} images to disk ({base.HumanizedBytes(total_sz)}) and '
           f'{base.HumanizedBytes(total_thumb_sz)} in thumbnails; also {known_count} images were '
           f'already in DB and {exists_count} images were already saved to destination, '
           f'and we had {failed_count} image failures')
+    if saved_count or exists_count or failed_count:
+      self.Save()
     return total_sz
 
   def _MakeThumbnailForBlob(  # noqa: C901

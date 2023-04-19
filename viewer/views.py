@@ -24,9 +24,10 @@ __version__ = (2, 0)
 
 
 _IMAGE_TYPES = {
+    'bmp': 'image/bmp',
+    'gif': 'image/gif',
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',
-    'gif': 'image/gif',
     'png': 'image/png',
     'tiff': 'image/tiff',
 }
@@ -529,6 +530,7 @@ def _ServeImages(  # noqa: C901
     # fill in the other fields, make them readable
     blobs_data[sha] = {
         'name': blob['loc'][loc][0],
+        'fap_id': img if img else loc[2],  # (problematic corner-case: duplicate SHA in same album!)
         'verdict': blob['loc'][loc][1],
         'sz': base.HumanizedBytes(blob['sz']),
         'dimensions': f'{blob["width"]}x{blob["height"]} (WxH)',

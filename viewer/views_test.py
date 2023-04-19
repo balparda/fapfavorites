@@ -1317,6 +1317,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
+            'fap_id': 102,
             'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
                                 'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
                                 'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
@@ -1336,6 +1337,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/101/',
+            'fap_id': 101,
             'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101) <= THIS\n'
                                 'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
@@ -1352,6 +1354,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': True,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/104/',
+            'fap_id': 104,
             'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
                                 'Exact: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
                                 'Exact: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104) <= THIS\n'
@@ -1376,6 +1379,7 @@ _FAVORITE_CONTEXT_ALL_ON: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/103/',
+            'fap_id': 103,
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
@@ -1461,6 +1465,7 @@ _FAVORITE_CONTEXT_ALL_OFF: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
+            'fap_id': 102,
             'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
                                 'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
                                 'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
@@ -1539,6 +1544,7 @@ _FAVORITE_CONTEXT_FILTER_DUPLICATES: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
+            'fap_id': 102,
             'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
                                 'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
                                 'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
@@ -1558,6 +1564,7 @@ _FAVORITE_CONTEXT_FILTER_DUPLICATES: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/103/',
+            'fap_id': 103,
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
@@ -1682,6 +1689,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/102/',
+            'fap_id': 102,
             'duplicate_hints': ('Visual: Ben/ben-folder-20/\'name-202.png\' (2/20/202)\n'
                                 'Visual: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
                                 'Visual: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
@@ -1701,6 +1709,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/200/',
+            'fap_id': 200,
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
@@ -1715,6 +1724,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/111/',
+            'fap_id': 111,
             'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
@@ -1731,6 +1741,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/112/',
+            'fap_id': 112,
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
@@ -1745,6 +1756,7 @@ _TAG_LEAF_CONTEXT_DELETE: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/103/',
+            'fap_id': 103,
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
@@ -1813,6 +1825,7 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/111/',
+            'fap_id': 111,
             'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
@@ -1829,6 +1842,7 @@ _TAG_LEAF_CONTEXT_RENAME: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/103/',
+            'fap_id': 103,
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
@@ -1898,6 +1912,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/111/',
+            'fap_id': 111,
             'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-201.jpg\' (2/20/201)\n'
                                 'Exact: Luke/luke-folder-10/\'name-101.jpg\' (1/10/101)\n'
                                 'Exact: Luke/luke-folder-11/\'name-111.jpg\' (1/11/111)'),
@@ -1914,6 +1929,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/112/',
+            'fap_id': 112,
             'duplicate_hints': '',
             'date': '2023/Feb/02-17:59:30-UTC',
             'gone': [],
@@ -1928,6 +1944,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': True,
             'imagefap': 'https://www.imagefap.com/photo/104/',
+            'fap_id': 104,
             'duplicate_hints': ('Exact: Ben/ben-folder-20/\'name-203.jpg\' (2/20/203)\n'
                                 'Exact: Luke/luke-folder-10/\'name-100.jpg\' (1/10/100)\n'
                                 'Exact: Luke/luke-folder-10/\'name-104.jpg\' (1/10/104)\n'
@@ -1952,6 +1969,7 @@ _TAG_LEAF_CLEAR_TAG: dict[str, Any] = {
             'album_duplicate': False,
             'has_percept': False,
             'imagefap': 'https://www.imagefap.com/photo/103/',
+            'fap_id': 103,
             'duplicate_hints': '',
             'date': '2023/Feb/02-20:12:50-UTC',
             'gone': [
