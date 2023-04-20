@@ -26,8 +26,11 @@ __version__ = (2, 0)
 _IMAGE_TYPES = {
     'bmp': 'image/bmp',
     'gif': 'image/gif',
+    'jfif': 'image/jpeg',  # cspell:disable-line
+    # TODO: jfif does not work on browser: convert to JPG?
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',
+    'mpo': 'image/jpeg',
     'png': 'image/png',
     'tiff': 'image/tiff',
 }
