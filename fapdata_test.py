@@ -967,7 +967,7 @@ class TestFapDatabase(unittest.TestCase):
   @mock.patch('os.remove')
   @mock.patch('os.listdir')
   @mock.patch('fapfavorites.fapdata.FapDatabase.GetBlob')
-  @mock.patch('fapfavorites.fapdata.hashlib.sha256')
+  @mock.patch('fapfavorites.fapbase.hashlib.sha256')
   def test_ExportTag_No_Renumber(
       self, digest: mock.MagicMock, get_blob: mock.MagicMock, listdir: mock.MagicMock,
       remove: mock.MagicMock, mkdir: mock.MagicMock, exists: mock.MagicMock,
@@ -991,7 +991,10 @@ class TestFapDatabase(unittest.TestCase):
         return self._digest
 
     digest.side_effect = [
-        _Sha256('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'), _Sha256('no')]
+        _Sha256('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),  # 1st file
+        _Sha256('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+        _Sha256('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207'),  # 2nd file
+        _Sha256('no')]
     op = mock.mock_open(read_data=b'some data')
     with mock.patch('builtins.open', op):
       self.assertEqual(db.ExportTag(22), 2)
@@ -1007,9 +1010,13 @@ class TestFapDatabase(unittest.TestCase):
         exists.call_args_list,
         [mock.call('/foo/tag_export/two/two-two/102.jpg'),
          mock.call('/foo/tag_export/two/two-two/107.png')])
-    self.assertListEqual(digest.call_args_list, [mock.call(b'some data'), mock.call(b'some data')])
-    get_blob.assert_called_once_with(
-        '4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207')
+    self.assertListEqual(
+        digest.call_args_list,
+        [mock.call(b'file'), mock.call(b'some data'), mock.call(b'file'), mock.call(b'some data')])
+    self.assertListEqual(
+        get_blob.call_args_list,
+        [mock.call('0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19'),
+         mock.call('4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207')])
     self.assertListEqual(
         op.call_args_list,
         [mock.call('/foo/tag_export/two/two-two/102.jpg', 'rb'),
@@ -1026,7 +1033,7 @@ class TestFapDatabase(unittest.TestCase):
   @mock.patch('os.remove')
   @mock.patch('os.listdir')
   @mock.patch('fapfavorites.fapdata.FapDatabase.GetBlob')
-  @mock.patch('fapfavorites.fapdata.hashlib.sha256')
+  @mock.patch('fapfavorites.fapbase.hashlib.sha256')
   def test_ExportTag_With_Renumber(
       self, digest: mock.MagicMock, get_blob: mock.MagicMock, listdir: mock.MagicMock,
       remove: mock.MagicMock, mkdir: mock.MagicMock, exists: mock.MagicMock,
@@ -1037,6 +1044,7 @@ class TestFapDatabase(unittest.TestCase):
     db.blobs['0aaef1becbd966a2adcb970069f6cdaa62ee832fbb24e3c827a39fbc463c0e19']['tags'] = {22, 33}
     db.blobs['4c49275f4bb6ed2fd502a51a0fc3b24661483c1aa9d4acc1dc91f035877df207']['tags'] = {1, 22}
     isdir.return_value = False
+    exists.return_value = False
     get_blob.side_effect = [b'file1', b'file2']
     listdir.return_value = ['list1', 'list2']
     op = mock.mock_open(read_data=b'some data')
@@ -1061,8 +1069,11 @@ class TestFapDatabase(unittest.TestCase):
         remove.call_args_list,
         [mock.call('/foo/tag_export/two/two-two/list1'),
          mock.call('/foo/tag_export/two/two-two/list2')])
+    self.assertListEqual(
+        exists.call_args_list,
+        [mock.call('/foo/tag_export/two/two-two/00001-102.jpg'),
+         mock.call('/foo/tag_export/two/two-two/00002-107.png')])
     digest.assert_not_called()
-    exists.assert_not_called()
 
   @mock.patch('os.path.exists')
   @mock.patch('os.path.getmtime')

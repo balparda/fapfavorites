@@ -19,7 +19,6 @@
 import base64
 import enum
 import getpass
-import hashlib
 import html
 import logging
 import math
@@ -1853,8 +1852,7 @@ class FapDatabase:
       Error: invalid tag_id
     """
     # get the tag... will raise if not found
-    tag_hierarchy = self.GetTag(tag_id)
-    tag_name, tag_full_name = tag_hierarchy[-1][1], self.TagLineageStr(tag_id)
+    tag_hierarchy, tag_full_name = self.GetTag(tag_id), self.TagLineageStr(tag_id)
     # select the images; if none were found, cut this adventure short
     sorted_blobs = self.SmartFilterByTags({tag_id})
     if not sorted_blobs:
@@ -1880,24 +1878,7 @@ class FapDatabase:
     # we now know the files and have a semblance of an ordering, so save to disk
     for n_file, (sha, original_file_name) in enumerate(sorted_blobs):
       file_name = f'{(n_file+1):05}-{original_file_name}' if re_number_files else original_file_name
-      file_path = os.path.join(dir_path, file_name)
-      # check if the file exists (only needed if we aren't re-numbering, b/c we wipe the directory)
-      if not re_number_files and os.path.exists(file_path):
-        # it exists... but is it the same, or a name clash?
-        with open(file_path, 'rb') as file_obj:
-          existing_sha = hashlib.sha256(file_obj.read()).hexdigest()
-        if sha == existing_sha:
-          # it is exactly the same, so we can safely skip
-          logging.info('Already exists: %s/%s', tag_name, original_file_name)
-          continue
-        # name clash, so do an almost-fool-proof rename (1 in a million birthday collision)
-        # TODO: adapt this into a method so we can also use it in fapbase.DownloadFavorites()
-        file_name = f'{sha[:10]}-{file_name}'  # 2**40 namespace -> 2**20 birthday collision
-        file_path = os.path.join(dir_path, file_name)
-      # we have a trustworthy file path, so save the file
-      with open(file_path, 'wb') as file_obj:
-        file_obj.write(self.GetBlob(sha))  # this will always write the unencrypted bytes
-      logging.info('Saved: %s/%s', tag_name, original_file_name)
+      fapbase.SaveNoClash(dir_path, file_name, self.GetBlob(sha))
     total_files = len(sorted_blobs)
     logging.info('Exported tags %s: %d files saved to disk', tag_full_name, total_files)
     return total_files

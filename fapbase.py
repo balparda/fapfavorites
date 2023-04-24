@@ -329,9 +329,7 @@ def DownloadFavorites(user_id: int, folder_id: int, output_path: str) -> None:
       failed_count += 1
       continue
     # write image to the final disk destination
-    with open(image_path, 'wb') as file_obj:
-      file_obj.write(image_bytes)
-    logging.info('Saved %s for image %r', base.HumanizedBytes(len(image_bytes)), image_path)
+    SaveNoClash(output_path, sanitized_image_name, image_bytes)
     total_sz += len(image_bytes)
     saved_count += 1
   # all images were downloaded, the end
@@ -470,3 +468,48 @@ def ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   sanitized_extension = NormalizeExtension(extension)
   sanitized_image_name = f'{main_name}.{sanitized_extension}'
   return (full_res_urls[0], sanitized_image_name, sanitized_extension)
+
+
+def SaveNoClash(dir_path: str, file_name: str, file_data: bytes) -> Optional[str]:
+  """Save data to disk, but skip if identical file exists or rename if another one exists in path.
+
+  If no file exists in destination, saves the file_data to the desired path (dir_path + file_name).
+
+  If an identical file exists in the desired path, does nothing and returns None. Checks by SHA256.
+
+  If a non-identical file exists in the desired path, this will rename and then save file_data.
+  The implemented name clash avoidance (by renaming the file) is *almost* fool-proof: it may have
+  a 1-in-a-million birthday collision. The file will be renamed to f'{sha[:10]}-{file_name}',
+  so the added blurb is a 2**40 namespace (10 hex digits), which means a 2**20 birthday collision,
+  which is more or less 1-in-a-million.
+
+  Args:
+    dir_path: Directory to save to
+    file_name: File name to try to save to
+    file_data: Bytes to save to file
+
+  Returns:
+    The actual file_name saved to if the file was saved, None otherwise (i.e. if identical file
+    already existed in this path)
+  """
+  original_file_name = file_name
+  file_path = os.path.join(dir_path, file_name)
+  # check if the file exists
+  if os.path.exists(file_path):
+    # it exists... but is it the same, or a name clash?
+    old_sha = hashlib.sha256(file_data).hexdigest()
+    with open(file_path, 'rb') as file_obj:
+      existing_sha = hashlib.sha256(file_obj.read()).hexdigest()
+    if old_sha == existing_sha:
+      # it is exactly the same, so we can safely skip
+      logging.info('Already exists: %s (SKIP)', file_path)
+      return None
+    # name clash, so do an almost-fool-proof rename (1-in-a-million birthday collision)
+    file_name = f'{old_sha[:10]}-{file_name}'  # 2**40 namespace -> 2**20 birthday collision
+    file_path = os.path.join(dir_path, file_name)
+    logging.warning('File clash rename: %r -> %r', original_file_name, file_name)
+  # we have a trustworthy file path, so save the file
+  with open(file_path, 'wb') as file_obj:
+    file_obj.write(file_data)
+  logging.info('Saved %s in: %s', base.HumanizedBytes(len(file_data)), file_path)
+  return file_name

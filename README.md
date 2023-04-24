@@ -476,24 +476,28 @@ from a structure like:
       'date_finished': int_time_last_success_finish,
       'date_audit': int_time_last_success_audit,
     },
+    # user ID 1 (a closed admin account in Imagefap) will be used for local disk files read
   },
 
   'favorites': {
     # stores the downloaded picture folders metadata
     user_id: {
       folder_id: {
-        'name': folder_name,
-        'pages': max_pages_found,
+        'name': folder_name,       # (for local disk files read this is the path name)
+        'pages': max_pages_found,  # (always 1 for local disk files read)
         'date_blobs':    int_time_last_success_download_for_blobs,
-            # these dates are int(time.time()) of last time all images finished; the fields will
-            # start as 0, meaning never finished yet, and we have one for straight image saves
-            # (coming from `get` operation) and one for blobs (coming from `read` operation)
+            # this date is int(time.time()) of last time all images finished; the field will
+            # start as 0, meaning not finished yet
         'images': [imagefap_image_id-1, imagefap_image_id-2, ...],  # in order
         'failed_images': {
           (failed_image_id-1, failure_int_timestamp-1, Optional[file_name_sanitized-1], Optional[full_res_url-1]),
           (failed_image_id-2, failure_int_timestamp-2, Optional[file_name_sanitized-2], Optional[full_res_url-2]),
           ...
         },
+        # Image and Folder IDs for local disk files are a 128 bit int from the file hash+inode, ie:
+        #     ID = int(sha256(f'{sha256(image_data).digest()}-{image_inode}')[:32])
+        # This is done to make it (1) repeatable (2) unique to disk file and (3) impossible to clash
+        # with the Imagefap IDs (which are in the int64 range).
       },
     },
   },
