@@ -113,6 +113,14 @@ time when you have to restart the fetching, as it will gladly remember
 the work done and save time. If you know something changed and want
 to force it to download anyway, just add the `--force` flag.
 
+If you want to add files from the local disk, use the `--local` flag to
+provide a directory path to be read recursively (do not provide any of
+`user`/`id`/`name`/`folder` flags in this case).
+
+```
+./favorites.py read --local "~/path/to/images/"
+```
+
 Now you want to see the data and admire the downloaded albums and
 images, so you do:
 
@@ -270,12 +278,23 @@ The `read` command will also generate thumbnails for the images,
 that will be used to display them in the web app (see `run` command of
 `process.py`).
 
+If you want to add files from the local disk, use the `--local` flag to
+provide a directory path to be read recursively (do not provide any of
+`user`/`id`/`name`/`folder` flags in this case).
+
+```
+./favorites.py read --local "~/path/to/images/"
+```
+
+The command above will read images from `~/path/to/images/`, recursively.
+
 ### `favorites.py AUDIT` command - _Check the Database!_
 
 After you have a database in place you can use the `audit` operation to
 look at all pictures for a `--user` (or `--id`) and find out if any images
 in the DB are missing from the site. This will *not* download any new images
 but will re-check the existence of images in the database for that user.
+Images that were read from local disk will *not* be audited.
 
 Audit will also go over the database looking for any inconsistencies that may
 have been introduced, and will try to correct for them (in this case it might

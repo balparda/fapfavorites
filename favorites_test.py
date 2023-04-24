@@ -36,6 +36,12 @@ class TestFavorites(unittest.TestCase):
     with self.assertRaisesRegex(AttributeError, r'should not provide --name or --folder'):
       favorites.Main(  # pylint: disable=no-value-for-parameter
           ['audit', '--user', 'foo', '--name', 'bar', '--output', '/path/'])
+    with self.assertRaisesRegex(AttributeError, r'use flag --local with `read`'):
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['audit', '--local', 'foo', '--output', '/path/'])
+    with self.assertRaisesRegex(AttributeError, r'flags together with --local'):
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--user', 'foo', '--local', 'bar', '--output', '/path/'])
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapbase.ConvertUserName')
@@ -54,14 +60,15 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.BlobIntegrityCheck')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AlbumIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddLocalDirectories')
   def test_GetOperation(
-      self, album_integrity: mock.MagicMock, blob_integrity: mock.MagicMock,
-      audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
-      read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
-      add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
-      add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
-      add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
-      convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
+      self, add_local: mock.MagicMock, album_integrity: mock.MagicMock,
+      blob_integrity: mock.MagicMock, audit: mock.MagicMock, add_all: mock.MagicMock,
+      find_duplicates: mock.MagicMock, read_favorites: mock.MagicMock,
+      download_favorites: mock.MagicMock, add_folder_pics: mock.MagicMock,
+      add_folder_by_name: mock.MagicMock, add_folder_by_id: mock.MagicMock,
+      add_user_by_name: mock.MagicMock, add_user_by_id: mock.MagicMock, save: mock.MagicMock,
+      load: mock.MagicMock, convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -90,6 +97,7 @@ class TestFavorites(unittest.TestCase):
     audit.assert_not_called()
     album_integrity.assert_not_called()
     blob_integrity.assert_not_called()
+    add_local.assert_not_called()
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapbase.ConvertUserName')
@@ -109,14 +117,15 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.BlobIntegrityCheck')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AlbumIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddLocalDirectories')
   def test_ReadOperation(
-      self, album_integrity: mock.MagicMock, blob_integrity: mock.MagicMock,
-      audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
-      read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
-      add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
-      add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
-      add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
-      convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
+      self, add_local: mock.MagicMock, album_integrity: mock.MagicMock,
+      blob_integrity: mock.MagicMock, audit: mock.MagicMock, add_all: mock.MagicMock,
+      find_duplicates: mock.MagicMock, read_favorites: mock.MagicMock,
+      download_favorites: mock.MagicMock, add_folder_pics: mock.MagicMock,
+      add_folder_by_name: mock.MagicMock, add_folder_by_id: mock.MagicMock,
+      add_user_by_name: mock.MagicMock, add_user_by_id: mock.MagicMock, save: mock.MagicMock,
+      load: mock.MagicMock, convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -157,6 +166,7 @@ class TestFavorites(unittest.TestCase):
     audit.assert_not_called()
     album_integrity.assert_not_called()
     blob_integrity.assert_not_called()
+    add_local.assert_not_called()
 
   @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
@@ -244,14 +254,72 @@ class TestFavorites(unittest.TestCase):
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.BlobIntegrityCheck')
   @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AlbumIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddLocalDirectories')
+  def test_ReadOperation_Local(
+      self, add_local: mock.MagicMock, album_integrity: mock.MagicMock,
+      blob_integrity: mock.MagicMock, audit: mock.MagicMock, add_all: mock.MagicMock,
+      find_duplicates: mock.MagicMock, read_favorites: mock.MagicMock,
+      download_favorites: mock.MagicMock, add_folder_pics: mock.MagicMock,
+      add_folder_by_name: mock.MagicMock, add_folder_by_id: mock.MagicMock,
+      add_user_by_name: mock.MagicMock, add_user_by_id: mock.MagicMock, save: mock.MagicMock,
+      load: mock.MagicMock, convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
+      mock_is_dir: mock.MagicMock) -> None:
+    """Test."""
+    mock_is_dir.return_value = True
+    add_local.return_value = 9999
+    try:
+      favorites.Main(  # pylint: disable=no-value-for-parameter
+          ['read', '--local', '/foo/', '--output', '/path/'])
+    except SystemExit as err:
+      if err.code:  # pylint: disable=using-constant-test
+        raise
+    self.assertListEqual(
+        mock_is_dir.call_args_list,
+        [mock.call('/path/'), mock.call('/path/blobs/'), mock.call('/path/thumbs/')])
+    load.assert_called_once_with()
+    add_local.assert_called_once_with('/foo/')
+    convert_favorites.assert_not_called()
+    convert_name.assert_not_called()
+    add_user_by_id.assert_not_called()
+    add_folder_by_id.assert_not_called()
+    add_folder_by_name.assert_not_called()
+    download_favorites.assert_not_called()
+    audit.assert_not_called()
+    album_integrity.assert_not_called()
+    blob_integrity.assert_not_called()
+    add_all.assert_not_called()
+    find_duplicates.assert_not_called()
+    read_favorites.assert_not_called()
+    add_folder_pics.assert_not_called()
+    add_user_by_name.assert_not_called()
+    save.assert_not_called()
+
+  @mock.patch('fapfavorites.favorites.fapdata.os.path.isdir')
+  @mock.patch('fapfavorites.favorites.fapbase.ConvertUserName')
+  @mock.patch('fapfavorites.favorites.fapbase.ConvertFavoritesName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Load')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Save')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddUserByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByID')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderByName')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddFolderPics')
+  @mock.patch('fapfavorites.favorites.fapbase.DownloadFavorites')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.DownloadAll')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.FindDuplicates')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddAllUserFolders')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.Audit')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.BlobIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AlbumIntegrityCheck')
+  @mock.patch('fapfavorites.favorites.fapdata.FapDatabase.AddLocalDirectories')
   def test_AuditOperation(
-      self, album_integrity: mock.MagicMock, blob_integrity: mock.MagicMock,
-      audit: mock.MagicMock, add_all: mock.MagicMock, find_duplicates: mock.MagicMock,
-      read_favorites: mock.MagicMock, download_favorites: mock.MagicMock,
-      add_folder_pics: mock.MagicMock, add_folder_by_name: mock.MagicMock,
-      add_folder_by_id: mock.MagicMock, add_user_by_name: mock.MagicMock,
-      add_user_by_id: mock.MagicMock, save: mock.MagicMock, load: mock.MagicMock,
-      convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
+      self, add_local: mock.MagicMock, album_integrity: mock.MagicMock,
+      blob_integrity: mock.MagicMock, audit: mock.MagicMock, add_all: mock.MagicMock,
+      find_duplicates: mock.MagicMock, read_favorites: mock.MagicMock,
+      download_favorites: mock.MagicMock, add_folder_pics: mock.MagicMock,
+      add_folder_by_name: mock.MagicMock, add_folder_by_id: mock.MagicMock,
+      add_user_by_name: mock.MagicMock, add_user_by_id: mock.MagicMock, save: mock.MagicMock,
+      load: mock.MagicMock, convert_favorites: mock.MagicMock, convert_name: mock.MagicMock,
       mock_is_dir: mock.MagicMock) -> None:
     """Test."""
     mock_is_dir.return_value = True
@@ -281,6 +349,7 @@ class TestFavorites(unittest.TestCase):
     find_duplicates.assert_not_called()
     download_favorites.assert_not_called()
     add_all.assert_not_called()
+    add_local.assert_not_called()
 
 
 SUITE = unittest.TestLoader().loadTestsFromTestCase(TestFavorites)

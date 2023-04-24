@@ -1269,6 +1269,22 @@ class FapDatabase:
     logging.info('Saved %s for image %r', base.HumanizedBytes(bin_sz), full_path)
     return bin_sz
 
+  def AddLocalDirectories(self, local_dir: str) -> int:
+    """Read local disk path (recursively) for image files, and add these to the database.
+
+    Args:
+      database: Active fapdata.FapDatabase
+      local_dir: Local directory path, to be read recursively
+
+    Returns:
+      number of read bytes
+
+    Raises:
+      Error: If directory does not exist and other errors
+    """
+    raise NotImplementedError()
+    # return 0
+
   def DeleteUserAndAlbums(self, user_id: int) -> tuple[int, int]:
     """Delete an user, together with favorites and orphaned blobs, thumbs, indexes and duplicates.
 

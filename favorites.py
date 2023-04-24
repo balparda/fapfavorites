@@ -53,7 +53,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
                    user_id: int,
                    folder_id: int,
                    force_download: bool) -> None:
-  """Implement `read` user operation: Read into database either one or all favorites.
+  """Implement `read` user operation for Imagefap: Read into database either one or all favorites.
 
   Args:
     database: Active fapdata.FapDatabase
@@ -61,9 +61,8 @@ def _ReadOperation(database: fapdata.FapDatabase,
     folder_id: Folder ID
     force_download: If True will download even if recently downloaded
   """
-  # TODO: add read from local disk into database
   # start
-  print('Executing READ command')
+  print('Executing READ command in Imagefap')
   found_folder_ids: set[int] = ({folder_id} if folder_id else
                                 database.AddAllUserFolders(user_id, force_download))
   total_sz: int = 0
@@ -81,6 +80,18 @@ def _ReadOperation(database: fapdata.FapDatabase,
   if total_sz or not folder_id:
     database.Save()
   logging.info('Downloaded a total of: %s', base.HumanizedBytes(total_sz))
+
+
+def _LocalOperation(database: fapdata.FapDatabase, local_dir: str) -> None:
+  """Implement `read` user operation for local disk.
+
+  Args:
+    database: Active fapdata.FapDatabase
+    local_dir: Local directory path, to be read recursively
+  """
+  print(f'Executing READ command on local disk: {local_dir!r}')
+  total_sz = database.AddLocalDirectories(local_dir)
+  logging.info('Read a total of %s from local disk', base.HumanizedBytes(total_sz))
 
 
 def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bool) -> None:
@@ -117,6 +128,9 @@ def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bo
     help='The imagefap.com folder ID, as found in '
          'https://www.imagefap.com/showfavorites.php?userid=ID&folderid=FOLDER')
 @click.option(
+    '--local', '-l', 'local_dir', type=click.STRING, default='',
+    help='The local disk folder path to be read recursively for images')
+@click.option(
     '--output', '-o', 'output_path', type=click.STRING, default=fapdata.DEFAULT_DB_DIRECTORY,
     help='The intended local machine output directory path, '
          f'ex: "~/some-dir/"; will default to {fapdata.DEFAULT_DB_DIRECTORY!r}')
@@ -131,6 +145,7 @@ def Main(operation: str,  # noqa: C901
          user_id: int,
          favorites_name: str,
          folder_id: int,
+         local_dir: str,
          output_path: str,
          force_download: bool) -> None:  # noqa: D301
   """Download imagefap.com image favorites (picture folder).
@@ -148,11 +163,16 @@ def Main(operation: str,  # noqa: C901
   If you are using `read` then you can specify only the user and
   let it browse for all image favorite galleries automatically.
 
+  If you want to add files from the local disk, use the --local flag to
+  provide a directory path to be read recursively (do not provide any of
+  user/id/name/folder flags in this case). Only works with `read` operation.
+
   After you have a database in place you can use the `audit` operation to
   look at all pictures for a --user (or --id) and find out if any images
   in the DB are missing from the site. This will *not* download any new images
   but will re-check the existence of images in the database for that user.
-  Use `audit` sparingly, as it is rather wasteful.
+  Images that were read from local disk will not be audited. Use `audit`
+  sparingly, as it is rather wasteful.
 
   Typical examples:
 
@@ -170,6 +190,10 @@ def Main(operation: str,  # noqa: C901
    work will be done)
 
   \b
+  ./favorites.py read --local "~/path/to/images/"
+  (will recursively read all images in "~/path/to/images/" into the DB)
+
+  \b
   ./favorites.py audit --user "some-login" --force
   (will look at all the images this user has and check if they exist
    but will not download any new image; will ignore recent audits)
@@ -181,16 +205,23 @@ def Main(operation: str,  # noqa: C901
   success_message: str = 'premature end? user paused?'
   try:
     # check inputs
-    if not user_name and not user_id:
-      raise AttributeError('You have to provide either the --user or the --id options')
-    if user_name and user_id:
-      raise AttributeError('You should not provide both the --user and the --id options')
-    if favorites_name and folder_id:
-      raise AttributeError('You should not provide both the --name and the --folder options')
-    if (not favorites_name and not folder_id) and operation.lower() not in {'read', 'audit'}:
-      raise AttributeError('You have to provide either the --name or the --folder options')
-    if (favorites_name or folder_id) and operation.lower() == 'audit':
-      raise AttributeError('You should not provide --name or --folder in the `audit` operation')
+    if local_dir:
+      if operation.lower() != 'read':
+        raise AttributeError('Only use flag --local with `read` operation')
+      if user_name or user_id or favorites_name or folder_id or force_download:
+        raise AttributeError(
+            'Do not use --user, --id, --name, --folder, or --force flags together with --local')
+    else:
+      if not user_name and not user_id:
+        raise AttributeError('You have to provide either the --user or the --id options')
+      if user_name and user_id:
+        raise AttributeError('You should not provide both the --user and the --id options')
+      if favorites_name and folder_id:
+        raise AttributeError('You should not provide both the --name and the --folder options')
+      if (not favorites_name and not folder_id) and operation.lower() not in {'read', 'audit'}:
+        raise AttributeError('You have to provide either the --name or the --folder options')
+      if (favorites_name or folder_id) and operation.lower() == 'audit':
+        raise AttributeError('You should not provide --name or --folder in the `audit` operation')
     # Tackle `get` operation first: na database to load or save
     if operation.lower() == 'get':
       _GetOperation(user_id, user_name, folder_id, favorites_name, output_path)
@@ -202,16 +233,18 @@ def Main(operation: str,  # noqa: C901
     # convert user to id and convert name to folder, if needed
     if user_id:
       database.AddUserByID(user_id)
-    else:
+    elif user_name:
       user_id = database.AddUserByName(user_name)[0]
     if folder_id:
       database.AddFolderByID(user_id, folder_id)
-    else:
-      if favorites_name:
-        folder_id = database.AddFolderByName(user_id, favorites_name)[0]
-    # we should now have both IDs that we need for the database operations
+    elif favorites_name:
+      folder_id = database.AddFolderByName(user_id, favorites_name)[0]
+    # we should now have IDs (if needed), so do the DB operations
     if operation.lower() == 'read':
-      _ReadOperation(database, user_id, folder_id, force_download)
+      if local_dir:
+        _LocalOperation(database, local_dir)
+      else:
+        _ReadOperation(database, user_id, folder_id, force_download)
     elif operation.lower() == 'audit':
       _AuditOperation(database, user_id, force_download)
     else:
