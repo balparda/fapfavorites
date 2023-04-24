@@ -1891,6 +1891,7 @@ class FapDatabase:
           logging.info('Already exists: %s/%s', tag_name, original_file_name)
           continue
         # name clash, so do an almost-fool-proof rename (1 in a million birthday collision)
+        # TODO: adapt this into a method so we can also use it in fapbase.DownloadFavorites()
         file_name = f'{sha[:10]}-{file_name}'  # 2**40 namespace -> 2**20 birthday collision
         file_path = os.path.join(dir_path, file_name)
       # we have a trustworthy file path, so save the file

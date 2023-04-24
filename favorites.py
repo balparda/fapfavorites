@@ -61,6 +61,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
     folder_id: Folder ID
     force_download: If True will download even if recently downloaded
   """
+  # TODO: add read from local disk into database
   # start
   print('Executing READ command')
   found_folder_ids: set[int] = ({folder_id} if folder_id else

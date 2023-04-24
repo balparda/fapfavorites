@@ -26,10 +26,10 @@ __version__ = (2, 0)
 _IMAGE_TYPES = {
     'bmp': 'image/bmp',
     'gif': 'image/gif',
-    'jfif': 'image/jpeg',  # cspell:disable-line
+    'jfif': 'image/jpeg',  # this is very much exactly a JPEG # cspell:disable-line
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',
-    'mpo': 'image/jpeg',
+    'mpo': 'image/jpeg',   # Multi-Picture Object: a stereo image
     'png': 'image/png',
     'tiff': 'image/tiff',
 }
