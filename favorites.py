@@ -66,8 +66,7 @@ def _ReadOperation(database: fapdata.FapDatabase,
   found_folder_ids: set[int] = ({folder_id} if folder_id else
                                 database.AddAllUserFolders(user_id, force_download))
   total_sz: int = 0
-  for f_id, _ in sorted(((fid, database.favorites[user_id][fid]['name'])
-                         for fid in found_folder_ids), key=lambda x: x[1]):
+  for f_id, _ in database.SortedUserAlbums(user_id, filter_keys=found_folder_ids):
     database.AddFolderPics(user_id, f_id, force_download)
     total_sz += database.DownloadAll(user_id, f_id, fapdata.CHECKPOINT_LENGTH, force_download)
   # if we finished getting all user albums, mark user as finished
@@ -90,7 +89,11 @@ def _LocalOperation(database: fapdata.FapDatabase, local_dir: str) -> None:
     local_dir: Local directory path, to be read recursively
   """
   print(f'Executing READ command on local disk: {local_dir!r}')
-  total_sz = database.AddLocalDirectories(local_dir)
+  total_sz = database.AddLocalDirectories(local_dir, fapdata.CHECKPOINT_LENGTH * 50)
+  # find perceptual duplicates
+  if total_sz:
+    database.FindDuplicates()
+    database.Save()
   logging.info('Read a total of %s from local disk', base.HumanizedBytes(total_sz))
 
 
@@ -198,11 +201,11 @@ def Main(operation: str,  # noqa: C901
   (will look at all the images this user has and check if they exist
    but will not download any new image; will ignore recent audits)
   """
-  print('**************************************************')
+  print(f'{base.TERM_BLUE}{base.TERM_BOLD}**************************************************')
   print('**   GET IMAGEFAP FAVORITES PICTURE FOLDER(s)   **')
   print('**     balparda@gmail.com (Daniel Balparda)     **')
-  print('**************************************************')
-  success_message: str = 'premature end? user paused?'
+  print(f'**************************************************{base.TERM_END}')
+  success_message: str = f'{base.TERM_WARNING}premature end? user paused?'
   try:
     # check inputs
     if local_dir:
@@ -225,7 +228,7 @@ def Main(operation: str,  # noqa: C901
     # Tackle `get` operation first: na database to load or save
     if operation.lower() == 'get':
       _GetOperation(user_id, user_name, folder_id, favorites_name, output_path)
-      success_message = 'success'
+      success_message = f'{base.TERM_GREEN}success'
       return
     # the other operations need a database and adding user/folder to it first
     database = fapdata.FapDatabase(output_path)
@@ -249,12 +252,12 @@ def Main(operation: str,  # noqa: C901
       _AuditOperation(database, user_id, force_download)
     else:
       raise NotImplementedError(f'Unrecognized/Unimplemented operation {operation!r}')
-    success_message = 'success'
+    success_message = f'{base.TERM_GREEN}success'
   except Exception as err:
-    success_message = f'error: {err}'
+    success_message = f'{base.TERM_FAIL}error: {err}'
     raise
   finally:
-    print('THE END: ' + success_message)
+    print(f'{base.TERM_BLUE}{base.TERM_BOLD}THE END: {success_message}{base.TERM_END}')
 
 
 if __name__ == '__main__':

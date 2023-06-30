@@ -147,7 +147,7 @@
     <tr>
       {% for img, sha in sha_group %}
         {% if sha %}
-          {% with blob=blobs_data|lookup:sha %}
+          {% with blob=blobs_data|lookup:sha|lookup:img %}
             {% if locked_for_tagging %}
               <td align='center' valign='center' id='{{ sha }}' class='unselected'>
                 <img src='{% url "thumb" sha %}' {% if blob.fap_id %}id='{{ blob.fap_id }}'{% endif %}
@@ -204,7 +204,7 @@
       <tr>
         {% for img, sha in sha_group %}
           {% if sha %}
-            {% with blob=blobs_data|lookup:sha %}
+            {% with blob=blobs_data|lookup:sha|lookup:img %}
               <td align='center' valign='center'
                   {% if blob.album_duplicate %}class='album_duplicate'{% else %}
                   {% if blob.has_duplicate %}class='has_duplicate'{% else %}

@@ -97,7 +97,9 @@ def _RunDjangoServerAndBlock(development_mode: bool) -> None:
   if not development_mode:
     # this will disable the Django auto-reload BUT will make everything in process.py load TWICE
     argv.append('--noreload')  # cspell:disable-line
-  print('Executing RUN command, server in: http://127.0.0.1:8000/viewer/')
+  print('Executing RUN command, server in: '
+        f'{base.TERM_MAGENTA}{base.TERM_BOLD}{base.TERM_UNDERLINE}'
+        f'http://127.0.0.1:8000/viewer/{base.TERM_END}')
   management.execute_from_command_line(argv)
 
 
@@ -193,11 +195,11 @@ def Main(operation: str,
   (export all images that were tagged "Favorites"
    to "~/Downloads/imagefap/tag_export/[...]/Favorites/")
   """
-  print('***********************************************')
+  print(f'{base.TERM_BLUE}{base.TERM_BOLD}***********************************************')
   print('**    IMAGEFAP DATABASE PROCESSING UTILS     **')
   print('**   balparda@gmail.com (Daniel Balparda)    **')
-  print('***********************************************')
-  success_message: str = 'premature end? user paused?'
+  print(f'***********************************************{base.TERM_END}')
+  success_message: str = f'{base.TERM_WARNING}premature end? user paused?'
   try:
     # load database
     database = fapdata.FapDatabase(db_dir, create_if_needed=False)
@@ -217,12 +219,12 @@ def Main(operation: str,
       raise NotImplementedError(f'Unrecognized/Unimplemented operation {operation!r}')
     # for now, no operation needs to save DB
     # database.Save()
-    success_message = 'success'
+    success_message = f'{base.TERM_GREEN}success'
   except Exception as err:
-    success_message = f'error: {err}'
+    success_message = f'{base.TERM_FAIL}error: {err}'
     raise
   finally:
-    print('THE END: ' + success_message)
+    print(f'{base.TERM_BLUE}{base.TERM_BOLD}THE END: {success_message}{base.TERM_END}')
 
 
 if __name__ == '__main__':

@@ -23,17 +23,6 @@ __author__ = 'balparda@gmail.com (Daniel Balparda)'
 __version__ = (2, 0)
 
 
-_IMAGE_TYPES = {
-    'bmp': 'image/bmp',
-    'gif': 'image/gif',
-    'jfif': 'image/jpeg',  # this is very much exactly a JPEG # cspell:disable-line
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'mpo': 'image/jpeg',   # Multi-Picture Object: a stereo image
-    'png': 'image/png',
-    'tiff': 'image/tiff',
-}
-
 _IMG_COLUMNS = 4
 
 _VERDICT_ABBREVIATION: dict[duplicates.DuplicatesVerdictType, str] = {
@@ -47,7 +36,7 @@ _VERDICT_ABBREVIATION: dict[duplicates.DuplicatesVerdictType, str] = {
 @defaulttags.register.filter(name='lookup')
 def lookup(value: dict, arg: Any) -> Any:  # pylint: disable=invalid-name
   """Lookup dictionary (so we can use it in the templates)."""
-  return value[arg]
+  return value[str(arg)]
 
 
 @defaulttags.register.filter(name='green_scale')
@@ -266,8 +255,8 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
         'date': base.STD_TIME_STRING(obj['date_blobs']),
         'count': count_img,
         'failed': count_failed,
-        'disappeared': (f'{count_disappeared} '
-                        f'({(100.0 * count_disappeared / count_img) if count_img else 0.0:0.1f}%)'),
+        'disappeared': (f'{count_disappeared} ({100.0 * count_disappeared / count_img:0.1f}%)'
+                        if count_disappeared else '-'),
         'files_sz': base.HumanizedBytes(sum(file_sizes) if file_sizes else 0),
         'min_sz': base.HumanizedBytes(min(file_sizes)) if file_sizes else '-',
         'max_sz': base.HumanizedBytes(max(file_sizes)) if file_sizes else '-',
@@ -296,8 +285,8 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
       'img_count': all_img_count,
       'failed_count': total_failed,
       'disappeared_count': (
-          f'{total_disappeared} '
-          f'({(100.0 * total_disappeared / all_img_count) if all_img_count else 0.0:0.1f}%)'),
+          f'{total_disappeared} ({100.0 * total_disappeared / all_img_count:0.1f}%)'
+          if total_disappeared else '-'),
       'page_count': sum(f['pages'] for f in favorites.values()),
       'total_sz': base.HumanizedBytes(total_sz) if total_sz else '-',
       'total_thumbs_sz': base.HumanizedBytes(total_thumbs_sz) if total_thumbs_sz else '-',
@@ -468,7 +457,11 @@ def _ServeImages(  # noqa: C901
       dup_hints[(img, sha)].sort()
   # apply filters
   if not show_duplicates:
-    # start by eliminating the perceptual duplicates: remove the 'skip' ones
+    # start by eliminating the exact duplicates in the same album
+    image_list = [(img, sha) for img, sha in image_list
+                  if not ((img, sha) in album_duplicates and
+                          sorted(album_duplicates[(img, sha)])[0][2] != img)]
+    # then eliminate the perceptual duplicates: remove the 'skip' ones
     image_list = [(img, sha) for img, sha in image_list
                   if not ((img, sha) in percept_verdicts and
                           percept_verdicts[(img, sha)] == 'skip')]
@@ -513,7 +506,7 @@ def _ServeImages(  # noqa: C901
   if stacked_disappeared:
     stacked_disappeared[-1] += [(0, '') for i in range(_IMG_COLUMNS - len(stacked_disappeared[-1]))]
   # format blob data to be included as auxiliary data
-  blobs_data: dict[str, dict[str, Any]] = {}
+  blobs_data: dict[str, dict[str, dict[str, Any]]] = {}
   for img, sha in image_list:
     blob = db.blobs[sha]
     # find the correct 'loc' entry (to get the name)
@@ -527,10 +520,10 @@ def _ServeImages(  # noqa: C901
         # we might have raised an exception here, but this can happen in partially downloaded albums
         logging.error('Blob %r in %s did not have a matching `loc` entry!',
                       sha, db.AlbumStr(user_id, folder_id) if user_id and folder_id else '-')
-        blobs_data[sha] = {}
+        blobs_data.setdefault(sha, {str(img): {}})
         continue
     # fill in the other fields, make them readable
-    blobs_data[sha] = {
+    blobs_data.setdefault(sha, {})[str(img)] = {
         'name': blob['loc'][loc][0],
         'fap_id': img if img else loc[2],  # (problematic corner-case: duplicate SHA in same album!)
         'verdict': blob['loc'][loc][1],
@@ -968,8 +961,8 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
                              if current_identical > 0 else None),
       'next_identical': (sorted_identical[current_identical + 1]
                          if -1 < current_identical < (len(sorted_identical) - 1) else None),
-      'duplicates': {
-          sha: {
+      'duplicates': [
+          (sha, {
               'action': dup_obj['verdicts'][sha] if dup_obj else '',
               'has_identical': len(db.blobs[sha]['loc']) > 1,
               'loc': [
@@ -992,9 +985,9 @@ def ServeDuplicate(request: http.HttpRequest, digest: str) -> http.HttpResponse:
               'average': db.blobs[sha]['average'],
               'diff': db.blobs[sha]['diff'],
               'wavelet': db.blobs[sha]['wavelet'],
-          }
-          for sha in dup_key
-      },
+          }) for _, _, sha in sorted(  # sort by dimensions / size / hash
+              ((db.blobs[s]['width'] * db.blobs[s]['height'], db.blobs[s]['sz'], s)
+               for s in dup_key), reverse=True)],
       'sources': [
           {
               'name': method.upper(),
@@ -1035,12 +1028,12 @@ def ServeBlob(unused_request: http.HttpRequest, digest: str) -> http.HttpRespons
   # get blob and check for content type (extension)
   blob = db.blobs[digest]
   ext = blob['ext'].lower()
-  if ext not in _IMAGE_TYPES:
+  if ext not in fapbase.IMAGE_TYPES:
     raise http.Http404(
         f'Blob {digest!r} image type (file extension) {ext!r} not '
-        f'one of {sorted(_IMAGE_TYPES.keys())!r}')
+        f'one of {sorted(fapbase.IMAGE_TYPES.keys())!r}')
   # send to page
-  return http.HttpResponse(content=db.GetBlob(digest), content_type=_IMAGE_TYPES[ext])
+  return http.HttpResponse(content=db.GetBlob(digest), content_type=fapbase.IMAGE_TYPES[ext])
 
 
 # similar to blobs, but smaller...
@@ -1056,9 +1049,9 @@ def ServeThumb(unused_request: http.HttpRequest, digest: str) -> http.HttpRespon
   # get thumbnail's blob and check for content type (extension)
   blob = db.blobs[digest]
   ext = blob['ext'].lower()
-  if ext not in _IMAGE_TYPES:
+  if ext not in fapbase.IMAGE_TYPES:
     raise http.Http404(
         f'Thumb {digest!r} image type (file extension) {ext!r} not '
-        f'one of {sorted(_IMAGE_TYPES.keys())!r}')
+        f'one of {sorted(fapbase.IMAGE_TYPES.keys())!r}')
   # send to page
-  return http.HttpResponse(content=db.GetThumbnail(digest), content_type=_IMAGE_TYPES[ext])
+  return http.HttpResponse(content=db.GetThumbnail(digest), content_type=fapbase.IMAGE_TYPES[ext])

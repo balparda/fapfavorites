@@ -513,8 +513,10 @@ from a structure like:
           (failed_image_id-2, failure_int_timestamp-2, Optional[file_name_sanitized-2], Optional[full_res_url-2]),
           ...
         },
-        # Image and Folder IDs for local disk files are a 128 bit int from the file hash+inode, ie:
-        #     ID = int(sha256(f'{sha256(image_data).digest()}-{image_inode}')[:32])
+        # Folder IDs for *local* disk files are a 128 bit int from the dir name+inode, ie:
+        #     folder_ID = int(sha256(f'{full_directory_path}-{directory_inode}')[:32])
+        # Image IDs for *local* disk files are a 128 bit int from the file hash+inode, ie:
+        #     image_ID = int(sha256(f'{sha256(image_data).digest()}-{image_inode}')[:32])
         # This is done to make it (1) repeatable (2) unique to disk file and (3) impossible to clash
         # with the Imagefap IDs (which are in the int64 range).
       },

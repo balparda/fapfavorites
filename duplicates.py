@@ -74,6 +74,8 @@ ANIMATED_SENSITIVITY_DEFAULTS: _SensitivitiesType = {
     'cnn': 0.97,
 }
 
+_SCORE_PRECISION: float = 0.002
+
 
 class DuplicateObjType(TypedDict):
   """Duplicate object type."""
@@ -269,7 +271,9 @@ class Duplicates:
     return (n_dup, n_img)
 
   # TODO: investigate if we can have a way to only match new images against old ones instead
-  #     of all against all... if possible will significantly speed duplicates up
+  #     of all against all... if possible will significantly speed duplicates up;
+  #     we would probably have to dig the comparison operation and implement ourselves;
+  #     maybe it helps to store the hashes as ints instead of hex strings, to save a conversion
   def FindDuplicates(  # noqa: C901
       self,
       hash_encodings_map: HashEncodingMapType,
@@ -347,7 +351,8 @@ class Duplicates:
                   continue
             # still here? this is a valid pair, so store it
             dup_key: DuplicatesKeyType = tuple(sorted({sha1, sha2}))
-            if dup_key in scored_duplicates and scored_duplicates[dup_key] != score:
+            if (dup_key in scored_duplicates and
+                abs(scored_duplicates[dup_key] - score) > _SCORE_PRECISION):
               raise Error(
                   f'Duplicate collision, method {method!r}, key {dup_key!r}, '
                   f'new score {score} versus {scored_duplicates[dup_key]}')

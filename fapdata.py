@@ -19,6 +19,7 @@
 import base64
 import enum
 import getpass
+import hashlib
 import html
 import logging
 import math
@@ -155,6 +156,8 @@ class Error(fapbase.Error):
 class FapDatabase:
   """Imagefap.com database."""
 
+  # TODO: add retry of failed images in collection: on end of scan? on audit? as a command?
+
   def __init__(self, dir_path: str, create_if_needed: bool = True):
     """Construct a clean database. Does *not* load or save or create/check files at this stage.
 
@@ -168,6 +171,7 @@ class FapDatabase:
     Raises:
       AttributeError: on empty dir_path, or for create_if_needed==False, if dir_path not present
     """
+    # TODO: mutex init (because of loading and crypto)
     random.seed()
     if not dir_path:
       raise AttributeError('Output directory path cannot be empty')
@@ -280,6 +284,7 @@ class FapDatabase:
     Raises:
       Error: if found DB does not check out
     """
+    # TODO: mutex load (because of crypto)
     if os.path.exists(self._db_path):
       with base.Timer() as tm_load:
         # we turned compression off: it was responsible for ~95% of save time
@@ -294,7 +299,8 @@ class FapDatabase:
           logging.info('Vanilla DB could not be loaded, will try a crypto DB')
           try:
             self._key = base.DeriveKeyFromStaticPassword(
-                getpass.getpass(prompt='Database Password: '))
+                getpass.getpass(prompt=(f'{base.TERM_WARNING}{base.TERM_BOLD}{base.TERM_UNDERLINE}'
+                                        f'Database Password:{base.TERM_END} ')))
             self._db: _DatabaseType = base.BinDeSerialize(
                 file_path=self._db_path, compress=False, key=self._key)
           except base.bin_fernet.InvalidToken as err:
@@ -320,9 +326,11 @@ class FapDatabase:
     # creating a new DB
     logging.warning('No DB found in %r: we are creating a new one', self._db_path)
     user_password1 = getpass.getpass(
-        prompt='NEW Database Password (`Enter` key for no encryption): ')
+        prompt=(f'{base.TERM_WARNING}{base.TERM_BOLD}{base.TERM_UNDERLINE}NEW Database Password'
+                f' (`Enter` key for no encryption):{base.TERM_END} '))
     user_password2 = getpass.getpass(
-        prompt='CONFIRM Database Password (`Enter` key for no encryption): ')
+        prompt=(f'{base.TERM_WARNING}{base.TERM_BOLD}{base.TERM_UNDERLINE}CONFIRM Database Password'
+                f' (`Enter` key for no encryption):{base.TERM_END} '))
     if user_password1 != user_password2:
       raise Error('Password mismatch: please type the same password twice!')
     if not user_password1 or not user_password1.strip():
@@ -338,6 +346,7 @@ class FapDatabase:
 
   def Save(self) -> None:
     """Save DB to file."""
+    # TODO: mutex save (crypto/corruption)
     with base.Timer() as tm_save:
       # we turned compression off: it was responsible for ~95% of save time
       base.BinSerialize(self._db, file_path=self._db_path, compress=False, key=self._key)
@@ -382,6 +391,23 @@ class FapDatabase:
     """Print tag name together with parents, like 'grand_name/parent_name/tag_name (id)'."""
     name = '/'.join(n for _, n, _ in self.GetTag(tag_id))
     return f'{name} ({tag_id})' if add_id else name
+
+  def SortedUserAlbums(self, user_id: int, filter_keys: Optional[set] = None):
+    """Get sorted albums for a user.
+
+    Args:
+      user_id: User ID
+      filter_keys: (default None) optional Set; if given will whitelist album_ids to return
+
+    Yields:
+      (album_id, album_name)
+    """
+    for album_id, album_name in sorted(
+        ((fid, self.favorites[user_id][fid]['name']) for fid in self.favorites[user_id].keys()),
+        key=lambda x: x[1]):
+      if filter_keys is not None and album_id not in filter_keys:
+        continue
+      yield (album_id, album_name)
 
   def _BlobPath(self, sha: str, extension_hint: Optional[str] = None) -> str:
     """Get full disk file path for a blob hash (`sha`).
@@ -1075,6 +1101,7 @@ class FapDatabase:
         logging.info('Album %s checkpoint @ saved=%d / existing=%d / failed=%d',
                      self.AlbumStr(user_id, folder_id), saved_count, exists_count, failed_count)
         self.Save()
+      # the logic below if very similar to FapDatabase._AddDiskFile(): KEEP IN SYNC
       # figure out if we have it in the index, i.e., if we've seen img_id before
       sha = self.image_ids_index.get(img_id, None)
       sanitized_image_name: str = 'unknown'
@@ -1269,21 +1296,136 @@ class FapDatabase:
     logging.info('Saved %s for image %r', base.HumanizedBytes(bin_sz), full_path)
     return bin_sz
 
-  def AddLocalDirectories(self, local_dir: str) -> int:
-    """Read local disk path (recursively) for image files, and add these to the database.
+  def AddLocalDirectories(self, local_dir: str, checkpoint_size: int) -> int:
+    """Read local disk path (recursively) for image files, and add images to the database.
 
     Args:
-      database: Active fapdata.FapDatabase
       local_dir: Local directory path, to be read recursively
+      checkpoint_size: Commit database to disk every `checkpoint_size` images actually downloaded;
+          if zero will not checkpoint at all
 
     Returns:
       number of read bytes
 
     Raises:
-      Error: If directory does not exist and other errors
+      Error: If directory does not exist (and possibly other errors)
     """
-    raise NotImplementedError()
-    # return 0
+    # check the directory exists
+    local_dir = os.path.expanduser(local_dir.strip())
+    if not os.path.isdir(local_dir):
+      raise Error(f'Path {local_dir!r} is not an existing directory')
+    # make sure the special "local" user is created
+    self.users.setdefault(
+        1, {'name': 'LOCAL DISK', 'date_albums': 0, 'date_finished': 0, 'date_audit': 0})
+    self.favorites.setdefault(1, {})
+    # walk the directory, searching for images
+    n_dirs: int = 0
+    n_files: int = 0
+    total_sz: int = 0
+    for dir_path, _, file_names in os.walk(local_dir):
+      # we have a directory to look at
+      logging.info('Reading directory %s', dir_path)
+      file_names.sort()  # we ingest files in alphabetical order
+      found_in_dir, folder_id = False, 0
+      for file_name in file_names:
+        # checkpoint, if needed
+        if checkpoint_size and (n_files and not n_files % checkpoint_size):
+          logging.info('Album %s checkpoint @ saved=%d', self.AlbumStr(1, folder_id), n_files)
+          self.Save()
+        # we have a file: is it an image?
+        extension = file_name.rsplit('.', maxsplit=1)[-1].lower()  # cspell:disable-line
+        if extension not in fapbase.IMAGE_TYPES:
+          continue  # not an image, we skip this file
+        # it is an image
+        if not found_in_dir:
+          # first file in this directory, so we must make sure the directory entry exists
+          # deduce 128-bit int ID from full path and inode:
+          # int(sha256(f'{full_directory_path}-{directory_inode}')[:32])
+          found_in_dir = True
+          folder_id = int.from_bytes(hashlib.sha256(  # TODO: make into method
+              f'{dir_path}-{os.stat(dir_path).st_ino}'.encode('utf-8')).digest()[:16], 'big')
+          self.favorites[1].setdefault(
+              folder_id, {'name': fapbase.GetDirectoryName(dir_path), 'date_blobs': 0,
+                          'failed_images': set(), 'images': [], 'pages': 1})
+        # read file data, compute SHA256
+        # TODO: make read+SHA into method
+        file_path = os.path.join(dir_path, file_name)
+        with open(file_path, 'rb') as file_obj:
+          file_data = file_obj.read()
+        sha = hashlib.sha256(file_data).hexdigest()
+        # deduce a 128-bit int image ID from SHA and inode:
+        # int(sha256(f'{sha256(image_data).digest()}-{image_inode}')[:32])
+        img_id = int.from_bytes(hashlib.sha256(  # TODO: make into method
+            f'{sha}-{os.stat(file_path).st_ino}'.encode('utf-8')).digest()[:16], 'big')
+        self.favorites[1][folder_id]['images'].append(img_id)
+        # we add the image to the database
+        if self._AddDiskFile(folder_id, dir_path, file_name, file_data, sha, img_id):
+          total_sz += len(file_data)
+          n_files += 1
+      # finished the directory, so make sure the album entry is up-to-date
+      if found_in_dir:
+        self.favorites[1][folder_id]['date_blobs'] = base.INT_TIME()
+        n_dirs += 1
+    # success, mark as done, save, return
+    logging.info('Finished reading files; found %d images in %d directories', n_files, n_dirs)
+    if n_files:
+      tm_done = base.INT_TIME()
+      self.users[1]['date_albums'] = tm_done
+      self.users[1]['date_finished'] = tm_done
+      self.Save()
+    return total_sz
+
+  def _AddDiskFile(self, folder_id, dir_path, file_name, file_data, sha, img_id) -> bool:
+    """Add a single disk file to database."""
+    # check if we have all parameters
+    if not folder_id or not dir_path or not file_name or not file_data or not sha or not img_id:
+      raise Error('Empty inputs')
+    # this has very similar logic to FapDatabase.DownloadAll(): KEEP IN SYNC
+    sanitized_image_name = fapbase.NormalizeFileName(file_name)
+    extension = fapbase.NormalizeExtension(
+        file_name.rsplit('.', maxsplit=1)[-1].lower())  # cspell:disable-line
+    # check if SHA is in DB
+    if sha in self.blobs and self.HasBlob(sha):
+      # we have seen this sha before, and can skip a lot of stuff
+      if (1, folder_id, img_id) in self.blobs[sha]['loc']:
+        return False  # and we are done for this image, since it is a complete duplicate
+      # we already have this image, so we just add it to 'loc' and to the index
+      self.blobs[sha]['loc'][(1, folder_id, img_id)] = (sanitized_image_name, 'new')
+      self.blobs[sha]['date'] = base.INT_TIME()
+      self.image_ids_index[img_id] = sha
+      return False
+    # now we know we have a truly new image that needs perceptual hashes, thumbnail, etc
+    # create a temporary file so we can do all the clear-text operations we need on the file
+    with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+      # write the data we already have to the temp file
+      temp_file.write(file_data)
+      temp_file.flush()
+      try:
+        # generate thumbnail and get dimensions and other image info;
+        # do this *first* because the extension can change here on PIL's advice
+        thumb_sz, width, height, is_animated, extension = self._MakeThumbnailForBlob(
+            sha, extension, temp_file)
+        # write binary data to the final disk destination
+        self._SaveImage(self._BlobPath(sha, extension_hint=extension), file_data)
+        # calculate image hashes
+        percept_hash, average_hash, diff_hash, wavelet_hash, cnn_hash = self.duplicates.Encode(
+            temp_file.name)
+        # create blob and index entries
+        self.blobs[sha] = {
+            'loc': {(1, folder_id, img_id): (sanitized_image_name, 'new')},
+            'tags': set(), 'sz': len(file_data), 'sz_thumb': thumb_sz, 'ext': extension,
+            'percept': percept_hash, 'average': average_hash, 'diff': diff_hash,
+            'wavelet': wavelet_hash, 'cnn': cnn_hash, 'width': width, 'height': height,
+            'animated': is_animated, 'date': base.INT_TIME(), 'gone': {}}
+        self.image_ids_index[img_id] = sha
+        logging.info('New image %r finished processing', sanitized_image_name)
+      except Error:
+        self.favorites[1][folder_id]['images'].remove(img_id)
+        self.favorites[1][folder_id]['failed_images'].add(
+            (img_id, base.INT_TIME(), sanitized_image_name, os.path.join(dir_path, file_name)))
+        logging.error(
+            'Image %d failed processing in %s', img_id, self.AlbumStr(1, folder_id))
+      return True
 
   def DeleteUserAndAlbums(self, user_id: int) -> tuple[int, int]:
     """Delete an user, together with favorites and orphaned blobs, thumbs, indexes and duplicates.
@@ -1338,7 +1480,11 @@ class FapDatabase:
       # get the blob
       sha = self.image_ids_index[img_id]
       # remove the location entry from the blob
-      del self.blobs[sha]['loc'][(user_id, folder_id, img_id)]
+      try:
+        del self.blobs[sha]['loc'][(user_id, folder_id, img_id)]
+      except KeyError as err:
+        # this might happen if a previous error left an inconsistent state, so we can skip
+        logging.error('Key %r missing in %r: %s', (user_id, folder_id, img_id), sha, err)
       # now we either still have locations for this blob, or it is orphaned
       if self.blobs[sha]['loc']:
         # we still have locations using this blob: the blob stays and we might remove index
@@ -1464,7 +1610,7 @@ class FapDatabase:
     """
     all_valid_ids: set[int] = set()
     for user_id in sorted(self.favorites.keys()):
-      for album_id in sorted(self.favorites[user_id].keys()):
+      for album_id, _ in self.SortedUserAlbums(user_id):
         if not self.favorites[user_id][album_id]['date_blobs']:
           logging.info('Skipping unfinished album %s', self.AlbumStr(user_id, album_id))
           all_valid_ids.update(self.favorites[user_id][album_id]['images'])
@@ -1774,7 +1920,7 @@ class FapDatabase:
     # go over the albums and images for each album, in order
     checked_count: int = 0
     problem_count: int = 0
-    for folder_id in sorted(self.favorites[user_id].keys()):
+    for folder_id, _ in self.SortedUserAlbums(user_id):
       logging.info('Audit folder %s', self.AlbumStr(user_id, folder_id))
       for original_id in self.favorites[user_id][folder_id]['images']:
         # audit this image: get hash and locations; we always audit all known locations of the image
@@ -1793,13 +1939,13 @@ class FapDatabase:
           url: str = fapbase.IMG_URL(img_id)
           try:
             img_html = fapbase.FapHTMLRead(url)
-          except fapbase.Error404:
+          except fapbase.Error as err:  # Error, not just Error404: here we want to capture all
             self.blobs[sha]['gone'][img_id] = (base.INT_TIME(), _FailureLevel.IMAGE_PAGE, url)
             problem_count += 1
-            logging.warning('Image %d: ERROR on %r page', img_id, url)
+            logging.warning('Image %d: ERROR on %r page: %s', img_id, url, err)
             continue  # stop on first error for this img_id: do not update date
           # we have a page, so extract the full-res URL
-          full_res_urls: list[str] = fapbase.FULL_IMAGE.findall(img_html)
+          full_res_urls: list[str] = fapbase.FULL_IMAGE(img_id).findall(img_html)
           if not full_res_urls:
             self.blobs[sha]['gone'][img_id] = (base.INT_TIME(), _FailureLevel.URL_EXTRACTION, url)
             problem_count += 1

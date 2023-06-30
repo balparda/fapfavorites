@@ -57,7 +57,7 @@
             <th>Action&nbsp;(Perceptual)</th>
           {% endif %}
         </tr>
-        {% for sha, obj in duplicates.items %}
+        {% for sha, obj in duplicates %}
           <tr>
             <td colspan='{% if current_index == -1 %}2{% else %}3{% endif %}' class='regular_hash' id='td_{{ sha }}'>
               {{ sha }}

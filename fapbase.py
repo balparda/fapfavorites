@@ -16,6 +16,7 @@
 #
 """Imagefap.com base methods and constants."""
 
+import functools
 import hashlib
 import html
 import http.client
@@ -45,6 +46,17 @@ _MAX_RETRY = 10         # int number of retries for URL get
 _URL_TIMEOUT = 15.0     # URL timeout, in seconds
 _PAGE_BACKTRACKING_THRESHOLD = 5
 
+IMAGE_TYPES = {
+    'bmp': 'image/bmp',
+    'gif': 'image/gif',
+    'jfif': 'image/jpeg',  # this is very much exactly a JPEG # cspell:disable-line
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'mpo': 'image/jpeg',   # Multi-Picture Object: a stereo image
+    'png': 'image/png',
+    'tiff': 'image/tiff',
+}
+
 
 # the site page templates we need
 _USER_PAGE_URL = lambda n: f'https://www.imagefap.com/profile/{n}'
@@ -68,8 +80,8 @@ FIND_FOLDERS = re.compile(
     r'https:\/\/www.imagefap.com\/showfavorites.php\?userid=[0-9]+'  # cspell:disable-line
     r'&folderid=([0-9]+)".*>(.*)<\/a><\/td>')                        # cspell:disable-line
 _FAVORITE_IMAGE = re.compile(r'<td\s+class=.blk_favorites.\s+id="img-([0-9]+)"\s+align=')
-FULL_IMAGE = re.compile(
-    r'<img\s+id="mainPhoto".*src="(https:\/\/.*\/images\/full\/.*)">')
+FULL_IMAGE = lambda img_id: re.compile(
+    r'<a\shref=\"(https:\/\/.*\/images\/full\/.*\/' + str(img_id) + r'\..*)"\sframed=')
 _IMAGE_NAME = re.compile(
     r'<meta\s+name="description"\s+content="View this hot (.*) porn pic uploaded by')
 
@@ -404,6 +416,22 @@ def CheckFolderIsForImages(user_id: int, folder_id: int) -> None:
     raise Error('This is not a valid images folder! Maybe it is a galleries folder?')
 
 
+def GetDirectoryName(dir_path: str) -> str:
+  """Get the directory name for a directory path."""
+  dir_path = dir_path.strip()
+  if dir_path.endswith('/'):
+    dir_path = dir_path[:-1]
+  return dir_path.rsplit('/', maxsplit=1)[-1]  # cspell:disable-line
+
+
+def NormalizeFileName(file_name: str) -> str:
+  """Normalize image file name."""
+  new_name: str = sanitize_filename.sanitize(html.unescape(file_name.strip()).replace('/', '-'))
+  if new_name != file_name:
+    logging.warning('Filename sanitization necessary %r ==> %r', file_name, new_name)
+  return new_name
+
+
 def NormalizeExtension(extension: str) -> str:
   """Normalize image file extensions."""
   extension = extension.strip().lower()
@@ -412,6 +440,7 @@ def NormalizeExtension(extension: str) -> str:
   return extension
 
 
+@functools.cache
 def ExtractFavoriteIDs(page_num: int, user_id: int, folder_id: int) -> list[int]:
   """Get numerical IDs of all images in a picture folder by URL.
 
@@ -452,18 +481,15 @@ def ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
   except Error404 as err:
     err.image_id = img_id
     raise
-  full_res_urls: list[str] = FULL_IMAGE.findall(img_html)
-  if not full_res_urls:
-    raise Error(f'No full resolution image in {url!r}')
+  full_res_urls: list[str] = FULL_IMAGE(img_id).findall(img_html)
+  if len(full_res_urls) != 1:
+    raise Error(f'Invalid full resolution page in {url!r}')
   # from the same source extract image file name
   img_name: list[str] = _IMAGE_NAME.findall(img_html)
   if not img_name:
     raise Error(f'No image name path in {url!r}')
-  # sanitize image name before returning
-  new_name: str = sanitize_filename.sanitize(html.unescape(img_name[0].strip()).replace('/', '-'))
-  if new_name != img_name[0]:
-    logging.warning('Filename sanitization necessary %r ==> %r', img_name[0], new_name)
-  # figure out the file name, sanitize extension
+  # sanitize image name, figure out the file name, sanitize extension
+  new_name = NormalizeFileName(img_name[0])
   main_name, extension = new_name.rsplit('.', 1) if '.' in new_name else (new_name, 'jpg')
   sanitized_extension = NormalizeExtension(extension)
   sanitized_image_name = f'{main_name}.{sanitized_extension}'

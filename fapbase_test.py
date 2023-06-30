@@ -212,6 +212,18 @@ class TestFapBase(unittest.TestCase):
     fapbase._FIND_ONLY_IN_PICTURE_FOLDER = None    # set to None for safety
     fapbase._FIND_ONLY_IN_GALLERIES_FOLDER = None  # set to None for safety
 
+  def test_GetDirectoryName(self) -> None:
+    """Test."""
+    raise NotImplementedError()
+    self.assertEqual(fapbase.GetDirectoryName(' GIF '), 'gif')
+    self.assertEqual(fapbase.GetDirectoryName(' JPEG '), 'jpg')
+
+  def test_NormalizeFileName(self) -> None:
+    """Test."""
+    raise NotImplementedError()
+    self.assertEqual(fapbase.NormalizeFileName(' GIF '), 'gif')
+    self.assertEqual(fapbase.NormalizeFileName(' JPEG '), 'jpg')
+
   def test_NormalizeExtension(self) -> None:
     """Test."""
     self.assertEqual(fapbase.NormalizeExtension(' GIF '), 'gif')
