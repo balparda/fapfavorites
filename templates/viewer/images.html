@@ -115,7 +115,7 @@
         The image icon (<small><small>&#128444;</small></small>) will take you to the local image (blob) for inspection (this is always fine, only opens locally).<br/>
         Click on the images to select or deselect them. Selected images will show in <span style='color: peru;'>PERU</span> color.<br/>
         If you reload the page you will lose your selection! Go to the bottom of this page (<i>Ctrl+End</i>) to tag them.<br/>
-        {% if not tags %}
+        {% if not form_tags %}
           <b><i><span style='color: red;'>ATTENTION: You have NO tags, so selecting images will serve NO purpose!</span> <a href='{% url "tag" 0 %}?{{ dup_url }}&{{ portrait_url }}&{{ landscape_url }}&{{ tagging_url }}&{{ tag_url_1 }}&{{ tag_url_2 }}&{{ value_url_1 }}&{{ value_url_2 }}'>Create tags first?</a></i></b><br/>
         {% endif %}
       {% endif %}
