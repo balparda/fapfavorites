@@ -7,7 +7,7 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Favorite album <i>&quot;{{ name|escape }}&quot;</i> (User <i>&quot;{{ user_name|escape }}&quot;</i>)</h1>
+    <h1>Favorite album <i>&quot;{{ name|escape }}&quot;</i> (User <i>&quot;{{ user_name|escape }}&quot;</i> - <a href='{{ url }}' class='external' title='album {{ name|escape }} in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>)</h1>
 
     <p>Total {{ count }} images (in {{ pages }} pages). Last fetched on {{ date }}.</p>
 

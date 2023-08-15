@@ -59,7 +59,7 @@ IMAGE_TYPES = {
 
 
 # the site page templates we need
-_USER_PAGE_URL = lambda n: f'https://www.imagefap.com/profile/{n}'
+USER_PAGE_URL = lambda n: f'https://www.imagefap.com/profile/{n}'
 FAVORITES_URL = (
     lambda u, p: f'https://www.imagefap.com/showfavorites.php?userid={u}&page={p}')
 FOLDER_URL = lambda u, f, p: f'{FAVORITES_URL(u, p)}&folderid={f}'  # cspell:disable-line
@@ -141,7 +141,7 @@ def ConvertUserName(user_name: str) -> int:
   user_name = user_name.strip()
   if not user_name:
     raise Error('Empty user name')
-  url: str = _USER_PAGE_URL(user_name)
+  url: str = USER_PAGE_URL(user_name)
   logging.info('Fetching user page: %s', url)
   user_html = FapHTMLRead(url)
   user_ids: list[str] = _FIND_USER_ID_RE.findall(user_html)

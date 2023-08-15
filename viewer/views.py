@@ -174,6 +174,7 @@ def ServeUsers(request: http.HttpRequest) -> http.HttpResponse:
         'mean_sz': base.HumanizedBytes(int(statistics.mean(file_sizes))) if file_sizes else '-',
         'dev_sz': base.HumanizedBytes(
             int(statistics.stdev(file_sizes))) if len(file_sizes) > 2 else '-',
+        'url': fapbase.USER_PAGE_URL(user['name']),
     }
     total_img += n_img
     total_failed += len(unique_failed)
@@ -266,6 +267,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
         'thumbs_sz': base.HumanizedBytes(sum(thumbs_sizes) if thumbs_sizes else 0),
         'n_animated': (f'{n_animated} '
                        f'({(100.0 * n_animated / count_img) if count_img else 0.0:0.1f}%)'),
+        'url': fapbase.FOLDER_URL(user_id, fid, 0),
     }
     total_failed += count_failed
     total_disappeared += count_disappeared
@@ -297,6 +299,7 @@ def ServeFavorites(request: http.HttpRequest, user_id: int) -> http.HttpResponse
           f'({(100.0 * total_animated / all_img_count) if all_img_count else 0.0:0.1f}%)'),
       'warning_message': warning_message,
       'error_message': error_message,
+      'url': fapbase.USER_PAGE_URL(db.users[user_id]['name']),
   }
   return shortcuts.render(request, 'viewer/favorites.html', context)
 
@@ -608,6 +611,7 @@ def ServeFavorite(
               'url': url,
           } for img, tm, nm, url in sorted(favorite['failed_images'])
       ] if favorite['failed_images'] else None,
+      'url': fapbase.FOLDER_URL(user_id, folder_id, 0),
   })
   return shortcuts.render(request, 'viewer/favorite.html', context)
 

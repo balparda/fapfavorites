@@ -7,6 +7,7 @@
 
       th, td {padding: 5px;}
 
+      a.external {text-decoration: none;}
       a.delete {text-decoration: none;}
 
     </style>
@@ -53,6 +54,7 @@
         <th>Date&nbsp;Got<br/>Albums</th>
         <th>Date&nbsp;Got<br/>Everything</th>
         <th>Date&nbsp;Last<br/>Audit</th>
+        <th>Link</th>
         <th>Del?</th>
       </tr>
       {% for id, obj in users.items %}
@@ -69,9 +71,12 @@
           <td align='center'>{{ obj.mean_sz }}</td>
           <td align='center'>{{ obj.dev_sz }}</td>
           <td align='center'>{{ obj.thumbs_sz }}</td>
-          <td align='center'>{{ obj.date_albums }}</td>
-          <td align='center'>{{ obj.date_finished }}</td>
-          <td align='center'>{{ obj.date_audit }}</td>
+          <td>{{ obj.date_albums }}</td>
+          <td>{{ obj.date_finished }}</td>
+          <td>{{ obj.date_audit }}</td>
+          <td align='center'>
+            <a href='{{ obj.url }}' class='external' title='user {{ obj.name|escape }} in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
+          </td>
           <td align='center'>
             <a href='javascript:{}' class='delete' onclick='javascript:delete_user({{ id }}, "{{ obj.name|escape }}");'>
               &#10060;
@@ -79,7 +84,7 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan='16'>No users in database</td></tr>
+        <tr><td colspan='17'>No users in database</td></tr>
       {% endfor %}
       {% if users %}
         <tr>
@@ -94,14 +99,12 @@
           <td>&nbsp;</td>
           <td>&nbsp;</td>
           <td align='center'><b>{{ total_thumbs }}</b></td>
-          <td colspan='3'>&nbsp;</td>
-          <td>&nbsp;</td>
+          <td colspan='5'>&nbsp;</td>
         </tr>
         <tr>
           <td colspan='6' align='right'><b><i>TOTAL&nbsp;STORAGE:</i></b></td>
           <td colspan='6' align='center'><b><i>{{ total_file_storage }}</i></b></td>
-          <td colspan='3'>&nbsp;</td>
-          <td>&nbsp;</td>
+          <td colspan='5'>&nbsp;</td>
         </tr>
       {% endif %}
     </table>

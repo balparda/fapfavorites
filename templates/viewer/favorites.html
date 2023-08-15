@@ -7,6 +7,7 @@
 
       th, td {padding: 5px;}
 
+      a.external {text-decoration: none;}
       a.delete {text-decoration: none;}
 
     </style>
@@ -23,7 +24,7 @@
   </head>
   <body bgcolor='black' text='lightgray'>
 
-    <h1>Favorites for User <i>&quot;{{ user_name|escape }}&quot;</i></h1>
+    <h1>Favorites for User <i>&quot;{{ user_name|escape }}&quot;</i> (<a href='{{ url }}' class='external' title='user {{ user_name|escape }} in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>)</h1>
 
     <p>
       <b>{{ album_count }}</b> user favorite albums,
@@ -57,6 +58,7 @@
         <th>StdDev</th>
         <th>Thumbs<br/>Size</th>
         <th>Last&nbsp;Fetch</th>
+        <th>Link</th>
         <th>Del?</th>
       </tr>
       {% for id, obj in favorites.items %}
@@ -76,13 +78,16 @@
           <td align='center'>{{ obj.thumbs_sz }}</td>
           <td>{{ obj.date }}</td>
           <td align='center'>
+            <a href='{{ obj.url }}' class='external' title='album {{ obj.name|escape }} in Imagefap' target='_blank' rel='noopener noreferrer'>&#128279;</a>
+          </td>
+          <td align='center'>
             <a href='javascript:{}' class='delete' onclick='javascript:delete_album({{ id }}, "{{ obj.name|escape }}");'>
               &#10060;
             </a>
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan='15'>No favorites for this user in database</td></tr>
+        <tr><td colspan='16'>No favorites for this user in database</td></tr>
       {% endfor %}
       {% if favorites %}
         <tr>
@@ -98,14 +103,12 @@
           <td>&nbsp;</td>
           <td>&nbsp;</td>
           <td align='center'><b>{{ total_thumbs_sz }}</b></td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
+          <td colspan='3'>&nbsp;</td>
         </tr>
         <tr>
           <td colspan='7' align='right'><b><i>TOTAL&nbsp;STORAGE:</i></b></td>
           <td colspan='6' align='center'><b><i>{{ total_file_storage }}</i></b></td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
+          <td colspan='3'>&nbsp;</td>
         </tr>
       {% endif %}
     </table>
