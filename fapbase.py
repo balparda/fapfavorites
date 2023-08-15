@@ -482,8 +482,11 @@ def ExtractFullImageURL(img_id: int) -> tuple[str, str, str]:
     err.image_id = img_id
     raise
   full_res_urls: list[str] = FULL_IMAGE(img_id).findall(img_html)
-  if len(full_res_urls) != 1:
-    raise Error(f'Invalid full resolution page in {url!r}')
+  if not full_res_urls:
+    # invalid full resolution page
+    invalid_page = Error404(url)
+    invalid_page.image_id = img_id
+    raise invalid_page
   # from the same source extract image file name
   img_name: list[str] = _IMAGE_NAME.findall(img_html)
   if not img_name:

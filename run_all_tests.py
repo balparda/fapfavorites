@@ -28,7 +28,7 @@ _TEST_MODULES_TO_RUN = (
 )
 
 
-@base.Timed('Total imagefap-favorites package test time')
+@base.Timed('fapfavorites tests')
 def Main() -> int:
   """Run all of the tests."""
   logging.info('*' * 80)

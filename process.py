@@ -146,7 +146,7 @@ def _RunExport(database: fapdata.FapDatabase, tag_name: str, renumber_files: boo
          'developing it is useful as Django will reload automatically when you change some '
          'resource, but the drawback (and the reason for the default) is that the app will '
          'initially load twice, taking more time to start')
-@base.Timed('Total Imagefap process.py execution time')
+@base.Timed('Imagefap process.py')
 def Main(operation: str,
          db_dir: str,
          tag_name: str,

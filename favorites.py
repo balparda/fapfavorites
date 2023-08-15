@@ -142,7 +142,7 @@ def _AuditOperation(database: fapdata.FapDatabase, user_id: int, force_audit: bo
     help='Ignore recency check for download/audit of favorite images? Default '
          'is False ("no"). This will force a download/audit even if the album/image '
          'is fresh in the database')
-@base.Timed('Total Imagefap favorites.py execution time')
+@base.Timed('Imagefap favorites.py')
 def Main(operation: str,  # noqa: C901
          user_name: str,
          user_id: int,
