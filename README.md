@@ -130,8 +130,8 @@ images, so you do:
 
 This will start the web app ___in you local computer only___, and
 to see it you just leave `./process.py` running and
-visit http://127.0.0.1:8000/viewer/ in your browser. If your
-database is not in the default location (`~/Downloads/imagefap/`)
+visit http://127.0.0.1:8000/ (or http://localhost:8000/) in your browser.
+If your database is not in the default location (`~/Downloads/imagefap/`)
 you should provide the `--dir` flag to the `./process.py` command.
 If your database is encrypted, when you open the site you will
 be prompted for a database password (only once) in the shell.
@@ -325,7 +325,8 @@ This example will print stats for a database in `~/some-dir/`:
 ```
 
 The exact same stats are showed in the home page at
-http://127.0.0.1:8000/viewer/ (see `process.py RUN` command).
+http://127.0.0.1:8000/ (or http://localhost:8000/
+see `process.py RUN` command).
 
 ### `process.py PRINT` command - _See All The Things!_
 
@@ -343,8 +344,8 @@ the default directory (`~/Downloads/imagefap/`):
 
 The `run` command will start a strictly local web app with the database
 data that will allow you to navigate and view the data and do some tasks.
-The web app will be in http://127.0.0.1:8000/viewer/ and is built for
-function and not for looks.
+The web app will be in http://127.0.0.1:8000/ (or http://localhost:8000/)
+and is built for function and not for looks.
 
 ___Do NOT simultaneously run the web app and other concurrent calls
 to `favorites.py` or `process.py`! You might lose data!___

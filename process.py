@@ -99,7 +99,9 @@ def _RunDjangoServerAndBlock(development_mode: bool) -> None:
     argv.append('--noreload')  # cspell:disable-line
   print('Executing RUN command, server in: '
         f'{base.TERM_MAGENTA}{base.TERM_BOLD}{base.TERM_UNDERLINE}'
-        f'http://127.0.0.1:8000/viewer/{base.TERM_END}')
+        f'http://127.0.0.1:8000/{base.TERM_END} or ('
+        f'{base.TERM_MAGENTA}{base.TERM_BOLD}{base.TERM_UNDERLINE}'
+        f'http://localhost:8000/{base.TERM_END})')
   management.execute_from_command_line(argv)
 
 
@@ -166,7 +168,7 @@ def Main(operation: str,
 
   The `run` command will start a strictly local web app with the database
   data that will allow you to navigate and view the data and do some tasks.
-  Web app will be in http://127.0.0.1:8000/viewer/
+  Web app will be in http://127.0.0.1:8000/ (or http://localhost:8000/)
 
   The `export` command will export tagged images to disk. The files will be
   located in the `/tag_export/` subdirectory of the database location, in
@@ -188,7 +190,7 @@ def Main(operation: str,
 
   \b
   ./process.py run
-  (run local web app in http://127.0.0.1:8000/viewer/)
+  (run local web app in http://127.0.0.1:8000/ or http://localhost:8000/)
 
   \b
   ./process.py export --tag "Favorites"

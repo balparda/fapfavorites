@@ -16,9 +16,11 @@ Including another URLconf
 
 # from django.contrib import admin
 from django import urls
+from django.views import generic
 
 
 urlpatterns = [
+    urls.path('', generic.RedirectView.as_view(url='viewer/', permanent=False)),
     urls.path('viewer/', urls.include('viewer.urls')),
     # urls.path('admin/', admin.site.urls),
 ]
